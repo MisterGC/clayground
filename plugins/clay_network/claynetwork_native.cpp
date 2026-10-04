@@ -5,6 +5,7 @@
 #include "signaling_local.h"
 #include "sender.h"
 #include "handshake.h"
+#include "hostloss.h"
 #include "testhooks.h"
 #include <rtc/rtc.hpp>
 #include <QThread>
@@ -29,6 +30,7 @@ constexpr int kQuietProbeTickMs = 250;
 constexpr int kSignalingRetryFirstMs = 1000;
 constexpr int kSignalingRetryMaxMs = 4000;
 namespace hs = clay::network::handshake;
+namespace hostloss = clay::network::hostloss;
 }
 
 ClayNetwork::ClayNetwork(QObject *parent)
@@ -354,6 +356,7 @@ void ClayNetwork::createRoom()
     if (!ownServer && refuseWhileSignalingDropped())
         return;
 
+    setHostLostReason(QString());
     isHost_ = true;
     status_ = Connecting;
     emit statusChanged();
@@ -423,6 +426,7 @@ void ClayNetwork::joinRoom(const QString &networkId)
     if (refuseWhileSignalingDropped())
         return;
 
+    setHostLostReason(QString());
     isHost_ = false;
     networkId_ = networkId;
     status_ = Connecting;
@@ -964,7 +968,8 @@ void ClayNetwork::setupPeerConnection(const QString &peerId, bool isOfferer)
             // after the grace period (#299)
             if (state == rtc::PeerConnection::State::Failed ||
                 state == rtc::PeerConnection::State::Closed) {
-                peerGone(peerId, QStringLiteral("The connection to the host failed"));
+                peerGone(peerId, hostloss::connectionLost(),
+                         QStringLiteral("The connection to the host failed"));
             }
         });
     });
@@ -1301,7 +1306,7 @@ void ClayNetwork::processMessage(const QString &fromId, const std::string &messa
 
     // A peer that leaves says so (#299)
     if (type == "y" && obj["sys"].toString() == "bye") {
-        peerGone(fromId, QStringLiteral("The host left the network"));
+        peerGone(fromId, hostloss::hostLeft(), QStringLiteral("The host left the network"));
         return;
     }
 
@@ -1626,7 +1631,7 @@ void ClayNetwork::forgetSender(const QString &nodeId)
     replicas_.nodeLeft(nodeId);
 }
 
-void ClayNetwork::peerGone(const QString &peerId, const QString &reason)
+void ClayNetwork::peerGone(const QString &peerId, const QString &reason, const QString &message)
 {
     if (!peers_.contains(peerId) || !peers_[peerId].ready)
         return;
@@ -1634,13 +1639,13 @@ void ClayNetwork::peerGone(const QString &peerId, const QString &reason)
         // Gone in the handshake: no node to report. A joiner has nothing
         // without its host.
         if (!isHost_ && peerId == hostId_)
-            loseHost(reason);
+            loseHost(reason, message);
         else
             cleanupPeer(peerId);
         return;
     }
     if (!isHost_ && topology_ == Star && peerId == hostId_)
-        loseHost(reason);
+        loseHost(reason, message);
     else
         dropPeer(peerId);
 }
@@ -1665,15 +1670,26 @@ void ClayNetwork::dropPeer(const QString &peerId)
     }
 }
 
-void ClayNetwork::loseHost(const QString &reason)
+void ClayNetwork::loseHost(const QString &reason, const QString &message)
 {
-    // Every other node was reached through the host: the network is gone
-    qWarning() << "ClayNetwork:" << reason;
+    // Every other node was reached through the host: the network is gone.
+    // The reason is set first, so a handler on connected can read it (#376).
+    qWarning() << "ClayNetwork:" << message;
+    setHostLostReason(reason);
     const QStringList gone = nodes_;
     tearDown();
     for (const QString &id : gone)
         emit playerLeft(id);
-    emit errorOccurred(reason);
+    emit hostLost(reason, message);
+    emit errorOccurred(message);
+}
+
+void ClayNetwork::setHostLostReason(const QString &reason)
+{
+    if (hostLostReason_ == reason)
+        return;
+    hostLostReason_ = reason;
+    emit hostLostReasonChanged();
 }
 
 // A crashed host never says goodbye (#299). Every peer answers a ping
@@ -1698,7 +1714,8 @@ void ClayNetwork::checkLiveness()
             continue;  // gone with the host
         emitDiag("datachannel", QString("No answer from %1 for %2 ms, dropping it")
                  .arg(peerId.left(8)).arg(now - peers_.value(peerId).unansweredSinceMs));
-        peerGone(peerId, QString("The host did not answer for %1 ms").arg(gracePeriod_));
+        peerGone(peerId, hostloss::hostTimeout(),
+                 QString("The host did not answer for %1 ms").arg(gracePeriod_));
     }
     armLivenessCheck();
 }

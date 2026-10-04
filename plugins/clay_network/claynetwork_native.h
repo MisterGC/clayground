@@ -47,6 +47,7 @@ class ClayNetwork : public QObject
     Q_PROPERTY(QString hostId READ hostId NOTIFY hostIdChanged)
     Q_PROPERTY(bool isHost READ isHost NOTIFY isHostChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+    Q_PROPERTY(QString hostLostReason READ hostLostReason NOTIFY hostLostReasonChanged)
     Q_PROPERTY(int playerCount READ nodeCount NOTIFY nodeCountChanged)
     Q_PROPERTY(QStringList players READ nodes NOTIFY nodesChanged)
     Q_PROPERTY(int maxPlayers READ maxNodes WRITE setMaxNodes NOTIFY maxNodesChanged)
@@ -108,6 +109,7 @@ public:
     QString hostId() const;
     bool isHost() const;
     bool connected() const;
+    QString hostLostReason() const { return hostLostReason_; }
     int nodeCount() const;
     QStringList nodes() const;
     int maxNodes() const;
@@ -208,6 +210,10 @@ signals:
     // The host refused this joiner in the handshake (#323); reason is one
     // of handshake.h's codes, errorOccurred(message) follows
     void joinRefused(const QString &reason, const QString &message);
+    // A joiner lost its host (#376); reason is one of hostloss.h's codes,
+    // already in hostLostReason when connected turned false.
+    // errorOccurred(message) follows
+    void hostLost(const QString &reason, const QString &message);
     // The Cloud signaling connection dropped after it was up. Peers already
     // connected stay; the node reconnects under the same id, and a host
     // takes no new joiners until it is back (acceptingJoins, #299)
@@ -227,6 +233,7 @@ signals:
     void hostIdChanged();
     void isHostChanged();
     void connectedChanged();
+    void hostLostReasonChanged();
     void nodeCountChanged();
     void nodesChanged();
     void maxNodesChanged();
@@ -334,9 +341,12 @@ private:
     void cleanupPeer(const QString &peerId);
     // A peer left - said goodbye, went silent or its connection failed. On
     // a Star joiner the host leaving ends the network (loseHost).
-    void peerGone(const QString &peerId, const QString &reason);
+    // reason is a hostloss.h code, used when the peer is the host
+    void peerGone(const QString &peerId, const QString &reason, const QString &message);
     void dropPeer(const QString &peerId);
-    void loseHost(const QString &reason);
+    void loseHost(const QString &reason, const QString &message);
+    // Empty while the host is not lost, cleared by createRoom()/joinRoom()
+    void setHostLostReason(const QString &reason);
     void sendGoodbye();
     void checkLiveness();
     void armLivenessCheck();
@@ -380,6 +390,7 @@ private:
     QString lanSecret_;  // random part of a LAN code, checked by the host's signaling server
     bool isHost_ = false;
     bool connected_ = false;
+    QString hostLostReason_;
     int maxNodes_ = 8;
     Topology topology_ = Star;
     Status status_ = Disconnected;

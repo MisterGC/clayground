@@ -16,6 +16,7 @@ set(COMMON_SOURCES
     link_conditioner.h
     sender.h
     handshake.h
+    hostloss.h
     statebatch.h
     replica.h
     sessionclock.h
