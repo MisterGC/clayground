@@ -364,8 +364,11 @@ def run(insp, sandbox_dir, attended):
     target = os.path.join(shots, "look.png")
     resp = insp.request({"action": "snapshot",
                          "screenshot": {"path": target}}, timeout=15)
+    # Qt answers with forward slashes, os.path.join builds backslashes on Windows
+    said = resp.get("screenshot") or ""
     check("capture: written to the caller's own path",
-          resp.get("screenshot") == target and os.path.exists(target),
+          os.path.normcase(os.path.normpath(said)) == os.path.normcase(os.path.normpath(target))
+          and os.path.exists(target),
           f"screenshot={resp.get('screenshot')} err={resp.get('screenshotError')}")
 
     gen_before = insp.request({"action": "snapshot"}).get("status", {}).get("generation")
