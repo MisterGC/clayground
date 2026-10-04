@@ -13,7 +13,8 @@ export CMAKE_PREFIX_PATH=~/Qt/6.11.1/gcc_64      # or .../macos, .../msvc2022_64
 
 cmake --preset default            # Release + tests -> ./build
 cmake --build --preset default
-ctest --preset default
+ctest --preset default            # the full suite, 8 tests at a time
+./verify.sh                       # build, then only the tests this change can reach
 ```
 
 `debug` is the same into `build-debug/`. `macos` adds a Homebrew `OPENSSL_ROOT_DIR`
@@ -35,8 +36,33 @@ Three kinds, all under one `ctest`:
 ```bash
 ctest --preset default -R qml_lab_qml        # one suite
 ctest --preset default -L node               # all pure-JS suites
+ctest --preset default -L '^plugins/clay_network$'   # one plugin's tests
 node labs/kits/circuit/circuit.test.js       # a JS suite directly, no build
 ```
+
+`./verify.sh` is the check before a commit or PR: it builds, diffs against the
+branch's base (the closest of `origin/main` and `origin/release/*`, or
+`--base <ref>`), and runs the tests that change can reach - the changed
+plugins and tools, everything that links or QML-imports them (from the CMake
+File API target graph and the `import` lines), and every test whose command
+runs one of their targets. A change to the top-level `CMakeLists.txt`,
+`cmake/`, the presets or anything it cannot map runs everything; so do
+`./verify.sh --all` and CI. `./verify.sh --list` prints the selection and runs
+nothing. The selector is `tools/verify/select_tests.py`.
+
+Every test carries a label naming its component - `plugins/<p>`, `tools/<t>`,
+`examples/<e>`, `labs` - from the directory that registered it
+(`clay_label_tests_by_component`, `cmake/claytest.cmake`). A test that reads
+files of another component outside its command adds that component's label
+by hand (`lab_catalog` reads `docs/` and writes `skills/`).
+
+Tests run in parallel (`execution.jobs` in the test presets), each with a
+settings store of its own (`CLAY_STORAGE_DIR` = `build/test-storage/<test>`).
+A test that starts several processes says so with `PROCESSORS` (the net gyms,
+4); one that needs something no other test may use at the same time says so
+with `RESOURCE_LOCK` - none does today: ports come from the OS, and a test's
+sandbox is a temp copy or, for a lab check, its own lab. Keep it that way
+rather than serializing the suite.
 
 QML suites run with `QT_QPA_PLATFORM=minimal` and `QT_OPENGL=software`. A suite
 that needs a *built* Clayground module (C++ types, singletons) must pass

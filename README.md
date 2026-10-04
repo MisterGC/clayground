@@ -213,7 +213,9 @@ Clayground uses a layered testing approach:
 **Running tests:**
 ```bash
 cmake --preset default && cmake --build --preset default
-ctest --preset default
+ctest --preset default          # the full suite, 8 tests at a time
+./verify.sh                     # build, then the tests your change can reach
+./verify.sh --all               # build, then the full suite
 
 # without presets
 ctest --test-dir build --output-on-failure
