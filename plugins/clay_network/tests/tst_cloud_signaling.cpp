@@ -360,11 +360,14 @@ private slots:
         QCOMPARE(net.status(), ClayNetwork::Error);
     }
 
-    // CLAY_NET_HOLD_MS shortens the 120 s hold for a quick local run; the
-    // server's idle timeout stays at half the hold so the hold always spans it
+    // The hold spans two of the server's idle timeouts, so a host that
+    // stopped beating (every 5 s) would be closed at least once. 20 s does
+    // that against a 10 s timeout; the 120 s it used to hold proved nothing
+    // more and was most of the suite's time (#384). CLAY_NET_HOLD_MS sets a
+    // longer hold - the PeerJS server's own 60 s timeout is 120000.
     void hostJoinableAfterServerIdleTimeout()
     {
-        const int holdMs = envInt("CLAY_NET_HOLD_MS", 120000);
+        const int holdMs = envInt("CLAY_NET_HOLD_MS", 20000);
         FakePeerJSServer server(idleTimeout(holdMs / 2));
         ClayNetwork host;
         host.setSignalingUrl(server.url());
