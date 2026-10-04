@@ -25,6 +25,7 @@ private slots:
     void testSnapshotFlagInfo();
     void snapshotIncludesViewState();
     void viewStateSurvivesReload();
+    void requestWithoutIdIsCarriedOutOnce();
     void testSnapshotLogTail();
     void testSnapshotEval();
     void testEvalAction();
@@ -258,6 +259,37 @@ void TestInspectorDojo::viewStateSurvivesReload()
     QVERIFY(qAbs(vs["camX"].toDouble() - 111.0) < 0.01);
     QVERIFY(qAbs(vs["camY"].toDouble() - 222.0) < 0.01);
     QVERIFY(qAbs(vs["zoom"].toDouble() - 3.5) < 0.01);
+}
+
+// The inspector notices a request both by looking at request.json and through
+// the file watcher, which on macOS reports the same write 0.5 s later. A
+// request with no id - this suite sends none - was carried out at each, so
+// one reload reloaded twice (#384).
+void TestInspectorDojo::requestWithoutIdIsCarriedOutOnce()
+{
+    auto reloadCount = [this]() {
+        QFile f(m_inspectDir + "/state.json");
+        if (!f.open(QIODevice::ReadOnly))
+            return -1;
+        return QJsonDocument::fromJson(f.readAll()).object()["reloadCount"].toInt(-1);
+    };
+    const int before = reloadCount();
+    QVERIFY(before >= 0);
+
+    QJsonObject reloadReq;
+    reloadReq["action"] = "reload";
+    QVERIFY(writeRequest(reloadReq));
+    QVERIFY2(!waitForResponse().isEmpty(), "No response for reload");
+
+    // Past the watcher's late report of the same write
+    QTest::qWait(1500);
+    QCOMPARE(reloadCount(), before + 1);
+
+    QJsonObject waitReq;
+    waitReq["action"] = "waitForRoot";
+    waitReq["timeoutMs"] = 8000;
+    QVERIFY(writeRequest(waitReq));
+    QVERIFY2(!waitForResponse(12000).isEmpty(), "No response for waitForRoot");
 }
 
 void TestInspectorDojo::testSnapshotLogTail()
