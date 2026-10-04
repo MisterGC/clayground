@@ -1,0 +1,7 @@
+# (c) Clayground Contributors - MIT License, see "LICENSE" file
+#
+# Patches are applied byte for byte: a CRLF checkout (core.autocrlf=true,
+# the Windows default) turns them "corrupt" for git apply and configure
+# fails (#383). Git applies an LF patch to CRLF sources fine.
+*.patch -text
+*.diff -text
