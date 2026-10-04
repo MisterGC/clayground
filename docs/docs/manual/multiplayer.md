@@ -302,7 +302,9 @@ Give the `Network` an id other than `network`: inside a `ReplicatedObject`,
 - **Late joiners see the world.** The host sends a node that joins every
   live object with its owner and last state, then the session properties
   (`setSessionProperty`, `sessionProperties`) - a seed or the level travel
-  this way instead of a start message a late joiner would miss.
+  this way instead of a start message a late joiner would miss. A value may
+  be an object or an array, anything JSON carries, and `sessionProperties`
+  already holds it when `sessionPropertyChanged` fires.
 - **When the owner leaves**, each of its objects despawns or passes to the
   host, as it was spawned: `{onOwnerLeft: "despawn"}` (default) for an
   avatar, `"host"` for an item that should stay in the world.

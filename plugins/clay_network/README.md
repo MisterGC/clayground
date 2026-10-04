@@ -87,7 +87,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `objectDespawned(id, type)` | A replicated object is gone: despawned, its owner left, or the network ended |
 | `objectOwnerChanged(id, owner)` | A replicated object has a new owner |
 | `objectStateReceived(id, data, sentAt)` | The owner of an object sent its state; nobody else's arrives |
-| `sessionPropertyChanged(name, value)` | The host set a session property |
+| `sessionPropertyChanged(name, value)` | The host set a session property; `sessionProperties` already holds it |
 | `diagnosticMessage(phase, detail)` | Diagnostic info (when verbose) |
 | `connectionTimedOut()` | Connection attempt timed out |
 
@@ -110,7 +110,7 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `setOwner(id, nodeId)` | Hand an object over (its owner or the host) |
 | `objectOwner(id)`, `objectInfo(id)`, `objects([type])` | Read the object table |
 | `sendObjectState(id, data)`, `settleObjectState(id, data)` | The owner's state of an object, lossy or reliably; `ReplicatedObject` does it for you |
-| `setSessionProperty(name, value)` | Host: a property every node, and every late joiner, gets |
+| `setSessionProperty(name, value)` | Host: a property every node, and every late joiner, gets - any JSON value, objects and arrays included |
 
 ## The Session Clock
 
@@ -436,7 +436,10 @@ to nothing.
   ```
 - **Late joiners.** Right after its welcome a joiner gets every live object
   with its owner, `onOwnerLeft` and last state, then the session properties
-  the host set with `setSessionProperty(name, value)` - a seed, the level.
+  the host set with `setSessionProperty(name, value)` - a seed, the level,
+  or an object or array of them: any value JSON carries arrives whole.
+  `sessionProperties` already holds a value when `sessionPropertyChanged`
+  fires for it, so a handler may read the whole map.
 - **When an owner leaves**, each of its objects despawns
   (`onOwnerLeft: "despawn"`, the default) or passes to the host
   (`"host"`), as it was spawned. When the host leaves, the network ends and
