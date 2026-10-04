@@ -21,12 +21,18 @@ an absolute URL after boot - the way docs/assets/js/webdojo.js does it. The
 starter directory then only supplies the runtime files. --site-gate adds a
 second QML file next to the example, loaded once the example itself is up.
 
+--reload-expect reloads the page once it has loaded (and printed --expect)
+and requires the reloaded page to print the given marker - for whatever a
+page has to keep across a reload, such as what it stored (#341). The reload
+stays in the same browser profile, so IndexedDB carries over as it would for
+a player.
+
 Usage:
     python3 wasm_smoke_test.py <starter-dir> [--screenshot out.png] [--timeout 180]
                                [--overlay dir] [--expect "marker"] [--click]
                                [--audio-probe] [--require-audible p1,p2]
                                [--site-example src[:name]] [--site-entry Sandbox.qml]
-                               [--site-gate file.qml]
+                               [--site-gate file.qml] [--reload-expect "marker"]
 
 Requires: pip install playwright
 Uses the system Chrome when available, otherwise a Playwright-managed
@@ -199,7 +205,13 @@ def main():
     ap.add_argument("--site-gate", default="",
                     help="QML file copied next to --site-example and loaded "
                          "after it - a page that drives the example's assets")
+    ap.add_argument("--reload-expect", default="",
+                    help="reload the page after it loaded and printed --expect, "
+                         "and require the reloaded page to print this marker")
     args = ap.parse_args()
+    if args.reload_expect and args.site_example:
+        print("FAIL: --reload-expect is not supported with --site-example")
+        return 2
     if args.require_audible:
         args.audio_probe = True
     if args.site_gate and not args.site_example:
@@ -271,6 +283,9 @@ def run(args, serve_dir):
     runtime_ready = not args.site_example
     # No --expect means nothing extra to wait for.
     marker_seen = not args.expect
+    # Set to the marker the reloaded page must print, once the reload is due.
+    reload_marker = ""
+    reloaded_ok = not args.reload_expect
     errors = []
     phase = "start"
     # phase name -> {"rms": loudest sample, "samples": n, "state": last
@@ -303,6 +318,7 @@ def run(args, serve_dir):
 
         def on_console(msg):
             nonlocal booted, qml_loaded, marker_seen, modules_ok, fs_ok, phase
+            nonlocal reloaded_ok
             text = msg.text
             print(f"[console] {text}")
             if PHASE_MARKER in text:
@@ -313,6 +329,8 @@ def run(args, serve_dir):
                 qml_loaded = True
             if args.expect and args.expect in text:
                 marker_seen = True
+            if reload_marker and reload_marker in text:
+                reloaded_ok = True
             if MODULES_OK_MARKER in text:
                 modules_ok = True
             if FS_OK_MARKER in text:
@@ -371,6 +389,14 @@ def run(args, serve_dir):
                 wait_until(lambda: qml_loaded and marker_seen)
         else:
             wait_until(lambda: qml_loaded and marker_seen)
+            if args.reload_expect and qml_loaded and marker_seen and not errors:
+                # The second life of the page must start from scratch: what it
+                # finds can only have come through the reload.
+                booted = qml_loaded = False
+                reload_marker = args.reload_expect
+                print("Reloading the page")
+                page.reload()
+                wait_until(lambda: booted and qml_loaded and reloaded_ok)
         page.wait_for_timeout(1500)  # let trailing errors and rendering arrive
         if args.screenshot:
             page.screenshot(path=args.screenshot)
@@ -420,6 +446,9 @@ def run(args, serve_dir):
     if not marker_seen:
         print(f"FAIL: page never printed {args.expect!r}")
         return 1
+    if not reloaded_ok:
+        print(f"FAIL: the reloaded page never printed {args.reload_expect!r}")
+        return 1
     for name in (n.strip() for n in args.require_audible.split(",") if n.strip()):
         slot = audio.get(name)
         if not slot or not slot["samples"]:
@@ -437,6 +466,8 @@ def run(args, serve_dir):
         return 1
     what = (f"{args.site_dir}/{args.site_entry} loaded through the site's dojo shell"
             if args.site_example else "Main.qml loaded")
+    if args.reload_expect:
+        what += f", reloaded page printed {args.reload_expect!r}"
     print(f"PASS: runtime booted, {what}, all required QML modules available, "
           f"/game/ FS works")
     return 0
