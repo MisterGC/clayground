@@ -161,6 +161,19 @@ Item {
     property var angleKeys: []
 
     /*!
+        \qmlproperty list StateInterpolator::stepKeys
+        \brief State keys whose numbers are never blended (default none).
+
+        A number under such a key - a health value, a counter, an index -
+        switches with its snapshot, like a string: \l value holds the one
+        of the newest snapshot at or before the render time, so it shows
+        only numbers that were pushed, at the same delay as the blended
+        keys. Without it, a health value going 52 -> 49 shows 50.5 on the
+        way.
+    */
+    property var stepKeys: []
+
+    /*!
         \qmlproperty var StateInterpolator::value
         \brief The current interpolated state (same keys as pushed states).
 
@@ -187,7 +200,8 @@ Item {
     */
     signal updated()
 
-    onAngleKeysChanged: internal.refreshAngles()
+    onAngleKeysChanged: internal.refreshKinds()
+    onStepKeysChanged: internal.refreshKinds()
 
     onAutoDelayChanged: {
         if (autoDelay) {
@@ -308,10 +322,10 @@ Item {
         property int count: 0
         property var current: ({})
 
-        // The keys of the states pushed and which of them are angles,
-        // shared by every snapshot of that shape, so blending walks a
-        // list instead of enumerating keys and searching angleKeys per
-        // frame (#305)
+        // The keys of the states pushed and which of them are angles or
+        // stepped, shared by every snapshot of that shape, so blending
+        // walks a list instead of enumerating keys and searching
+        // angleKeys and stepKeys per frame (#305)
         property var shape: null
         function shapeOf(state) {
             let k = Object.keys(state);
@@ -321,16 +335,19 @@ Item {
                 for (let i = 0; i < k.length && same; ++i) same = sh.k[i] === k[i];
                 if (same) return sh;
             }
-            sh = {k: k, ang: k.map(key => root.angleKeys.indexOf(key) >= 0)};
+            sh = {k: k, ang: k.map(key => root.angleKeys.indexOf(key) >= 0),
+                  step: k.map(key => root.stepKeys.indexOf(key) >= 0)};
             shape = sh;
             return sh;
         }
-        function refreshAngles() {
+        function refreshKinds() {
             shape = null;
             for (let i = 0; i < buffer.length; ++i) {
                 let sh = buffer[i].sh;
-                for (let j = 0; j < sh.k.length; ++j)
+                for (let j = 0; j < sh.k.length; ++j) {
                     sh.ang[j] = root.angleKeys.indexOf(sh.k[j]) >= 0;
+                    sh.step[j] = root.stepKeys.indexOf(sh.k[j]) >= 0;
+                }
             }
         }
 
@@ -472,7 +489,10 @@ Item {
         }
 
         // Blend the states of snapshots a and b into the next value
-        // object, over b's keys
+        // object, over b's keys. A stepped number is a's until the render
+        // time reaches b - f is 1 there, and past it while extrapolating -
+        // so it is the snapshot's value at the render time, never one
+        // between two (#368).
         function blend(a, b, f) {
             let sa = a.s, sb = b.s, sh = b.sh;
             outTurn = !outTurn;
@@ -484,11 +504,13 @@ Item {
                 if (outShape0 !== sh) { out0 = {}; outShape0 = sh; }
                 out = out0;
             }
-            let keys = sh.k, ang = sh.ang;
+            let keys = sh.k, ang = sh.ang, step = sh.step;
             for (let i = 0; i < keys.length; ++i) {
                 let k = keys[i];
                 let va = sa[k], vb = sb[k];
-                if (typeof va === "number" && typeof vb === "number")
+                if (step[i])
+                    out[k] = f < 1 && va !== undefined ? va : vb;
+                else if (typeof va === "number" && typeof vb === "number")
                     out[k] = lerp(va, vb, f, ang[i]);
                 else
                     out[k] = vb;
