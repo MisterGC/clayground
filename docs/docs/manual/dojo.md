@@ -74,10 +74,14 @@ default (GLSL 100 es/120/150, HLSL 50, MSL 12) plus GLSL 300 es, which the
 browser runtime needs: WebGL2 refuses to link a fragment shader of another
 version than its 300 es vertex shaders. So the same `.qsb` files work when
 the game is served to the web runtime. For the shipped app, bake the same
-files into the resources at the same relative path:
+files into the resources at the same relative path, with 300 es added to
+`qt_add_shaders()`' GLSL list — without it the app works on the desktop and
+draws nothing of that effect in the browser:
 
 ```cmake
-qt_add_shaders(my_game "my_game_shaders" PREFIX "/" FILES src/shaders/floor.frag)
+qt_add_shaders(my_game "my_game_shaders" PREFIX "/"
+    GLSL "100 es,120,150,300 es"
+    FILES src/shaders/floor.frag)
 ```
 
 Keep `*.qsb` out of version control — they are build output. Set `CLAY_QSB`
