@@ -20,7 +20,8 @@
 // the host runs thirty enemies at 20 Hz - a position and a mood string - a
 // joiner runs its avatar, the host sets session properties - numbers,
 // strings, an object, an array - and every node reports what it shows of
-// them, and what sessionProperties held as sessionPropertyChanged fired. The tracked stream's gaps are kept, so a
+// them, and what sessionProperties held as sessionPropertyChanged fired;
+// a message and an object's spawn props carry nested objects and arrays. The tracked stream's gaps are kept, so a
 // driver can tell a lost state from one the link held up (#307).
 
 import QtQuick
@@ -73,7 +74,7 @@ Item {
     property real lastFromHostAt: 0
     function resetLogs() {
         leftLog = []; joinedLog = []; lastError = ""; refusedReason = ""
-        reasonAtDisconnect = ""; lostReason = ""; sessionSeen = []
+        reasonAtDisconnect = ""; lostReason = ""; sessionSeen = []; nestedSeen = null
         signalingLosses = 0; leftAt = 0; disconnectedAt = 0
     }
     function leaveNow() { leftAt = Date.now(); net.leave() }
@@ -199,6 +200,8 @@ Item {
     }
     // Every sessionPropertyChanged, as {name, value, inMap} (#375)
     property var sessionSeen: []
+    // The last broadcast with a nested payload, as it arrived (#375)
+    property var nestedSeen: null
     // What this node shows of every object, by id
     function objectsReport() {
         let out = {}
@@ -210,6 +213,9 @@ Item {
             }
         return JSON.stringify({objects: out, session: net.sessionProperties,
                                sessionSeen: gym.sessionSeen,
+                               nestedSeen: gym.nestedSeen,
+                               propsOf: net.objects("gymProp").reduce(
+                                   (m, o) => (m[o.id] = o.props, m), {}),
                                seqEntries: net._objectSequenceEntries()})
     }
     Timer {
@@ -371,6 +377,7 @@ Item {
         }
         onMessageReceived: (from, data, sentAt) => {
             if (from === net.hostId) gym.lastFromHostAt = Date.now()
+            if (data.nested !== undefined) gym.nestedSeen = data.nested
             gym.msgLog = gym.msgLog.concat([{from: from, probe: data.probe, i: data.i,
                                              st: data.st, sentAt: sentAt, at: net.sessionTime}])
         }
