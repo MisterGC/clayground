@@ -127,7 +127,7 @@ some in-app webviews do not.
 The bundle you download **is** a specific runtime version — deployed games
 never change behind your back. Check which version you're running in the
 browser console: the runtime prints
-`Clayground Web Runtime v2026.7 (Qt 6.10.1)` on startup, and
+`Clayground Web Runtime v2026.8 (Qt 6.10.1)` on startup, and
 `RUNTIME-MANIFEST.json` carries the same data.
 
 To update (e.g. after a security patch release — see
