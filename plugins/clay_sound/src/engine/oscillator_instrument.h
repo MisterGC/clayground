@@ -9,6 +9,7 @@
 
 #include "instrument.h"
 #include "oscillator_voice.h"
+#include <cstddef>
 #include <memory>
 #include <unordered_map>
 

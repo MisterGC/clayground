@@ -7,6 +7,7 @@
 #pragma once
 
 #include "scheduler.h"
+#include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <vector>
