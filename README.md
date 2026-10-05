@@ -127,13 +127,12 @@ ctest --preset default
 ```
 
 `cmake --preset default` configures a Release build with tests into `build/`,
-with the Ninja generator, and sets `CMAKE_POLICY_VERSION_MINIMUM=3.5`, which
-the libdatachannel dependencies need under CMake 4. `--preset debug` is the
-same into `build-debug/`. Ninja has to be on the `PATH` (Qt's installer puts
-one in `~/Qt/Tools/Ninja`, or `brew install ninja` / `apt install ninja-build`;
-on Windows, configure from a Visual Studio developer prompt). A `build/` made
-with another generator before cannot be reconfigured by the preset: remove it,
-or configure it with `cmake build`.
+with the Ninja generator. `--preset debug` is the same into `build-debug/`.
+Ninja has to be on the `PATH` (Qt's installer puts one in `~/Qt/Tools/Ninja`,
+or `brew install ninja` / `apt install ninja-build`; on Windows, configure
+from a Visual Studio developer prompt). A `build/` made with another generator
+before cannot be reconfigured by the preset: remove it, or configure it with
+`cmake build`.
 
 #### A fresh checkout or worktree
 
@@ -176,7 +175,7 @@ Without presets (CMake < 3.21, or a one-off configuration) the explicit form
 still works:
 
 ```bash
-cmake -B build -DCMAKE_PREFIX_PATH=~/Qt/6.11.1/macos -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_TESTING=ON
+cmake -B build -DCMAKE_PREFIX_PATH=~/Qt/6.11.1/macos -DBUILD_TESTING=ON
 cmake --build build
 ```
 
