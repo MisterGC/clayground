@@ -13,9 +13,11 @@ set -uo pipefail
 
 exe=$1
 log=$(mktemp)
+# The package's path with symlinks resolved (pwd -P), as the loader reports
+# what it loads: on macOS /tmp and /var are symlinks into /private
 case "$(uname -s)" in
-    Darwin) trace="DYLD_PRINT_LIBRARIES=1"; pkg=$(cd "$(dirname "$exe")/../.." && pwd) ;;
-    *) trace="LD_DEBUG=libs"; pkg=$(cd "$(dirname "$exe")/.." && pwd) ;;
+    Darwin) trace="DYLD_PRINT_LIBRARIES=1"; pkg=$(cd "$(dirname "$exe")/../.." && pwd -P) ;;
+    *) trace="LD_DEBUG=libs"; pkg=$(cd "$(dirname "$exe")/.." && pwd -P) ;;
 esac
 env -i HOME="$HOME" PATH=/usr/bin:/bin QT_QPA_PLATFORM=minimal "$trace" \
     "$exe" > "$log" 2>&1
