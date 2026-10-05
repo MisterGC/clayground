@@ -27,12 +27,17 @@ page has to keep across a reload, such as what it stored (#341). The reload
 stays in the same browser profile, so IndexedDB carries over as it would for
 a player.
 
+--type clicks the loaded page at a point and types a text with real mouse
+and keyboard events, and requires the page to print "TYPED:<text>" - for a
+TextInput that has to get the keys a person types (#405).
+
 Usage:
     python3 wasm_smoke_test.py <starter-dir> [--screenshot out.png] [--timeout 180]
                                [--overlay dir] [--expect "marker"] [--click]
                                [--audio-probe] [--require-audible p1,p2]
                                [--site-example src[:name]] [--site-entry Sandbox.qml]
                                [--site-gate file.qml] [--reload-expect "marker"]
+                               [--type "x,y:text"]
 
 Requires: pip install playwright
 Uses the system Chrome when available, otherwise a Playwright-managed
@@ -94,6 +99,8 @@ SITE_SHELL = os.path.join(
 # A page prints "PHASE:<name>" to open a phase; audio samples are booked on
 # the phase that was open when they were taken.
 PHASE_MARKER = "PHASE:"
+# A page prints "TYPED:<text>" with what its TextInput holds (--type).
+TYPED_MARKER = "TYPED:"
 # Peak RMS over a sampling window below this counts as silence. Digital
 # silence measures exactly 0.0, a triggered effect at default volume two
 # orders of magnitude above this - anything in between is not a real signal.
@@ -211,7 +218,14 @@ def main():
     ap.add_argument("--reload-expect", default="",
                     help="reload the page after it loaded and printed --expect, "
                          "and require the reloaded page to print this marker")
+    ap.add_argument("--type", default="",
+                    help="after the page loaded and printed --expect, click it "
+                         "at x,y and type text: \"x,y:text\"; the page must "
+                         "then print TYPED:<text>")
     args = ap.parse_args()
+    if args.type and (args.site_example or args.reload_expect):
+        print("FAIL: --type is not supported with --site-example or --reload-expect")
+        return 2
     if args.reload_expect and args.site_example:
         print("FAIL: --reload-expect is not supported with --site-example")
         return 2
@@ -289,6 +303,8 @@ def run(args, serve_dir):
     # Set to the marker the reloaded page must print, once the reload is due.
     reload_marker = ""
     reloaded_ok = not args.reload_expect
+    type_at, _, type_text = args.type.partition(":")
+    typed_ok = not args.type
     errors = []
     phase = "start"
     # phase name -> {"rms": loudest sample, "samples": n, "state": last
@@ -321,11 +337,14 @@ def run(args, serve_dir):
 
         def on_console(msg):
             nonlocal booted, qml_loaded, marker_seen, modules_ok, fs_ok, phase
-            nonlocal reloaded_ok
+            nonlocal reloaded_ok, typed_ok
             text = msg.text
             print(f"[console] {text}")
             if PHASE_MARKER in text:
                 phase = text.split(PHASE_MARKER, 1)[1].strip()
+            if args.type and TYPED_MARKER in text \
+                    and text.split(TYPED_MARKER, 1)[1] == type_text:
+                typed_ok = True
             if BOOT_MARKER in text:
                 booted = True
             if QML_OK_MARKER in text:
@@ -405,6 +424,15 @@ def run(args, serve_dir):
                 print("Reloading the page")
                 page.reload()
                 wait_until(lambda: booted and qml_loaded and reloaded_ok)
+            if args.type and qml_loaded and marker_seen and not errors:
+                # What a person does: move there, press, release, then one key
+                # after the other - no fill(), which would bypass the focus
+                # the click leaves behind
+                x, y = (int(v) for v in type_at.split(","))
+                page.mouse.click(x, y)
+                page.wait_for_timeout(500)
+                page.keyboard.type(type_text, delay=100)
+                wait_until(lambda: typed_ok)
         page.wait_for_timeout(1500)  # let trailing errors and rendering arrive
         if args.screenshot:
             page.screenshot(path=args.screenshot)
@@ -457,6 +485,10 @@ def run(args, serve_dir):
     if not reloaded_ok:
         print(f"FAIL: the reloaded page never printed {args.reload_expect!r}")
         return 1
+    if not typed_ok:
+        print(f"FAIL: typed {type_text!r} at {type_at}, the page never printed "
+              f"{TYPED_MARKER + type_text!r} - the keys did not reach the field")
+        return 1
     for name in (n.strip() for n in args.require_audible.split(",") if n.strip()):
         slot = audio.get(name)
         if not slot or not slot["samples"]:
@@ -476,6 +508,8 @@ def run(args, serve_dir):
             if args.site_example else "Main.qml loaded")
     if args.reload_expect:
         what += f", reloaded page printed {args.reload_expect!r}"
+    if args.type:
+        what += f", typed {type_text!r} into the page"
     print(f"PASS: runtime booted, {what}, all required QML modules available, "
           f"/game/ FS works")
     return 0
