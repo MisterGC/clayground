@@ -597,11 +597,16 @@ Item {
                 // move costs you your place for no reason, which is worse than
                 // one that never moves.
                 function ensureVisible(item) {
-                    var pad = 6;
+                    // The padding gives way before the card does: a card
+                    // exactly as tall as the list is shown whole, not with its
+                    // top 6 px over the edge for the sake of a gap below it.
+                    // Windows fonts wrapped a note into just that height (#330).
+                    var room = height - item.height;
+                    var pad = room < 0 ? 6 : Math.min(6, room / 2);
                     var top = item.y - pad;
                     var bottom = item.y + item.height + pad;
                     var target = contentY;
-                    if (bottom - top > height) {
+                    if (room < 0) {
                         // Taller than the list itself, so one end of it has to
                         // go over the edge. It is the top that goes: the caret
                         // is at the bottom, and a card you are writing in whose
