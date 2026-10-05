@@ -466,12 +466,18 @@ def check_determinism(rep, spawn, lab_dir, lab_id, scenarios, steps, workdir):
 
 
 def first_difference(a, b):
-    """The first line the two records disagree on - the number to look at."""
-    la = open(a, encoding="utf-8", errors="replace").read().splitlines()
-    lb = open(b, encoding="utf-8", errors="replace").read().splitlines()
+    """The first line the two records disagree on - the number to look at.
+    Lines keep their endings, so a line-ending difference (a CRLF checkout
+    on Windows) shows as one rather than as two identical-looking lines."""
+    la = open(a, encoding="utf-8", errors="replace", newline="").read().splitlines(True)
+    lb = open(b, encoding="utf-8", errors="replace", newline="").read().splitlines(True)
     for i in range(min(len(la), len(lb))):
         if la[i] != lb[i]:
-            return f"line {i + 1}: {la[i][:70]!r} vs {lb[i][:70]!r}"
+            body_a, body_b = la[i].rstrip("\r\n"), lb[i].rstrip("\r\n")
+            if body_a == body_b:
+                return (f"line {i + 1}: line endings differ, "
+                        f"{la[i][len(body_a):]!r} vs {lb[i][len(body_b):]!r}")
+            return f"line {i + 1}: {body_a[:70]!r} vs {body_b[:70]!r}"
     return f"{len(la)} vs {len(lb)} lines"
 
 
@@ -637,18 +643,24 @@ def check_records(rep, lab_dir, workdir, render):
                                + (tail[-1][:120] if tail else "")) and all_ok
             continue
         drifted = []
+        first_diff = None
         for name in sorted(os.listdir(committed)):
             if not name.endswith(".labrec"):
                 continue
             fresh = os.path.join(out, name)
             if not os.path.isfile(fresh):
                 drifted.append(name + " (not regenerated)")
-            elif open(fresh, "rb").read() != open(os.path.join(committed, name), "rb").read():
+                continue
+            kept = os.path.join(committed, name)
+            if open(fresh, "rb").read() != open(kept, "rb").read():
                 drifted.append(name)
+                first_diff = first_diff or f"{name} {first_difference(kept, fresh)}"
         all_ok = rep.check(
             f"records: {label} regenerates to the committed bytes", not drifted,
             ", ".join(drifted[:4]) if drifted
             else f"{len(os.listdir(out))} records") and all_ok
+        if first_diff:
+            rep.note(f"records: first difference in {first_diff}")
     return all_ok
 
 
