@@ -1,0 +1,30 @@
+libdatachannel v0.21.2: the bundled plog and usrsctp ask for CMake 3.0, which CMake 4 refuses (#334)
+
+CMake 4 removed compatibility with versions below 3.5, so configuring
+libdatachannel stopped at deps/plog unless the caller passed
+-DCMAKE_POLICY_VERSION_MINIMUM=3.5. Both now ask for 3.5, which is the
+policy version that flag gave them.
+
+diff --git a/deps/plog/CMakeLists.txt b/deps/plog/CMakeLists.txt
+index 57c1f51..7720d88 100644
+--- a/deps/plog/CMakeLists.txt
++++ b/deps/plog/CMakeLists.txt
+@@ -1,4 +1,4 @@
+-cmake_minimum_required(VERSION 3.0)
++cmake_minimum_required(VERSION 3.5)
+ 
+ project(plog VERSION 1.1.10 LANGUAGES CXX)
+ 
+diff --git a/deps/usrsctp/CMakeLists.txt b/deps/usrsctp/CMakeLists.txt
+index 3fc4ec6..6ea62d4 100644
+--- a/deps/usrsctp/CMakeLists.txt
++++ b/deps/usrsctp/CMakeLists.txt
+@@ -30,7 +30,7 @@
+ #
+ 
+ project(usrsctplib C)
+-cmake_minimum_required(VERSION 3.0)
++cmake_minimum_required(VERSION 3.5)
+ 
+ # Debug build type as default
+ if (NOT CMAKE_BUILD_TYPE)
