@@ -385,6 +385,23 @@ jobs:
           --screenshot world-fx.png \
           --timeout 90
 
+    # A click Qt does not take lets the browser move focus to <body>, and the
+    # runtime page gives it back. It used to give it to the first window's
+    # input: with a Window root that is the runtime's own 0x0 window, whose
+    # input cannot take focus, so a TextInput got no key (#405). The window
+    # page clicks a field over a full-window MouseArea and types; the item
+    # page checks that a single-window app still gets the keys.
+    - name: Text Input Regression
+      if: matrix.group == 'pages'
+      run: |
+        for page in text-input-window text-input; do
+          python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+            --overlay tools/webdojo/tests/pages/$page \
+            --expect "text-input: ready" \
+            --type "200,64:Join ab1CD" \
+            --timeout 90
+        done
+
     - name: Music Regression
       if: matrix.group == 'pages'
       run: |
