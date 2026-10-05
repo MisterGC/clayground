@@ -5,3 +5,8 @@
 # fails (#383). Git applies an LF patch to CRLF sources fine.
 *.patch -text
 *.diff -text
+
+# A lab record is compared byte for byte with what records/make.sh writes,
+# and the recorder writes LF everywhere; a CRLF checkout failed every lab
+# gate with records on Windows (#330).
+*.labrec text eol=lf
