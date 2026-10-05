@@ -283,3 +283,6 @@ macro(clay_app CLAY_APP_NAME)
 
     qt_import_qml_plugins(${PROJECT_NAME})
 endmacro()
+
+# clay_app_package(): an opt-in package target for an app built with clay_app
+include(clayapppackage)
