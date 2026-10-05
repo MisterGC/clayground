@@ -29,9 +29,14 @@ clay_plugin( World
         ClayPhysics
 )
 
+# Qt's default GLSL list plus 300 es: WebGL2's vertex shaders are 300 es and
+# it refuses to link a fragment shader of another version, so without it
+# lights and screen effects drew nothing in the browser (#330).
 qt6_add_shaders(ClayWorld "clay_world_shaders"
     PREFIX
         "/qt/qml/Clayground/World"
+    GLSL
+        "100 es,120,150,300 es"
     FILES
         anchored_mask.frag
         light_layer.frag
