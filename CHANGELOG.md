@@ -83,6 +83,7 @@ is opt-in.
 - Patch files and lab records broke in a CRLF checkout on Windows. (#383, #330)
 - Under Qt 6.10 a hot reload in the dojo showed the previous file instead of the saved one. (#385)
 - `LightLayer2d`, `ScreenFx2d` and `AnchoredMask` drew nothing in the browser: their shaders were baked without GLSL 300 es, which WebGL2 needs to link them. The webdojo smoke test now fails on a shader link error, and the `qt_add_shaders()` example for games in the dojo manual adds 300 es. (#330)
+- In the browser, a `TextInput` in a game whose root is a `Window` got no keys: after a click the runtime page gave focus to the input of its own hidden window. It now gives it to the window clicked, and only when Qt holds none. (#405)
 - A note card exactly as tall as the annotation list was scrolled 6 px past its top. (#330)
 - `Poly.closed` was always true, so every open poly drew a closing edge. (#272)
 
