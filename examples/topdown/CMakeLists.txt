@@ -24,3 +24,7 @@ clay_app( sbx_world3d
 
     RES_FILES map.svg
 )
+
+# A package that starts on a machine without Qt; CI builds and starts it
+# (.github/workflows/package.yml): cmake --build build --target sbx_world3d_package
+clay_app_package(sbx_world3d NAME "Clay Topdown" FILE_NAME ClayTopdown)
