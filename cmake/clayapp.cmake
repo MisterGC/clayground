@@ -122,6 +122,19 @@ macro(clay_app CLAY_APP_NAME)
     # Add include path for generated clayground_app_cfg.h
     target_include_directories(${PROJECT_NAME} PRIVATE ${CLAY_APP_CFG_DIR})
 
+    # Where the app's QML sources live: the QML is compiled into the
+    # executable, so a deploy tool scanning for what the app imports needs
+    # the source directories (clay_app_package).
+    set(_clay_app_qml_dirs "")
+    foreach(_clay_app_qml ${CLAY_APP_QML_FILES})
+        get_filename_component(_clay_app_qml_dir "${_clay_app_qml}" ABSOLUTE
+                               BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}")
+        get_filename_component(_clay_app_qml_dir "${_clay_app_qml_dir}" DIRECTORY)
+        list(APPEND _clay_app_qml_dirs "${_clay_app_qml_dir}")
+    endforeach()
+    list(REMOVE_DUPLICATES _clay_app_qml_dirs)
+    set_target_properties(${PROJECT_NAME} PROPERTIES CLAY_APP_QML_DIRS "${_clay_app_qml_dirs}")
+
     if(APPLE)
         # Adds FFMPEG dylibs to the app package, this
         # works for dev builds but the results get refused by the app store
