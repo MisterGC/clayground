@@ -4,10 +4,11 @@
 # PROJECT BASICS
 # ===============
 
-# Policy must be set before project() to allow VERSION in project()
-if(POLICY CMP0048)
-    cmake_policy(SET CMP0048 NEW)
-endif()
+# Before project(): it sets the policies project() itself runs under, and
+# CMake warns when the top-level project() comes first. 3.20 also brings
+# CMP0048 NEW, which VERSION in project() needs.
+set(CLAY_CMAKE_MIN_VERSION 3.20 CACHE INTERNAL "")
+cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_CONTENT)
 string(STRIP "${VERSION_CONTENT}" CLAYGROUND_VERSION)
@@ -79,9 +80,6 @@ endif()
 # ===================
 # BASIC REQUIREMENTS
 # ===================
-
-set(CLAY_CMAKE_MIN_VERSION 3.20 CACHE INTERNAL "")
-cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 
 set(CLAY_CXX_STANDARD 17 CACHE INTERNAL "")
 clay_check_cxx_requirements(MIN_CXX_STANDARD ${CLAY_CXX_STANDARD})
