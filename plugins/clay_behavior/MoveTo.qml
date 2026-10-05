@@ -17,6 +17,11 @@ import Clayground.World
     position. It uses velocity adjustments to smoothly move the actor
     and detects arrival using collision sensors.
 
+    It re-aims every 100 ms of simulated time, counted on the steps of
+    the world's physics (see PhysicsTimer): while the world is paused it
+    does not re-aim, and a single-stepped world takes the same path on
+    every run.
+
     Example usage:
     \qml
     import Clayground.Behavior
@@ -171,7 +176,16 @@ Rectangle {
         _destWp.height = behavior.height;
     }
 
-    Timer{id: _veloAdaptor; interval: 100; repeat: true; onTriggered: _adaptVelocity() }
+    // Re-aims on the world's simulated time, not on wall clock: a pause,
+    // a single step or a hit stop holds it with the bodies it moves, and a
+    // stepped run takes the same path every time (#340).
+    PhysicsTimer {
+        id: _veloAdaptor
+        world: behavior.world ? behavior.world.physics : null
+        interval: 100
+        repeat: true
+        onTriggered: behavior._adaptVelocity()
+    }
 
     function _adaptVelocity(){
         if (!behavior.running) {

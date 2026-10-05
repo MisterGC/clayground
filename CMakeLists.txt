@@ -4,10 +4,11 @@
 # PROJECT BASICS
 # ===============
 
-# Policy must be set before project() to allow VERSION in project()
-if(POLICY CMP0048)
-    cmake_policy(SET CMP0048 NEW)
-endif()
+# Before project(): it sets the policies project() itself runs under, and
+# CMake warns when the top-level project() comes first. 3.20 also brings
+# CMP0048 NEW, which VERSION in project() needs.
+set(CLAY_CMAKE_MIN_VERSION 3.20 CACHE INTERNAL "")
+cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
 
 file(READ "${CMAKE_CURRENT_SOURCE_DIR}/VERSION" VERSION_CONTENT)
 string(STRIP "${VERSION_CONTENT}" CLAYGROUND_VERSION)
@@ -38,6 +39,8 @@ endif()
 
 include(claycommon)
 include(clayplugin)
+# Before the first target: it sets the compiler launcher (#385)
+include(claybuildcache)
 
 set(CLAYGROUND_PROJECT_NAME "${CMAKE_PROJECT_NAME}" CACHE INTERNAL "")
 set(CLAYGROUND_PROJECT_VERSION "${CMAKE_PROJECT_VERSION}" CACHE INTERNAL "")
@@ -78,9 +81,6 @@ endif()
 # BASIC REQUIREMENTS
 # ===================
 
-set(CLAY_CMAKE_MIN_VERSION 3.20 CACHE INTERNAL "")
-cmake_minimum_required(VERSION ${CLAY_CMAKE_MIN_VERSION})
-
 set(CLAY_CXX_STANDARD 17 CACHE INTERNAL "")
 clay_check_cxx_requirements(MIN_CXX_STANDARD ${CLAY_CXX_STANDARD})
 
@@ -95,6 +95,12 @@ clay_check_qt_requirements(MIN_VERSION ${CLAY_QT_MIN_VERSION})
 add_subdirectory (thirdparty/qml-box2d)
 if (TARGET Box2Dplugin)
     extend_static_plugin_cfg("Box2Dplugin" "Box2DPlugin")
+endif()
+# Box2D is no clay_plugin, so it joins the modules an app waits for by hand:
+# Clayground.Physics imports it, and a build of one app or its package
+# (clay_app_package) copied bin/qml without it (#380, as Svg in #381).
+if (TARGET Box2D)
+    clay_join_qml_modules(Box2D)
 endif()
 add_subdirectory (thirdparty/simple-svg-writer)
 add_subdirectory (thirdparty/csv-parser)
@@ -184,3 +190,14 @@ endif()
 if(CLAY_BUILD_WEBSITE)
     clay_website_create_target()
 endif()
+
+# ==================
+# TEST LABELS
+# ==================
+
+# Last, when every test is registered: each gets a label naming the plugin or
+# tool it tests, which is what verify.sh selects by, and a settings store of
+# its own, so tests running in parallel do not share one (#384).
+include(claytest)
+clay_label_tests_by_component("${CMAKE_CURRENT_SOURCE_DIR}")
+clay_isolate_test_storage("${CMAKE_CURRENT_SOURCE_DIR}")

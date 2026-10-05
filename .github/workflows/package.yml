@@ -1,0 +1,237 @@
+name: Package
+
+# Packages an example app with clay_app_package - a zip for macOS (Apple
+# Silicon) and Windows, an AppImage for Linux - and starts each package on a
+# fresh runner that never had Qt installed (#380). On macOS and Linux the
+# start fails if any library loads from outside the package.
+#
+# The packages are workflow artifacts only; this workflow never creates,
+# tags or publishes a release.
+on:
+  # A change to the packaging, or to what bin/qml holds, runs it - on a
+  # branch before any PR covers it
+  push:
+    paths:
+      - 'CMakeLists.txt'
+      - 'cmake/clayapp.cmake'
+      - 'cmake/clayapppackage.cmake'
+      - 'cmake/clayplugin.cmake'
+      - 'cmake/clay_app/**'
+      - 'examples/topdown/**'
+      - '.github/workflows/package.yml'
+  pull_request:
+    branches: [ main, 'release/**' ]
+    paths:
+      - 'CMakeLists.txt'
+      - 'cmake/clayapp.cmake'
+      - 'cmake/clayapppackage.cmake'
+      - 'cmake/clayplugin.cmake'
+      - 'cmake/clay_app/**'
+      - 'examples/topdown/**'
+      - '.github/workflows/package.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # The Qt the CI workflow (main.yml) builds with
+  QT_VERSION: '6.10.1'
+  QT_MODULES: 'qtmultimedia qtquick3d qtquick3dphysics qtquicktimeline qtshadertools qt5compat qtimageformats'
+  AQT_VERSION: '>=3.2.0'
+  # The example that is packaged: topdown imports Network (libdatachannel,
+  # OpenSSL), Canvas3D, Physics, World and GameController
+  APP: sbx_world3d
+
+jobs:
+  package:
+    name: package (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            os: macos-14
+            qt-host: mac
+            qt-arch: clang_64
+            artifact: ClayTopdown-macos-arm64.zip
+          - platform: windows
+            os: windows-2022
+            qt-host: windows
+            qt-arch: win64_msvc2022_64
+            artifact: ClayTopdown-windows-x64.zip
+          # An AppImage runs on systems at least as new as the one it was
+          # built on, so the oldest runner
+          - platform: linux
+            os: ubuntu-22.04
+            qt-host: linux
+            qt-arch: linux_gcc_64
+            artifact: ClayTopdown-linux-x86_64.AppImage
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        submodules: 'recursive'
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: ${{ env.QT_VERSION }}
+        host: ${{ matrix.qt-host }}
+        target: desktop
+        arch: ${{ matrix.qt-arch }}
+        modules: ${{ env.QT_MODULES }}
+        aqtversion: ${{ env.AQT_VERSION }}
+        cache: true
+
+    - name: Install macOS Dependencies
+      if: runner.os == 'macOS'
+      run: brew install ninja
+
+    - name: Install Windows Dependencies
+      if: runner.os == 'Windows'
+      run: choco install ninja -y
+      shell: cmd
+
+    - name: Install Linux Dependencies
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build libxkbcommon-dev libvulkan-dev
+
+    # clay_app_package finds linuxdeploy on PATH
+    - name: Install linuxdeploy
+      if: runner.os == 'Linux'
+      run: |
+        mkdir -p "$RUNNER_TEMP/bin"
+        cd "$RUNNER_TEMP/bin"
+        for t in linuxdeploy/releases/download/continuous/linuxdeploy-x86_64.AppImage \
+                 linuxdeploy-plugin-qt/releases/download/continuous/linuxdeploy-plugin-qt-x86_64.AppImage; do
+          curl -fsSL -O "https://github.com/linuxdeploy/$t"
+        done
+        chmod +x *.AppImage
+        ln -s linuxdeploy-x86_64.AppImage linuxdeploy
+        echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+    - name: Setup MSVC
+      if: runner.os == 'Windows'
+      uses: ilammy/msvc-dev-cmd@v1
+
+    - name: Setup compiler cache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        variant: ${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
+        key: ${{ matrix.os }}-package
+        max-size: 1G
+
+    - name: Configure CMake
+      shell: bash
+      run: |
+        extra=""
+        case "$RUNNER_OS" in
+          Windows) extra="-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl" ;;
+          macOS) extra="-DOPENSSL_ROOT_DIR=$(brew --prefix openssl@3)" ;;
+        esac
+        launcher=$([ "$RUNNER_OS" = Windows ] && echo sccache || echo ccache)
+        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=Release -DBUILD_TESTING=OFF \
+          -DCMAKE_C_COMPILER_LAUNCHER=$launcher -DCMAKE_CXX_COMPILER_LAUNCHER=$launcher \
+          $extra .
+
+    - name: Package
+      run: cmake --build build --target ${{ env.APP }}_package
+      env:
+        CL: /MP
+
+    - name: Upload
+      uses: actions/upload-artifact@v7
+      with:
+        name: ${{ matrix.artifact }}
+        path: build/package/${{ matrix.artifact }}
+        if-no-files-found: error
+        retention-days: 7
+
+  # A player's machine: a fresh runner, no Qt installed, the package
+  # downloaded and started from wherever it was unpacked
+  start:
+    name: start (${{ matrix.platform }})
+    needs: package
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos
+            os: macos-14
+            artifact: ClayTopdown-macos-arm64.zip
+          - platform: windows
+            os: windows-2022
+            artifact: ClayTopdown-windows-x64.zip
+          - platform: linux
+            os: ubuntu-22.04
+            artifact: ClayTopdown-linux-x86_64.AppImage
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Download
+      uses: actions/download-artifact@v4
+      with:
+        name: ${{ matrix.artifact }}
+        path: ${{ runner.temp }}/download
+
+    - name: No Qt on this machine
+      if: runner.os != 'Windows'
+      run: |
+        for t in qmake qmake6 qtpaths qml macdeployqt; do
+          if command -v "$t"; then echo "found $t"; exit 1; fi
+        done
+        if [ "$RUNNER_OS" = macOS ] && brew list --formula qt 2>/dev/null; then
+          echo "found Homebrew's Qt"; exit 1
+        fi
+        if [ "$RUNNER_OS" = Linux ] && ldconfig -p | grep libQt6Core; then
+          echo "found a system Qt"; exit 1
+        fi
+        echo "no Qt found"
+
+    - name: No Qt on this machine
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        if (Get-Command qmake, qtpaths, windeployqt -ErrorAction SilentlyContinue) { exit 1 }
+        Write-Output "no Qt found"
+        exit 0
+
+    # The graphics stack is the system's, never bundled into an AppImage: a
+    # desktop has it, a bare runner lacks GLVND's libOpenGL
+    - name: Install the graphics stack
+      if: runner.os == 'Linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libopengl0 libegl1 libgl1 libxkbcommon0 libfontconfig1
+
+    - name: Start
+      if: runner.os == 'macOS'
+      run: |
+        cd "$RUNNER_TEMP/download"
+        ditto -x -k "${{ matrix.artifact }}" .
+        "$GITHUB_WORKSPACE/cmake/clay_app/start-check.sh" "$PWD/Clay Topdown.app/Contents/MacOS/$APP"
+
+    - name: Start
+      if: runner.os == 'Linux'
+      run: |
+        cd "$RUNNER_TEMP/download"
+        chmod +x "${{ matrix.artifact }}"
+        "./${{ matrix.artifact }}" --appimage-extract > /dev/null
+        "$GITHUB_WORKSPACE/cmake/clay_app/start-check.sh" "$PWD/squashfs-root/usr/bin/$APP"
+
+    - name: Start
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        cd "$env:RUNNER_TEMP\download"
+        Expand-Archive "${{ matrix.artifact }}" .
+        & "$env:GITHUB_WORKSPACE\cmake\clay_app\start-check.ps1" "$PWD\Clay Topdown\$env:APP.exe"

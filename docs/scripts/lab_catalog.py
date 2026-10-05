@@ -97,7 +97,8 @@ def collect():
         if not fn.endswith(".qml"):
             continue
         path = os.path.join(KERNEL_DIR, fn)
-        rel = os.path.relpath(path, ROOT)
+        # forward slashes on every platform: the catalog is one committed file
+        rel = os.path.relpath(path, ROOT).replace(os.sep, "/")
         src = read(path)
         block = type_block(src)
         if block is None:

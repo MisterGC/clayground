@@ -439,7 +439,10 @@ itself never advanced.
 
 Evaluates in the sandbox root context — the bridge to `canvas.find()`
 and any QML function. Side-effecting expressions are allowed (that is
-what live patching uses).
+what live patching uses). An object result — a JS object, a singleton,
+an item — comes back as its properties without `JSON.stringify`; a
+cycle, nesting past 8 levels or more than 5000 values is cut off with a
+`"<cut: ...>"` marker (see `docs/docs/manual/inspector.md`).
 
 ### tree — structural dump
 

@@ -23,7 +23,9 @@ if(BUILD_TESTING)
         add_test(NAME lab_new
             COMMAND ${Python3_EXECUTABLE}
                     ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_lab_new_tests.py)
-        set_tests_properties(lab_new PROPERTIES LABELS "tools" TIMEOUT 120)
+        # It checks docs/scripts/import_labs.py too: a change there runs it
+        # (verify.sh, #384)
+        set_tests_properties(lab_new PROPERTIES LABELS "tools;docs" TIMEOUT 120)
 
         if(TARGET clayliveloader)
             file(GLOB _lab_new_sandboxes

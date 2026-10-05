@@ -35,8 +35,15 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `maxNodes` | int | 8 | Max nodes (2-8) |
 | `autoRelay` | bool | true | Host auto-relays in Star topology |
 | `iceServers` | var | [] | Custom STUN/TURN servers |
+| `signalingUrl` | string | "" | Your own PeerJS-compatible server instead of the public one |
+| `verifySignalingCertificate` | bool | true | Native: a `wss` server whose certificate does not verify is an error; `false` opts out |
 | `verbose` | bool | false | Enable `diagnosticMessage` output (phases, ICE candidates) |
 | `connectionTimeout` | int | 15000 | Connection timeout in ms (0 to disable) |
+| `gracePeriod` | int | 5000 | A peer that leaves a ping unanswered this long (ms) counts as gone (0 to disable) - see [Leaving](#leaving) |
+| `linkConditions` | var | {} | Simulated loss, latency, jitter, bandwidth cap, blackout and dropped signaling, for tests - see [Testing on a Bad Link](#testing-on-a-bad-link) |
+| `password` | string | "" | Room password a host demands and a joiner gives; empty: none - see [Joining](#joining) |
+| `appId` | string | "" | Names the app; a joiner of another app is refused |
+| `clientToken` | string | random | What a joiner identifies itself with; the host keeps it in `clientTokens` |
 
 ### Read-only State
 
@@ -44,16 +51,24 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 |----------|------|-------------|
 | `networkId` | string | Network code (share with others to join) |
 | `nodeId` | string | This node's unique ID |
+| `hostId` | string | The host's node ID, the same on every node |
 | `isHost` | bool | True if this node is the host |
+| `acceptingJoins` | bool | True on a host new nodes can reach; false while its Cloud signaling is lost |
+| `clientTokens` | var | Host: each joiner's `clientToken`, by node ID |
+| `wireVersion` | int | Version of the message format this build speaks |
 | `connected` | bool | True when connected |
+| `hostLostReason` | string | Why this joiner lost its host - `host-left`, `host-timeout`, `connection-lost` - set before `connected` turns false; "" otherwise |
 | `status` | enum | `Disconnected`, `Connecting`, `Connected`, `Error` |
 | `nodeCount` | int | Number of nodes in the network |
 | `nodes` | list | List of node IDs |
-| `connectionPhase` | string | Current phase: "signaling", "ice", "datachannel" |
-| `phaseTiming` | var | `{ signaling, ice, datachannel, total }` in ms |
+| `connectionPhase` | string | Current phase: "signaling", "ice", "handshake" |
+| `phaseTiming` | var | `{ signaling, ice, datachannel, handshake, total }` in ms |
 | `latency` | int | Best RTT across peers in ms (-1 if unknown) |
 | `peerStats` | var | Per-peer transport stats (always on) |
-| `syncStats` | var | Per-origin state-sync stats: seq, recv, dropped, ageMs (always on) |
+| `syncStats` | var | Per-origin state-sync stats: seq, recv, dropped, ageMs; with keyed states also `keys` (the same per key), `batches`, `maxBatchBytes` (always on) |
+| `sessionTime` | real | ms since the host created the network, the same on every node; -1 outside a network - see [The Session Clock](#the-session-clock) |
+| `sessionTimeSynced` | bool | True on the host, and on a joiner once its clock is synced to the host's |
+| `sessionProperties` | var | Session properties the host set, the same on every node - see [Replicated Objects](#replicated-objects) |
 
 ### Signals
 
@@ -62,9 +77,17 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 | `networkCreated(networkId)` | Host created network successfully |
 | `nodeJoined(nodeId)` | A node joined the network |
 | `nodeLeft(nodeId)` | A node left the network |
-| `messageReceived(fromId, data)` | Reliable message received |
-| `stateReceived(fromId, data, sentAt)` | State update received; `sentAt` is the sender's clock in ms (-1 if absent) |
-| `errorOccurred(message)` | Connection error |
+| `messageReceived(fromId, data, sentAt)` | Reliable message received; `sentAt` is the `sessionTime` it was sent at (-1 if absent) |
+| `stateReceived(fromId, data, sentAt, key)` | State update received; `sentAt` is the `sessionTime` it was sent at (-1 if absent), `key` the key it was sent with ("" if none) |
+| `errorOccurred(message)` | Connection error; also on a joiner whose host left or went silent - the text is for people, act on `hostLost` |
+| `hostLost(reason, message)` | A joiner's network ended with its host: `host-left`, `host-timeout` or `connection-lost` - see [Leaving](#leaving) |
+| `joinRefused(reason, message)` | The host refused this joiner: `incompatible-version`, `incompatible-app`, `wrong-password`, `handshake-failed`, or `refused` (e.g. a full network) |
+| `signalingLost()` | Cloud: the signaling connection dropped after it was up; peers stay, the node reconnects, a host takes no joiners meanwhile |
+| `objectSpawned(id, type, owner, props)` | A replicated object came to life on this node - also, on a late joiner, each one already there |
+| `objectDespawned(id, type)` | A replicated object is gone: despawned, its owner left, or the network ended |
+| `objectOwnerChanged(id, owner)` | A replicated object has a new owner |
+| `objectStateReceived(id, data, sentAt)` | The owner of an object sent its state; nobody else's arrives |
+| `sessionPropertyChanged(name, value)` | The host set a session property; `sessionProperties` already holds it |
 | `diagnosticMessage(phase, detail)` | Diagnostic info (when verbose) |
 | `connectionTimedOut()` | Connection attempt timed out |
 
@@ -74,10 +97,129 @@ Button { text: "Join"; onClicked: network.join(codeInput.text) }
 |--------|-------------|
 | `host()` | Create a network and become host |
 | `join(networkId)` | Join using a network code |
-| `leave()` | Disconnect from the network |
+| `leave()` | Say goodbye and disconnect from the network |
 | `broadcast(data)` | Send reliable message to all nodes |
 | `broadcastState(data)` | Send state update (high-frequency) |
+| `broadcastState(data, key)` | Send state update for one object; sequenced per key, sent batched |
+| `flushState()` | Send the keyed state updates queued so far now |
+| `stateAgeMs(nodeId[, key])` | ms since the newest accepted state from a node (for a key), -1 if none |
 | `sendTo(nodeId, data)` | Send to a specific node |
+| `transitMs(nodeId)` | How long the fastest state from a node in the last 3 s took, in session ms (NaN before one arrived) |
+| `spawn(type, props, options)` | Create a replicated object, return its id; options `owner`, `onOwnerLeft` (`"despawn"` or `"host"`) |
+| `despawn(id)` | Remove an object everywhere (its owner or the host) |
+| `setOwner(id, nodeId)` | Hand an object over (its owner or the host) |
+| `objectOwner(id)`, `objectInfo(id)`, `objects([type])` | Read the object table |
+| `sendObjectState(id, data)`, `settleObjectState(id, data)` | The owner's state of an object, lossy or reliably; `ReplicatedObject` does it for you |
+| `setSessionProperty(name, value)` | Host: a property every node, and every late joiner, gets - any JSON value, objects and arrays included |
+
+## The Session Clock
+
+`sessionTime` is one clock for the whole network: the host's monotonic clock,
+in milliseconds since it created the network. No NTP adjustment of a wall
+clock moves it. A joiner syncs to it with the pings it sends the host anyway -
+a burst of them, 50 ms apart, right after the welcome, then one every 2 s.
+Each ping's round trip says where the host's clock was; the faster half of
+the last 64 round trips decides, so a slow or held-back leg does not skew it.
+Through a link with 100 ms of latency and up to ±20 ms of jitter each way,
+nodes agree on the session time within a few milliseconds (the net gym checks
+10 ms, natively and in the browser).
+
+Until `sessionTimeSynced` is true - about 2 s after joining - the clock may
+step; after that it only runs, adjustments are slewed and it never goes back.
+
+Every message and state carries its send time on this clock, as `sentAt` in
+`messageReceived` and `stateReceived`. So a node can tell how long ago
+something happened elsewhere (`sessionTime - sentAt`), or schedule an event
+for the same moment everywhere:
+
+```qml
+// host: the door opens in 500 ms, on every node at once
+network.broadcast({door: "north", at: network.sessionTime + 500})
+
+onMessageReceived: (from, data, sentAt) => {
+    if (data.door) doorTimer.openAt(data.at)   // compare with network.sessionTime
+}
+```
+
+`sessionTime` is read live; a binding to it is only re-evaluated when the
+clock is set, synced or reset, not every millisecond.
+
+The session clock is wire version 3; a node of an older build is refused in
+the handshake with `incompatible-version`.
+
+## Joining
+
+Joining starts with a handshake over the data channel, the same natively and
+in the browser, with Cloud and Local signaling. The joiner's first message
+carries its wire version, `appId`, `password` and `clientToken`; the host
+answers with a welcome or a refusal. Until it is welcomed a joiner is no
+node: it is not in anybody's `nodes`, gets no `nodeJoined`, and nothing but
+the handshake passes either way.
+
+- **Another build.** Two builds whose `wireVersion` differs are refused with
+  `incompatible-version`, and so is a build from before the handshake, on
+  either side: a joiner that sends something else first or nothing for 5 s,
+  a host that answers with anything but a welcome.
+- **Another app.** A joiner whose `appId` is not the host's is refused with
+  `incompatible-app`.
+- **A room password.** A host with a `password` refuses every joiner that
+  does not give the same one, with `wrong-password`. The data channel is
+  encrypted, so the password never passes the signaling server: a code
+  that leaks through a chat or a stream is not enough to get in.
+
+A refused joiner gets `joinRefused(reason, message)`, then
+`errorOccurred(message)`, and its `status` is `Error`; it can join again.
+The host closes the connection after its refusal. A full host refuses with
+`refused` and "Network full" - natively at signaling, before any data
+channel, in the browser on the data channel; the joiner hears the same on
+both. A host's answer that makes no sense - a welcome naming somebody else
+than the host at the other end of the link - is `handshake-failed`.
+
+The host keeps each joiner's `clientToken` in `clientTokens`, next to its
+node ID. A node ID changes with every join; a token the app stores and sets
+again does not, so a host can tell a joiner that comes back.
+
+## Leaving
+
+A node finds out that another one left in one of three ways, the same
+natively and in the browser:
+
+- **It says goodbye.** `leave()` tells every peer before it closes, so they
+  report it in `nodeLeft` at once. When the host leaves, every joiner's
+  network ends: `status` turns `Disconnected`, and `hostLost("host-left",
+  "The host left the network")` and `errorOccurred` with the same message
+  follow the `nodeLeft` of every node it knew.
+- **It goes silent.** Every node pings its peers every 2 s, and a peer it
+  has not heard from for 0.5 s right away. A peer that leaves a ping
+  unanswered, and sends nothing else either, for `gracePeriod` (5 s by
+  default) is dropped - a crashed host, a closed laptop. A joiner notices
+  such a host within `gracePeriod` plus about 0.75 s and ends as above,
+  with `host-timeout` and "The host did not answer for 5000 ms". A peer that streams state
+  is never quiet, so in a game the extra pings do not happen.
+- **Its connection fails.** WebRTC reporting the connection failed or
+  closed. A connection that is only `Disconnected` can recover and is not a
+  leave: a link that comes back within `gracePeriod` loses nobody. A
+  joiner's host lost this way ends with `connection-lost`.
+
+A game tells these apart by `hostLostReason`, never by the message text. It
+is set before `connected` turns false, so a handler on `connected` or
+`status` already reads it; `host()` and `join()` clear it, and a node's own
+`leave()` leaves it empty:
+
+```qml
+Network {
+    onConnectedChanged: if (!connected && hostLostReason !== "")
+        session.end(hostLostReason === "host-left" ? "The host ended the game"
+                                                   : "Lost the host")
+}
+```
+
+When a Cloud node's signaling connection drops, the network goes on over
+the data channels: `signalingLost()` fires, and the node reconnects under
+the same id, retrying after 1, 2 and then every 4 s - a server may still
+hold the old id for a while and answer `ID-TAKEN`. Until a host is back,
+`acceptingJoins` is false: nobody new can find it. A Local host is its own
+signaling server and has none to lose.
 
 ## ICE Server Configuration
 
@@ -115,7 +257,60 @@ This adds:
 
 Always available, verbose or not: `connectionPhase`, `phaseTiming`, `latency`
 (updated every 2 s via ping/pong), `peerStats` (latency, message and byte
-counts, state channel) and `syncStats` (per-origin sequence, drops, age).
+counts, the state channel and what it reports of itself) and `syncStats`
+(per-origin sequence, drops, age).
+
+## Testing on a Bad Link
+
+`linkConditions` puts one node behind a simulated bad link, on one machine,
+on desktop, mobile and in the browser alike. Everything the node sends and
+receives over its data channels is conditioned, each direction on its own:
+
+```qml
+network.linkConditions = { loss: 0.1, latencyMs: 80, jitterMs: 20 }
+network.linkConditions = { bandwidthKbps: 256 }
+network.linkConditions = { blackout: true }   // the link goes dark ...
+network.linkConditions = {}                    // ... and comes back
+```
+
+| Key | Effect |
+|-----|--------|
+| `loss` | Share (0..1) of state updates that are lost. Reliable messages are never lost - they stand for a transport that retransmits, so they arrive late instead |
+| `latencyMs` | Added to every packet, each way |
+| `jitterMs` | A random 0..jitterMs on top; state updates may overtake each other, reliable messages keep their order |
+| `bandwidthKbps` | Packets leave one after another at this rate (kbit/s), both channels in one queue |
+| `blackout` | While true, state updates are lost and reliable messages are held; when it ends they arrive in order |
+| `dropSignaling` | While true, `host()` and `join()` cannot reach the signaling server and fail with `errorOccurred`; a live Cloud signaling connection is cut as if the server dropped it. A Local host is its own signaling server and hosts regardless |
+
+Changes take effect at once; packets already under way keep their schedule.
+The native backend conditions in `link_conditioner.cpp`, the browser in
+`link_conditioner.js` - the same rules, checked against the same cases by
+`tests/tst_link_conditioner.cpp` and `tests/link_conditioner.test.js`.
+
+The net gym (`tests/gym`) runs three nodes and checks state flow, sender
+attribution and interpolation, then puts the host behind 10 % loss, 80±20 ms
+latency and a blackout, cuts its link for less than the grace period, drops
+its Cloud signaling, lets it leave and finally kills it - the process
+natively, the page in the browser. It runs natively over
+Local signaling (ctest `network_sync_gym`) and over Cloud signaling through
+clay-dev-server's relay (`network_sync_gym_cloud`, registered when Python has
+`wsproto`), and in the browser with two pages of the WASM runtime against the
+same relay:
+
+```bash
+python3 plugins/clay_network/tests/gym/run_net_gym_web.py build/clayground-starter
+```
+
+Under 10 % loss the gym also checks that no gap in the state stream is longer
+than twice the send period, except where the sender's states were that far
+apart - two or more lost in a row. A native node and a browser node play
+together in `run_net_gym_mixed.py`: the loader hosts and a page joins, then
+the other way round, and both keep one connection with both channels open:
+
+```bash
+python3 plugins/clay_network/tests/gym/run_net_gym_mixed.py \
+    --loader build/bin/clayliveloader build-wasm/clayground-starter
+```
 
 ## How It Works
 
@@ -129,6 +324,8 @@ counts, state channel) and `syncStats` (per-origin sequence, drops, age).
    - **relay** - Via TURN, relays traffic through a server. Works through restrictive NATs but adds latency.
 
 3. **Data Channel** - Once ICE completes, a WebRTC data channel opens for reliable, encrypted communication.
+
+4. **Handshake** - The joiner says hello with its wire version, app, password and client token; the host takes it or refuses it (see [Joining](#joining)). Only now is the joiner a node.
 
 ### Why Connections Sometimes Fail
 
@@ -161,9 +358,117 @@ This also explains asymmetric connectivity: it can work in one direction but not
 
 State updates travel over a dedicated lossy data channel: lost packets are
 never retransmitted and each update carries a per-sender sequence number, so
-receivers drop stale data instead of applying it late. In Star topology the
+receivers drop stale data instead of applying it late. On both backends it is
+a second data channel (label `state`, unordered, `maxRetransmits` 0) on the
+same peer connection as the reliable one, so native and browser nodes play
+together either way round. That is wire version 5; an older build is refused
+with `incompatible-version`. In Star topology the
 host relays state between joiners and propagates the roster, so `nodes` and
 `nodeJoined`/`nodeLeft` cover all participants on every node.
+
+### Many objects: keyed state
+
+One sequence per sender means one snapshot per sender: sending one update per
+object would let a late update for one object be dropped behind another's.
+Give each object a key instead, and the sequence is kept per sender and key:
+
+```qml
+onTick: for (const e of enemies) network.broadcastState({x: e.x, y: e.y}, e.uid)
+
+onStateReceived: (from, data, sentAt, key) => {
+    if (key) enemyById[key].sync.push(data, sentAt)
+}
+```
+
+Keyed updates leave together when control returns to the event loop - once
+per frame for the updates one frame's handlers send - or at `flushState()`.
+They are packed into datagrams of about 1200 bytes at most, the host relays
+those batches as they are, and a second update for a key before the flush
+replaces the first. `broadcastState(data)` without a key is unchanged: sent at
+once, sequenced per sender. Keyed batches are wire version 2; a node of an
+older build is refused in the handshake with `incompatible-version`.
+
+## Replicated Objects
+
+Objects that come and go - enemies, items, avatars - live in one table on
+every node, ordered by the host:
+
+```qml
+Network { id: net }
+
+Replicas {                       // every node: an item per "ball"
+    network: net
+    type: "ball"
+    delegate: Rectangle {
+        id: ball
+        required property string objectId
+        width: 20; height: 20; radius: 10
+        ReplicatedObject {
+            network: net; objectId: ball.objectId
+            properties: ["x", "y"]; interpolate: true
+        }
+    }
+}
+
+onClicked: net.spawn("ball", {}, {onOwnerLeft: "host"})   // any node
+```
+
+Give the `Network` an id other than `network`: inside a `ReplicatedObject`
+or a `Replicas`, `network: network` names the property itself and binds it
+to nothing.
+
+- **An owner.** The spawner owns an object, or the node the host spawns it
+  for. Only the owner's state for it counts; anybody else's is dropped.
+  `setOwner(id, nodeId)` hands it over (the owner or the host may).
+- **Spawn and despawn.** Spawns, despawns and owner changes go through the
+  host, which checks them and passes them on. The spawner has its object at
+  once; a spawn the host refuses comes back to it as `objectDespawned`. A
+  despawn is final: a state still under way finds no object and is
+  dropped, and the object's sequence entry is freed on every node, so a
+  session that spawns and despawns all the time keeps no growing table.
+- **Ids.** `spawn()` makes an id, `"<node id>:<n>"`, never used again. A
+  game finds its own objects through `props`:
+
+  ```qml
+  net.spawn("avatar", {token: net.clientToken}, {onOwnerLeft: "host"})
+  // later, on any node: whose avatar is this?
+  const mine = net.objects("avatar").find(o => o.props.token === savedToken)
+  ```
+- **Late joiners.** Right after its welcome a joiner gets every live object
+  with its owner, `onOwnerLeft` and last state, then the session properties
+  the host set with `setSessionProperty(name, value)` - a seed, the level,
+  or an object or array of them: any value JSON carries arrives whole.
+  `sessionProperties` already holds a value when `sessionPropertyChanged`
+  fires for it, so a handler may read the whole map.
+- **When an owner leaves**, each of its objects despawns
+  (`onOwnerLeft: "despawn"`, the default) or passes to the host
+  (`"host"`), as it was spawned. When the host leaves, the network ends and
+  every object despawns.
+
+`ReplicatedObject` sends its `properties` when they change - at most once
+per frame, or once per `sendInterval` ms - and, after they rest for
+`settleMs` (200), once more over the reliable channel, so a lost last
+update cannot leave a stale value behind. That copy, and the one it sends
+when the item stops, carry the key `$rest`, so a receiver's `autoDelay`
+takes neither for an update period. Properties are numbers, strings,
+booleans or plain objects; with `interpolate` the numbers are blended
+through a `StateInterpolator` and the rest switch with their snapshot - as
+do the numbers named in `steppedProperties`, so a health value shows only
+values its owner had.
+`Replicas` makes a `delegate` per object of its `type`, with `objectId` and
+the spawn props as properties of the same name, and destroys it on despawn;
+handle `objectSpawned`/`objectDespawned` yourself to make items another
+way.
+
+On the wire, operations are reliable `"t":"o"` messages and object states
+travel in the keyed batches as `{"o": id, ...}` entries; 30 objects at 20 Hz
+take two datagrams of at most 1200 bytes per frame. A joiner takes objects
+only over its link to the host, the one that passed the handshake. In the
+browser a joiner in Star closes every incoming connection that is not the
+host's - such a link would have no handshake behind it - so plain messages
+over a joiner-to-joiner link do not arrive either. Replicated objects need
+the Star topology and are wire version 4; an older build is refused with
+`incompatible-version`.
 
 ## Multiplayer Helpers
 
@@ -172,7 +477,18 @@ host relays state between joiners and propagates the roster, so `nodes` and
   extrapolation). Feed it `push(data, sentAt)` with the timestamp from
   `stateReceived` so snapshots sit on the sender's timeline, and set
   `autoDelay: true` to let it size the delay from the observed jitter
-  instead of guessing one. Use this instead of `Behavior` animations.
+  instead of guessing one. Give it `network` and the sender's `nodeId` and
+  it runs on the session clock and takes the sender's offset from
+  `network.transitMs(nodeId)` - estimated once per sender, however many
+  objects of that sender are interpolated. `stepKeys` names numbers it
+  never blends - health, a counter - which switch with their snapshot
+  instead. It works per frame only while
+  it has something to blend - a resting value stops its frame loop until
+  the next push - and blends into two reused value objects, so one per
+  replicated object stays cheap. Use this instead of `Behavior`
+  animations.
+- **`ReplicatedObject`** and **`Replicas`** - see
+  [Replicated Objects](#replicated-objects).
 - **`NetworkMonitor`** - drop-in overlay showing per-node RTT, incoming
   state rate, state age and stale-drop counts (`network.syncStats` /
   `network.peerStats` / `network.stateAgeMs(id)` for programmatic access).
@@ -193,10 +509,34 @@ in code.
 
 `clay-dev-server` includes a built-in PeerJS signaling relay (`wss://<host>:<port>/peerjs`), so Cloud mode works entirely offline on a LAN. The PeerJS library is vendored locally (no CDN needed) and peer IDs are generated client-side (no cloud `/id` endpoint needed). This enables browser-based P2P networking without any internet dependency. Install the signaling extra with: `pip install clay_dev_server[signaling]`
 
+A native node checks the signaling server's certificate, and clay-dev-server's
+is self-signed: set `verifySignalingCertificate: false` on a desktop or mobile
+`Network` that uses it. Do that only for a server you control - without the
+check, anyone on the path to the server can swap the session descriptions,
+and with them the keys the data channels are encrypted with. The browser
+checks the certificate itself; on Windows the native check is not available
+yet (libdatachannel skips it there).
+
+While its signaling connection is up, a native node sends the PeerJS
+`HEARTBEAT` every 5 s, so a host stays joinable past the server's idle
+timeout. If the connection drops anyway, `signalingLost()` fires and the node
+reconnects (see [Leaving](#leaving)).
+
 LAN codes are auto-detected: if a join code starts with 'L' and contains '-', it's treated as a LAN code.
 A LAN code is `L<ip>-<port>-<secret>`: the host's embedded signaling server
 turns away any joiner whose first message does not carry the secret, so
-knowing the host's address alone is not enough to drop into a session.
+knowing the host's address alone is not enough to drop into a session. The
+secret travels in the code; a room `password` does not, see
+[Joining](#joining). The
+secret is 8 characters drawn from the system's random number generator. A code
+that does not have exactly that shape fails with `Invalid LAN code` before
+anything connects.
+
+An id belongs to the first connection that registered it, until that
+connection closes: the LAN signaling server and clay-dev-server's relay both
+refuse a second one with `ID-TAKEN`, the way the PeerJS server does. Someone
+who has the code therefore cannot register as `HOST`, or as a joiner, and
+receive the offers meant for them.
 
 ## Platform Support
 

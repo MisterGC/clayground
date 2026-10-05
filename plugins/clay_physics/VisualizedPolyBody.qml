@@ -37,7 +37,13 @@ Poly {
 
     onVerticesChanged: refresh();
     onWidthChanged: refresh();
-    Component.onCompleted: refresh();
+    Component.onCompleted: {
+        refresh();
+        _contacts = PhysicsUtils._trackContacts(theBody);
+    }
+    // Ends its contacts while the item is still there, as PhysicsItem does (#371).
+    property var _contacts: null
+    Component.onDestruction: if (_contacts) _contacts.end()
 
     /*!
         \qmlmethod void VisualizedPolyBody::refresh()

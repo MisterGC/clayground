@@ -28,3 +28,8 @@ extend_static_plugin_cfg("ClaySvg" "Clayground_SvgPlugin")
 set_target_properties(ClaySvg PROPERTIES AUTOMOC TRUE)
 target_compile_features(ClaySvg PUBLIC cxx_std_17)
 target_link_libraries(ClaySvg PRIVATE Qt::Core Qt::Quick Qt::Qml Qt6::Svg simple-svg-writer )
+
+# Not a clay_plugin, so it joins the modules every app waits for by hand;
+# without it a clean build could copy bin/qml into an app bundle before
+# Clayground.Svg was there (#381).
+clay_join_qml_modules(ClaySvg)

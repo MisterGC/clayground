@@ -75,3 +75,4 @@ You should see a window with a simple sandbox environment. Press `Ctrl+G` to see
 
 - Learn about [your first sandbox]({{ site.baseurl }}/docs/getting-started/first-sandbox/)
 - Explore [WASM builds]({{ site.baseurl }}/docs/getting-started/wasm-builds/) for web deployment
+- Hand your app to players without Qt with [desktop packages]({{ site.baseurl }}/docs/getting-started/desktop-packages/)

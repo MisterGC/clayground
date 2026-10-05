@@ -1,0 +1,69 @@
+libdatachannel v0.21.2: an fd reused while poll() runs gets the old socket's events (#348)
+
+PollService polls a snapshot of its sockets. When a socket is closed and a
+new one gets the same fd before the snapshot is processed, the closed one's
+POLLNVAL/POLLERR is delivered to the new socket: a WebSocket that connects
+right after another one closed fails with "TCP connection failed". Each
+socket now gets a generation when it is registered (a re-registration keeps
+it), and the events of a socket registered after the snapshot are skipped;
+the next poll reports its own.
+
+diff --git a/src/impl/pollservice.cpp b/src/impl/pollservice.cpp
+index c03e6fc..e168e87 100644
+--- a/src/impl/pollservice.cpp
++++ b/src/impl/pollservice.cpp
+@@ -59,7 +59,9 @@ void PollService::add(socket_t sock, Params params) {
+ 	PLOG_VERBOSE << "Registering socket in poll service, direction=" << params.direction;
+ 	auto until = params.timeout ? std::make_optional(clock::now() + *params.timeout) : nullopt;
+ 	assert(mSocks);
+-	mSocks->insert_or_assign(sock, SocketEntry{std::move(params), std::move(until)});
++	auto jt = mSocks->find(sock);
++	auto generation = jt != mSocks->end() ? jt->second.generation : ++mGeneration;
++	mSocks->insert_or_assign(sock, SocketEntry{std::move(params), std::move(until), generation});
+
+ 	assert(mInterrupter);
+ 	mInterrupter->interrupt();
+@@ -81,6 +83,7 @@ void PollService::prepare(std::vector<struct pollfd> &pfds, optional<clock::time
+ 	std::unique_lock lock(mMutex);
+ 	pfds.resize(1 + mSocks->size());
+ 	next.reset();
++	mPreparedGeneration = mGeneration;
+
+ 	auto it = pfds.begin();
+ 	mInterrupter->prepare(*it++);
+@@ -113,7 +116,9 @@ void PollService::process(std::vector<struct pollfd> &pfds) {
+ 	while (it != pfds.end()) {
+ 		socket_t sock = it->fd;
+ 		auto jt = mSocks->find(sock);
+-		if (jt != mSocks->end()) {
++		// Registered after prepare(): the events are those of the socket that
++		// had this fd before; the next poll reports this one's
++		if (jt != mSocks->end() && jt->second.generation <= mPreparedGeneration) {
+ 			try {
+ 				auto &entry = jt->second;
+ 				const auto &params = entry.params;
+diff --git a/src/impl/pollservice.hpp b/src/impl/pollservice.hpp
+index d0fd6e7..dd06d65 100644
+--- a/src/impl/pollservice.hpp
++++ b/src/impl/pollservice.hpp
+@@ -62,12 +62,20 @@ private:
+ 	struct SocketEntry {
+ 		Params params;
+ 		optional<clock::time_point> until;
++		uint64_t generation;
+ 	};
+
+ 	using SocketMap = std::unordered_map<socket_t, SocketEntry>;
+ 	unique_ptr<SocketMap> mSocks;
+ 	unique_ptr<PollInterrupter> mInterrupter;
+
++	// An fd closed and reused by a new socket while poll() runs must not get
++	// the old socket's events: a socket gets a new generation when it is
++	// registered (not when re-registered), and process() skips the sockets
++	// registered after prepare()
++	uint64_t mGeneration = 0;
++	uint64_t mPreparedGeneration = 0;
++
+ 	std::recursive_mutex mMutex;
+ 	std::thread mThread;
+ 	bool mStopped;

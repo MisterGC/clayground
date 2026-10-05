@@ -6,12 +6,22 @@
 #   Desktop/Mobile: WebRTC via libdatachannel + PeerJS signaling (cloud) or local signaling (LAN)
 #
 include(clayplugin)
-include(FetchContent)
+include(claybuildcache)
 
 # Common sources (all platforms)
 set(COMMON_SOURCES
     claywebaccess.cpp
     claywebaccess.h
+    link_conditioner.cpp
+    link_conditioner.h
+    sender.h
+    handshake.h
+    hostloss.h
+    plainvalue.h
+    statebatch.h
+    replica.h
+    sessionclock.h
+    testhooks.h
 )
 
 set(COMMON_QML
@@ -19,6 +29,8 @@ set(COMMON_QML
     ClayHttpClient.qml
     StateInterpolator.qml
     NetworkMonitor.qml
+    ReplicatedObject.qml
+    Replicas.qml
 )
 
 if(EMSCRIPTEN)
@@ -27,21 +39,49 @@ if(EMSCRIPTEN)
         claynetwork_wasm.cpp
         claynetwork_wasm.h
     )
+
+    # The browser's link conditioner is plain JS, so node can test it
+    # (link_conditioner.test.js); the backend embeds it as a string and
+    # evaluates it in the page. COPYONLY rewrites the header only when the
+    # script changed, so an unrelated reconfigure rebuilds nothing.
+    file(READ ${CMAKE_CURRENT_SOURCE_DIR}/link_conditioner.js CLAY_LINK_CONDITIONER_JS)
+    file(WRITE ${CMAKE_CURRENT_BINARY_DIR}/link_conditioner_js.h.tmp
+        "// Generated from link_conditioner.js - do not edit\n"
+        "#pragma once\n"
+        "static const char kLinkConditionerJs[] = R\"CLAYJS(${CLAY_LINK_CONDITIONER_JS})CLAYJS\";\n")
+    configure_file(${CMAKE_CURRENT_BINARY_DIR}/link_conditioner_js.h.tmp
+                   ${CMAKE_CURRENT_BINARY_DIR}/link_conditioner_js.h COPYONLY)
+    set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS
+                 ${CMAKE_CURRENT_SOURCE_DIR}/link_conditioner.js)
 else()
     # Native: WebRTC via libdatachannel
-    FetchContent_Declare(
-        libdatachannel
-        GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel
-        GIT_TAG v0.21.2
-        GIT_SHALLOW TRUE
-    )
     # Disable unneeded features
     set(NO_MEDIA ON CACHE BOOL "" FORCE)
     set(NO_WEBSOCKET OFF CACHE BOOL "" FORCE)  # We need WebSocket for signaling
     set(NO_EXAMPLES ON CACHE BOOL "" FORCE)
     set(NO_TESTS ON CACHE BOOL "" FORCE)
 
-    FetchContent_MakeAvailable(libdatachannel)
+    clay_fetch(libdatachannel
+        GIT_REPOSITORY https://github.com/paullouisageneau/libdatachannel
+        GIT_TAG v0.21.2
+        GIT_SHALLOW TRUE
+        # A WebSocket opened right after another one closed could fail with
+        # "TCP connection failed": its fd got the closed socket's poll
+        # events (#348). Not fixed upstream as of v0.24.6.
+        PATCH_COMMAND ${CMAKE_COMMAND}
+            -DPATCH=${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-pollservice-fd-reuse.patch
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply_patch.cmake
+        # The bundled plog and usrsctp ask for CMake 3.0, which CMake 4
+        # refuses; a game that adds Clayground as a subdirectory had to pass
+        # -DCMAKE_POLICY_VERSION_MINIMUM=3.5 itself (#334). 3.5 is what that
+        # flag gave them, so their policies stay as they were.
+        COMMAND ${CMAKE_COMMAND}
+            -DPATCH=${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-cmake-minimum.patch
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply_patch.cmake
+        CACHE_KEY_FILES ${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-pollservice-fd-reuse.patch
+                        ${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-cmake-minimum.patch
+                        ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply_patch.cmake
+    )
 
     set(PLATFORM_SOURCES
         claynetwork_native.cpp
@@ -78,7 +118,19 @@ clay_plugin(Network
         ${LINK_LIBRARIES}
 )
 
-# Add tests (only for native builds, not WASM)
-if(NOT EMSCRIPTEN AND BUILD_TESTING)
+if(EMSCRIPTEN)
+    target_include_directories(ClayNetwork PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
+endif()
+
+# StateInterpolator against a stub network (#304). It imports the QML
+# sources by directory and needs no C++ type, so it runs on Windows too.
+include(claytest)
+clay_add_qml_test(network_qml DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)
+
+# Add tests (only for native builds, not WASM). The top level calls
+# enable_testing() but not include(CTest), so BUILD_TESTING is undefined
+# unless somebody sets it - CI does not, and gated on it alone the net gym
+# never ran there. Default it to on, like tools/common does.
+if(NOT EMSCRIPTEN AND (NOT DEFINED BUILD_TESTING OR BUILD_TESTING))
     add_subdirectory(tests)
 endif()

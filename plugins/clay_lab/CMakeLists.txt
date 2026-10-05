@@ -136,6 +136,8 @@ if(BUILD_TESTING)
         add_test(NAME lab_catalog
             COMMAND ${Python3_EXECUTABLE}
                     ${CMAKE_SOURCE_DIR}/docs/scripts/lab_catalog.py --check)
-        set_tests_properties(lab_catalog PROPERTIES LABELS "tools" TIMEOUT 30)
+        # It reads docs/scripts and writes into skills/: a change in either
+        # runs it (verify.sh, #384)
+        set_tests_properties(lab_catalog PROPERTIES LABELS "tools;docs;skills" TIMEOUT 30)
     endif()
 endif()

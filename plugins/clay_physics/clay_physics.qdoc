@@ -22,6 +22,14 @@
     }
     \endqml
 
+    When the item is destroyed while its body touches fixtures of other
+    bodies, each of those fixtures gets \c endContact before the body goes,
+    with the item still readable as \c {other.getBody().target} - a sensor
+    learns whom it lost. Box2D itself ends those contacts only after the item
+    is gone, and they never reached QML. Only the fixtures the body has when
+    the item completes are covered; a raw \c Body outside a PhysicsItem ends
+    nothing when it is destroyed. VisualizedPolyBody does the same.
+
     \section1 Properties
 
     \qmlproperty real PhysicsItem::pixelPerUnit
@@ -407,4 +415,67 @@
 
     \qmlsignal CollisionTracker::endContact(var entity)
     Emitted when an entity leaves collision with the fixture.
+*/
+
+/*!
+    \qmltype PhysicsTimer
+    \inqmlmodule Clayground.Physics
+    \brief A timer that counts simulated time, one physics step at a time.
+
+    PhysicsTimer has the interface of a QML Timer, but its clock is the
+    physics world: after every step it adds the step's time to \c elapsed
+    and fires once that reaches \c interval. A pause fires nothing,
+    single-stepping fires after as many steps as the interval takes, a hit
+    stop or a lower time scale slows it exactly as much as the simulation.
+
+    Example usage:
+    \qml
+    import Clayground.Physics
+
+    PhysicsTimer {
+        world: theWorld.physics
+        interval: 800
+        repeat: true
+        running: true
+        onTriggered: enemy.decide()
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty World PhysicsTimer::world
+    The Box2D world whose steps drive the timer. Inside a ClayWorld2d this
+    is its \c physics property.
+
+    \qmlproperty int PhysicsTimer::interval
+    Simulated milliseconds between start and trigger (default 1000).
+
+    \qmlproperty bool PhysicsTimer::running
+    Whether the timer counts steps.
+
+    \qmlproperty bool PhysicsTimer::repeat
+    Whether the timer fires again after each interval, carrying over the
+    time a step overshot it.
+
+    \qmlproperty bool PhysicsTimer::triggeredOnStart
+    Whether starting the timer fires it right away as well.
+
+    \qmlproperty real PhysicsTimer::elapsed
+    Simulated milliseconds since the timer started or last fired.
+
+    \section1 Signals
+
+    \qmlsignal PhysicsTimer::triggered()
+    Emitted when \c interval simulated milliseconds have passed.
+
+    \section1 Methods
+
+    \qmlmethod void PhysicsTimer::start()
+    Starts the timer.
+
+    \qmlmethod void PhysicsTimer::stop()
+    Stops the timer.
+
+    \qmlmethod void PhysicsTimer::restart()
+    Starts the timer over from zero, running or not.
 */

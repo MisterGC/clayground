@@ -3,7 +3,7 @@
 
 project = Clayground
 description = Clayground Game Development Framework
-version = 2026.7
+version = 2026.8
 url = https://clayground.mistergc.dev
 
 # The module declarations, named as one file rather than by putting docs/ on

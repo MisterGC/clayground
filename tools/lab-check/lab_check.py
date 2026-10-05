@@ -466,12 +466,18 @@ def check_determinism(rep, spawn, lab_dir, lab_id, scenarios, steps, workdir):
 
 
 def first_difference(a, b):
-    """The first line the two records disagree on - the number to look at."""
-    la = open(a, encoding="utf-8", errors="replace").read().splitlines()
-    lb = open(b, encoding="utf-8", errors="replace").read().splitlines()
+    """The first line the two records disagree on - the number to look at.
+    Lines keep their endings, so a line-ending difference (a CRLF checkout
+    on Windows) shows as one rather than as two identical-looking lines."""
+    la = open(a, encoding="utf-8", errors="replace", newline="").read().splitlines(True)
+    lb = open(b, encoding="utf-8", errors="replace", newline="").read().splitlines(True)
     for i in range(min(len(la), len(lb))):
         if la[i] != lb[i]:
-            return f"line {i + 1}: {la[i][:70]!r} vs {lb[i][:70]!r}"
+            body_a, body_b = la[i].rstrip("\r\n"), lb[i].rstrip("\r\n")
+            if body_a == body_b:
+                return (f"line {i + 1}: line endings differ, "
+                        f"{la[i][len(body_a):]!r} vs {lb[i][len(body_b):]!r}")
+            return f"line {i + 1}: {body_a[:70]!r} vs {body_b[:70]!r}"
     return f"{len(la)} vs {len(lb)} lines"
 
 
@@ -587,14 +593,15 @@ def check_records(rep, lab_dir, workdir, render):
     jobs = []
     make = os.path.join(lab_dir, "records", "make.sh")
     if os.path.isfile(make):
-        jobs.append(("make.sh", [make, "--out-dir"], os.path.join(lab_dir, "records")))
+        jobs.append(("make.sh", script_command(make) + ["--out-dir"],
+                     os.path.join(lab_dir, "records")))
     studies = os.path.join(lab_dir, "studies")
     if os.path.isdir(studies):
         for name in sorted(os.listdir(studies)):
             study = os.path.join(studies, name)
             if os.path.isdir(os.path.join(study, "records")):
-                sweep = os.path.join(repo_root(lab_dir), "tools", "lab-sweep", "lab-sweep")
-                jobs.append((f"studies/{name}", [sweep, study, "--records-dir"],
+                sweep = os.path.join(repo_root(lab_dir), "tools", "lab-sweep", "lab_sweep.py")
+                jobs.append((f"studies/{name}", [sys.executable, sweep, study, "--records-dir"],
                              os.path.join(study, "records")))
     if not jobs:
         return rep.check("records: nothing committed to regenerate", True,
@@ -610,7 +617,10 @@ def check_records(rep, lab_dir, workdir, render):
         os.makedirs(out, exist_ok=True)
         env = dict(os.environ)
         env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
-        proc = subprocess.run(cmd + [out], cwd=repo_root(lab_dir), env=env,
+        # Forward slashes: make.sh puts the path into a JS string, where a
+        # Windows backslash starts an escape
+        proc = subprocess.run(cmd + [out.replace(os.sep, "/")],
+                              cwd=repo_root(lab_dir), env=env,
                               capture_output=True, text=True)
         if proc.returncode != 0:
             # Both streams: make.sh reports on stderr, lab-sweep echoes
@@ -633,18 +643,24 @@ def check_records(rep, lab_dir, workdir, render):
                                + (tail[-1][:120] if tail else "")) and all_ok
             continue
         drifted = []
+        first_diff = None
         for name in sorted(os.listdir(committed)):
             if not name.endswith(".labrec"):
                 continue
             fresh = os.path.join(out, name)
             if not os.path.isfile(fresh):
                 drifted.append(name + " (not regenerated)")
-            elif open(fresh, "rb").read() != open(os.path.join(committed, name), "rb").read():
+                continue
+            kept = os.path.join(committed, name)
+            if open(fresh, "rb").read() != open(kept, "rb").read():
                 drifted.append(name)
+                first_diff = first_diff or f"{name} {first_difference(kept, fresh)}"
         all_ok = rep.check(
             f"records: {label} regenerates to the committed bytes", not drifted,
             ", ".join(drifted[:4]) if drifted
             else f"{len(os.listdir(out))} records") and all_ok
+        if first_diff:
+            rep.note(f"records: first difference in {first_diff}")
     return all_ok
 
 
@@ -660,7 +676,7 @@ def check_tables(rep, lab_dir):
         name = f"tables: {rel}" + (f" {ref}" if ref else "")
         if not ok and detail == "stale":
             detail = "differs from the records - run tools/lab-sweep/lab-table " \
-                     + os.path.relpath(lab_dir)
+                     + display_path(lab_dir)
         all_ok = rep.check(name, ok, detail) and all_ok
     return all_ok
 
@@ -756,6 +772,31 @@ def prose_files(lab_dir):
 
 
 # --------------------------------------------------------------------------
+
+
+def display_path(path):
+    """path relative to the working directory, or absolute where it cannot be:
+    on Windows a lab in the temp dir on C: has no relative path from a
+    checkout on D: - relpath raises."""
+    try:
+        return os.path.relpath(path)
+    except ValueError:
+        return os.path.abspath(path)
+
+
+def script_command(script):
+    """The command that runs a shell script. On Windows a .sh is not a
+    program (WinError 193): it runs through the bash that comes with Git, not
+    the first bash on the PATH, which can be WSL's."""
+    if os.name != "nt":
+        return [script]
+    git = shutil.which("git")
+    bash = None
+    if git:
+        root = os.path.dirname(os.path.dirname(os.path.realpath(git)))
+        cand = os.path.join(root, "bin", "bash.exe")
+        bash = cand if os.path.isfile(cand) else None
+    return [bash or shutil.which("bash") or "bash", script]
 
 
 def repo_root(start):

@@ -10,6 +10,7 @@
 #include <QLabel>
 #include <QStringList>
 #include <QUrl>
+#include <QQmlAbstractUrlInterceptor>
 #include <memory>
 
 // Hosts the live sandbox and swaps it on every hot reload.
@@ -36,6 +37,11 @@ public:
     QQuickItem* rootObject() const;
 
     void hotReload();
+
+    // Qt 6.10 workaround (see reloadUrlInterceptor in the .cpp): the marker a
+    // reload puts on the sandbox's file URLs, removed again from any text an
+    // agent or a person reads - a file:line after it would not parse.
+    static QString withoutReloadMarker(QString text);
 
 signals:
     void sourceChanged();
@@ -73,6 +79,11 @@ private:
 
 private:
     QUrl m_source;
+    // Each engine's URL interceptor (Qt 6.10 workaround, may be null). An
+    // engine only holds a raw pointer, so these are declared before the
+    // engines: members are destroyed in reverse order, the engines first.
+    std::unique_ptr<QQmlAbstractUrlInterceptor> m_interceptor;
+    std::unique_ptr<QQmlAbstractUrlInterceptor> m_nextInterceptor;
     std::unique_ptr<QQuickWidget> m_currentWidget;
     std::unique_ptr<QQuickWidget> m_nextWidget;
     std::unique_ptr<QQmlEngine> m_engine;
@@ -86,5 +97,6 @@ private:
     bool m_isReloading;
     bool m_candidateOk = false;
     bool m_completionScheduled = false;
+    int m_reloadSerial = 0;
     QStringList m_pendingErrors;
 };

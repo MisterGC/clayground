@@ -145,6 +145,11 @@
     position. It uses velocity adjustments to smoothly move the actor
     and detects arrival using collision sensors.
 
+    It re-aims every 100 ms of simulated time, counted on the steps of
+    the world's physics (see PhysicsTimer): while the world is paused it
+    does not re-aim, and a single-stepped world takes the same path on
+    every run.
+
     Example usage:
     \qml
     import Clayground.Behavior

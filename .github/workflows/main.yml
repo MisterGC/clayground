@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # A push to main or a release branch also leaves the caches its PRs start
+  # from: a PR run reads only its own caches, its base branch's and main's,
+  # and saves none (see "What a run caches" below)
   push:
-    branches: [ main ]
+    branches: [ main, 'release/**' ]
   # PRs into a release branch are checked too: plan steps and fixes for the
   # next release target release/*, not main.
   pull_request:
@@ -10,9 +13,24 @@ on:
   # Manual on-demand runs, for a branch no PR covers yet.
   workflow_dispatch:
 
-# Builds are ccache/sccache-accelerated (see "Setup compiler cache" below);
-# warm runs reuse cached objects so only changed sources recompile. The WASM
-# job additionally hashes emcc by content (emsdk lives at a per-run temp path).
+# What a run caches (#386), so a PR whose dependencies did not change
+# downloads and compiles only what it changed:
+# - Qt, by install-qt-action (key: version, modules, runner image)
+# - emsdk, by setup-emsdk
+# - the FetchContent checkouts (libdatachannel, llama.cpp), keyed on the
+#   CMake files and patches that pin them
+# - compiled objects, by ccache (sccache on Windows); the WASM job hashes
+#   emcc by content, as emsdk lives at a per-run temp path
+# Only runs on a branch (push, workflow_dispatch) save a compiler cache, and
+# only once the build got through: a PR's run, or one that died in
+# configure, used to leave the newest - nearly empty - cache, and the next
+# run started from that. PR runs restore their base branch's.
+#
+# The desktop tests run in four shards per platform, each on a runner of its
+# own: the two net gyms take over two minutes each, too long next to
+# everything else on four cores, and the rest takes two minutes on Windows.
+# The shards' test selections partition the suite - every test runs in
+# exactly one of them.
 
 # Prevent multiple runs of the same workflow on the same ref
 concurrency:
@@ -37,22 +55,40 @@ env:
   EMSDK_VERSION: '4.0.7'
 
 jobs:
-  build:
+  desktop:
+    name: ${{ matrix.platform }} (${{ matrix.shard.name }})
     strategy:
+      # Each job reports on its own: a red WASM browser check used to cancel
+      # Linux and Windows, so most PRs had no desktop result (#386)
+      fail-fast: false
       matrix:
+        platform: [ linux, windows ]
+        # A net gym shard builds only what the gym runs, the loader and the
+        # plugins; the rest of the suite runs in two halves, by test number
+        shard:
+          - name: net gym
+            build: --target clayliveloader clay_qml_modules
+            ctest: "-R '^network_sync_gym$'"
+          - name: cloud net gym
+            build: --target clayliveloader clay_qml_modules
+            ctest: "-R '^network_sync_gym_cloud$'"
+          - name: suite 1
+            build: ''
+            ctest: "-E '^network_sync_gym(_cloud)?$' -I 1,,2 --parallel 4"
+          - name: suite 2
+            build: ''
+            ctest: "-E '^network_sync_gym(_cloud)?$' -I 2,,2 --parallel 4"
         include:
-          - os: ubuntu-latest
+          - platform: linux
+            os: ubuntu-latest
             qt-host: linux
-            qt-target: desktop
             qt-arch: linux_gcc_64
-          - os: windows-2022
+            cache-tool: ccache
+          - platform: windows
+            os: windows-2022
             qt-host: windows
-            qt-target: desktop
             qt-arch: win64_msvc2022_64
-          - os: ubuntu-latest
-            qt-host: all_os
-            qt-target: wasm
-            qt-arch: wasm_multithread
+            cache-tool: sccache
 
     runs-on: ${{ matrix.os }}
 
@@ -62,71 +98,168 @@ jobs:
       with:
         submodules: 'recursive'
 
-    - name: Setup Emscripten
-      if: matrix.qt-target == 'wasm'
-      uses: mymindstorm/setup-emsdk@v16
-      with:
-        version: ${{ env.EMSDK_VERSION }}
-
     - name: Install Qt
       uses: jurplel/install-qt-action@v4
       with:
-        version: ${{ matrix.qt-target == 'wasm' && env.QT_VERSION_WASM || env.QT_VERSION }}
+        version: ${{ env.QT_VERSION }}
         host: ${{ matrix.qt-host }}
-        target: ${{ matrix.qt-target }}
+        target: desktop
         arch: ${{ matrix.qt-arch }}
         modules: ${{ env.QT_MODULES }}
         aqtversion: ${{ env.AQT_VERSION }}
         cache: true
 
     - name: Install Linux Dependencies
-      if: runner.os == 'Linux' && matrix.qt-target == 'desktop'
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y ninja-build libxkbcommon-dev libvulkan-dev
 
-    - name: Install Linux Dependencies (WASM)
-      if: matrix.qt-target == 'wasm'
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y ninja-build brotli
-
     - name: Install Windows Dependencies
-      if: runner.os == 'Windows' && matrix.qt-target == 'desktop'
+      if: runner.os == 'Windows'
       run: choco install ninja -y
       shell: cmd
 
     - name: Setup MSVC
-      if: runner.os == 'Windows' && matrix.qt-target == 'desktop'
+      if: runner.os == 'Windows'
       uses: ilammy/msvc-dev-cmd@v1
 
-    # ccache on Linux/WASM, sccache on Windows (better MSVC support).
-    # Wired into the build via CMAKE_<LANG>_COMPILER_LAUNCHER below.
+    # ccache on Linux, sccache on Windows (better MSVC support). Wired into
+    # the build via CMAKE_<LANG>_COMPILER_LAUNCHER below; saved after the
+    # build by "Save Compiler Cache", not by this action's own post step.
     - name: Setup compiler cache
       uses: hendrikmuhs/ccache-action@v1.2
       with:
-        variant: ${{ runner.os == 'Windows' && 'sccache' || 'ccache' }}
-        key: ${{ matrix.os }}-${{ matrix.qt-target }}
+        variant: ${{ matrix.cache-tool }}
+        key: ${{ matrix.os }}-desktop
         max-size: 1G
+        save: false
 
-    - name: Configure CMake (Desktop)
-      if: matrix.qt-target == 'desktop'
+    - name: Restore FetchContent Checkouts
+      id: fetchcontent
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          build/_deps/*-src
+          build/_deps/*-subbuild
+        key: fetchcontent-${{ matrix.os }}-${{ hashFiles('plugins/clay_network/CMakeLists.txt', 'plugins/clay_network/patches/**', 'plugins/clay_ai/CMakeLists.txt') }}
+
+    # clay-dev-server's signaling relay needs wsproto; with it, configure
+    # registers the net gym's Cloud run (network_sync_gym_cloud, #301)
+    - name: Install Python Test Dependencies
+      run: pip install wsproto
+
+    # BUILD_TESTING=ON as in the presets: without it the 17 tests registered
+    # under if(BUILD_TESTING) - the loader's inspector tests, the lab checks,
+    # lab-new, clayrender - never ran here, and CI is what runs the whole
+    # suite before a merge while verify.sh runs a part of it (#384).
+    # FETCHCONTENT_UPDATES_DISCONNECTED: a restored checkout is at its pinned
+    # tag already, there is nothing to ask the remote.
+    - name: Configure CMake
       run: |
-        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DQT_QMAKE_EXECUTABLE=qmake ${{ runner.os == 'Windows' && '-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl' || '' }} -DCMAKE_C_COMPILER_LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ runner.os == 'Windows' && 'sccache' || 'ccache' }} .
+        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DBUILD_TESTING=ON -DQT_QMAKE_EXECUTABLE=qmake ${{ runner.os == 'Windows' && '-DCMAKE_C_COMPILER=cl -DCMAKE_CXX_COMPILER=cl' || '' }} -DCMAKE_C_COMPILER_LAUNCHER=${{ matrix.cache-tool }} -DCMAKE_CXX_COMPILER_LAUNCHER=${{ matrix.cache-tool }} -DFETCHCONTENT_UPDATES_DISCONNECTED=ON .
 
-    - name: Configure CMake (WASM)
-      if: matrix.qt-target == 'wasm'
-      run: |
-        "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache .
-
-    - name: Build (Desktop)
-      if: matrix.qt-target == 'desktop'
-      run: cmake --build build
+    - name: Build
+      run: cmake --build build ${{ matrix.shard.build }}
       env:
         CL: /MP
 
-    - name: Build (WASM)
-      if: matrix.qt-target == 'wasm'
+    - name: Save Compiler Cache
+      if: github.event_name != 'pull_request' && matrix.shard.name == 'suite 1'
+      uses: actions/cache/save@v4
+      with:
+        # Spelled exactly as ccache-action restores it: a cache is versioned
+        # by its path string, and D:\...\clayground/.sccache never matched
+        path: ${{ runner.os == 'Windows' && format('{0}\.sccache', github.workspace) || format('{0}/.ccache', github.workspace) }}
+        key: ${{ matrix.cache-tool }}-${{ matrix.os }}-desktop-${{ github.run_id }}-${{ github.run_attempt }}
+
+    - name: Save FetchContent Checkouts
+      if: github.event_name != 'pull_request' && matrix.shard.name == 'suite 1' && steps.fetchcontent.outputs.cache-hit != 'true'
+      uses: actions/cache/save@v4
+      with:
+        path: |
+          build/_deps/*-src
+          build/_deps/*-subbuild
+        key: ${{ steps.fetchcontent.outputs.cache-primary-key }}
+
+    # A missing wsproto would drop the Cloud gym from ctest without a word
+    - name: Check the Cloud Net Gym Is Registered
+      working-directory: build
+      shell: bash
+      run: |
+        ctest -N -R '^network_sync_gym_cloud$' > registered.txt
+        grep -q 'Total Tests: 1' registered.txt
+
+    # The Linux runners have no display: a test that opens a window of its
+    # own (clayrender, the inspector's, the labs' records) aborted on xcb
+    # and renders offscreen there. A test that sets its own platform (the
+    # QML suites: minimal) keeps it. Windows runners have a desktop.
+    - name: Test
+      working-directory: build
+      shell: bash
+      run: ctest --output-on-failure ${{ matrix.shard.ctest }}
+      env:
+        QT_QPA_PLATFORM: ${{ runner.os == 'Linux' && 'offscreen' || '' }}
+
+    # A red net gym keeps its loader logs and inspector state under
+    # build/net-gym-logs (CLAY_NET_GYM_LOG_ROOT); without them a failed run
+    # on the runner says nothing about why (#301)
+    - name: Upload Net Gym Logs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: net-gym-logs-${{ matrix.platform }}-${{ strategy.job-index }}
+        path: build/net-gym-logs
+        # the inspector state lives in .clay/, which is skipped otherwise
+        include-hidden-files: true
+        if-no-files-found: ignore
+        retention-days: 7
+
+  # Builds the Clayground Web Runtime and its starter bundle; the browser
+  # checks run on the bundle in the jobs below, each on a runner of its own
+  wasm:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        submodules: 'recursive'
+
+    - name: Setup Emscripten
+      uses: mymindstorm/setup-emsdk@v16
+      with:
+        version: ${{ env.EMSDK_VERSION }}
+        actions-cache-folder: emsdk-cache
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: ${{ env.QT_VERSION_WASM }}
+        host: all_os
+        target: wasm
+        arch: wasm_multithread
+        modules: ${{ env.QT_MODULES }}
+        aqtversion: ${{ env.AQT_VERSION }}
+        cache: true
+
+    - name: Install Linux Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build
+
+    - name: Setup compiler cache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ubuntu-latest-wasm
+        max-size: 1G
+        save: false
+
+    - name: Configure CMake
+      run: |
+        "$QT_ROOT_DIR/bin/qt-cmake" -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache .
+
+    - name: Build
       # emsdk installs to a per-run temp path, so ccache's default mtime compiler
       # check treats emcc as "new" every run and misses. Hash the compiler content
       # instead, and normalize paths, so warm runs actually hit.
@@ -136,10 +269,61 @@ jobs:
         CCACHE_SLOPPINESS: time_macros,include_file_mtime,include_file_ctime,system_headers,pch_defines
       run: cmake --build build --target clayground_starter
 
-    - name: Runtime Size Report (WASM)
-      if: matrix.qt-target == 'wasm'
+    - name: Save Compiler Cache
+      if: github.event_name != 'pull_request'
+      uses: actions/cache/save@v4
+      with:
+        path: ${{ github.workspace }}/.ccache
+        key: ccache-ubuntu-latest-wasm-${{ github.run_id }}-${{ github.run_attempt }}
+
+    - name: Upload Starter Bundle
+      uses: actions/upload-artifact@v7
+      with:
+        name: clayground-starter
+        path: build/clayground-starter.zip
+        retention-days: 7
+
+  # The browser checks of the starter bundle, on four runners of about a
+  # minute each: they follow the WASM build, so they are the second half of
+  # the longest path through this workflow
+  wasm-browser:
+    name: wasm (${{ matrix.group }})
+    needs: wasm
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [ pages, site route, net gym 1, net gym 2 ]
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+
+    - name: Download Starter Bundle
+      uses: actions/download-artifact@v4
+      with:
+        name: clayground-starter
+
+    - name: Unpack Starter Bundle
       run: |
-        WASM=build/bin/clayground.wasm
+        mkdir -p build/clayground-starter
+        unzip -q clayground-starter.zip -d build/clayground-starter
+
+    - name: Install Python Test Dependencies
+      run: pip install playwright wsproto
+
+    # Off the WASM build job: the bundle carries the wasm, and the site
+    # route is the shortest group
+    - name: Install brotli
+      if: matrix.group == 'site route'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y brotli
+
+    - name: Runtime Size Report
+      if: matrix.group == 'site route'
+      run: |
+        WASM=build/clayground-starter/clayground.wasm
         RAW=$(stat -c%s "$WASM")
         GZ=$(gzip -9 -c "$WASM" | wc -c)
         # -q9 instead of -q11: nearly identical ratio for a size estimate, but
@@ -157,17 +341,28 @@ jobs:
           echo "::warning::clayground.wasm exceeds the 40 MB raw size budget ($(mb "$RAW") MB)"
         fi
 
-    - name: Runtime Smoke Test (WASM)
-      if: matrix.qt-target == 'wasm'
+    - name: Runtime Smoke Test
+      if: matrix.group == 'pages'
       run: |
-        pip install playwright
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --screenshot starter-smoke.png
 
+    # KeyValueStore used to write into the in-memory file system only, so
+    # everything a game stored was gone after a page reload (#341). The page
+    # stores a token, the harness reloads it, and the token must come back.
+    - name: Storage Reload Regression
+      if: matrix.group == 'pages'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/storage-reload \
+          --expect "clay-storage: wrote" \
+          --reload-expect "clay-storage: read back" \
+          --timeout 120
+
     # Clayground.Sound's first audio-device query used to deadlock the page's
     # main thread (#216) - a failure no desktop test can see.
-    - name: Sound Regression (WASM)
-      if: matrix.qt-target == 'wasm'
+    - name: Sound Regression
+      if: matrix.group == 'pages'
       run: |
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --overlay tools/webdojo/tests/pages/sound \
@@ -176,8 +371,39 @@ jobs:
 
     # Music.play() used to kill the page instead of requesting the track
     # (#261) - the marker below only appears if the browser played the clip.
-    - name: Music Regression (WASM)
-      if: matrix.qt-target == 'wasm'
+    # WebGL2 does not link a fragment shader whose GLSL version is not its
+    # 300 es vertex shader's: clay_world's shaders were baked without 300 es,
+    # and a game with lights or screen effects drew only its HUD (#330). The
+    # page puts every clay_world shader on screen; the harness fails on
+    # "Failed to link shader program".
+    - name: World Shaders Regression
+      if: matrix.group == 'pages'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/world-fx \
+          --expect "world-fx: drawn" \
+          --screenshot world-fx.png \
+          --timeout 90
+
+    # A click Qt does not take lets the browser move focus to <body>, and the
+    # runtime page gives it back. It used to give it to the first window's
+    # input: with a Window root that is the runtime's own 0x0 window, whose
+    # input cannot take focus, so a TextInput got no key (#405). The window
+    # page clicks a field over a full-window MouseArea and types; the item
+    # page checks that a single-window app still gets the keys.
+    - name: Text Input Regression
+      if: matrix.group == 'pages'
+      run: |
+        for page in text-input-window text-input; do
+          python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+            --overlay tools/webdojo/tests/pages/$page \
+            --expect "text-input: ready" \
+            --type "200,64:Join ab1CD" \
+            --timeout 90
+        done
+
+    - name: Music Regression
+      if: matrix.group == 'pages'
       run: |
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --overlay tools/webdojo/tests/pages/music \
@@ -190,8 +416,8 @@ jobs:
     # still makes a sound is invisible to QML state - the engine keeps
     # scheduling and draining voices either way - so this step listens to
     # the page's audio graph before and after 3000 presses.
-    - name: Sound Hammer Regression (WASM)
-      if: matrix.qt-target == 'wasm'
+    - name: Sound Hammer Regression
+      if: matrix.group == 'pages'
       run: |
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --overlay tools/webdojo/tests/pages/sound-hammer \
@@ -207,8 +433,8 @@ jobs:
     # This step serves that layout, loads the published sound example through
     # the site's own dojo shell, and then a gate page next to it that plays
     # that example's music.mp3 and triggers notes into the shared sink.
-    - name: Sound Example Regression (WASM, site route)
-      if: matrix.qt-target == 'wasm'
+    - name: Sound Example Regression (site route)
+      if: matrix.group == 'site route'
       run: |
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --site-example plugins/clay_sound/demo:sound \
@@ -218,18 +444,127 @@ jobs:
           --click \
           --timeout 300
 
-    - name: Test
-      if: matrix.qt-target == 'desktop'
-      working-directory: build
-      run: ctest --output-on-failure
+    # Browser pages host and join through clay-dev-server's signaling and
+    # run the net gym's link scenarios - 10 % loss, latency, a blackout, the
+    # host leaving - on the WASM backend (#301), and four of them stream keyed
+    # state (#302). The public PeerJS server is too flaky for CI, so the
+    # relay comes from this checkout. Its two parts run on two runners.
+    - name: Net Gym
+      if: startsWith(matrix.group, 'net gym')
+      run: |
+        python3 plugins/clay_network/tests/gym/run_net_gym_web.py build/clayground-starter \
+          --part ${{ matrix.group == 'net gym 1' && '1' || '2' }}
 
-    - name: Upload Starter Bundle
-      if: always() && matrix.qt-target == 'wasm'
+    - name: Upload Smoke Screenshot
+      if: always() && matrix.group == 'pages'
       uses: actions/upload-artifact@v7
       with:
-        name: clayground-starter
+        name: starter-smoke
         path: |
-          build/clayground-starter.zip
           starter-smoke.png
+          world-fx.png
+        if-no-files-found: ignore
+        retention-days: 7
+
+  # A native node and a browser node in one network (#307): the native
+  # loader hosts and a page joins, then the page hosts and the loader joins,
+  # through clay-dev-server's relay. The loader is built here on the desktop
+  # jobs' compiler cache, the page runs the WASM job's starter bundle. The
+  # job starts with the others and builds the loader while the WASM job
+  # builds the bundle: waiting for the whole WASM job first made it the
+  # longest path through the workflow (#386).
+  net-gym-mixed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # to see this run's artifacts and jobs while it runs
+      actions: read
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v7
+      with:
+        submodules: 'recursive'
+
+    - name: Install Qt
+      uses: jurplel/install-qt-action@v4
+      with:
+        version: ${{ env.QT_VERSION }}
+        host: linux
+        target: desktop
+        arch: linux_gcc_64
+        modules: ${{ env.QT_MODULES }}
+        aqtversion: ${{ env.AQT_VERSION }}
+        cache: true
+
+    - name: Install Linux Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y ninja-build libxkbcommon-dev libvulkan-dev
+
+    - name: Setup compiler cache
+      uses: hendrikmuhs/ccache-action@v1.2
+      with:
+        key: ubuntu-latest-desktop
+        max-size: 1G
+        save: false
+
+    - name: Restore FetchContent Checkouts
+      uses: actions/cache/restore@v4
+      with:
+        path: |
+          build/_deps/*-src
+          build/_deps/*-subbuild
+        key: fetchcontent-ubuntu-latest-${{ hashFiles('plugins/clay_network/CMakeLists.txt', 'plugins/clay_network/patches/**', 'plugins/clay_ai/CMakeLists.txt') }}
+
+    - name: Build the Loader
+      run: |
+        cmake -B build -GNinja -DCMAKE_BUILD_TYPE=${{ env.CMAKE_BUILD_TYPE }} -DQT_QMAKE_EXECUTABLE=qmake -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache -DFETCHCONTENT_UPDATES_DISCONNECTED=ON .
+        # The loader loads the plugins at runtime and does not depend on them:
+        # built alone, it found no Clayground.Network and the gym never loaded
+        cmake --build build --target clayliveloader clay_qml_modules
+
+    - name: Wait for the Starter Bundle
+      env:
+        GH_TOKEN: ${{ github.token }}
+      run: |
+        api="repos/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+        for _ in $(seq 1 120); do
+          n=$(gh api "$api/artifacts" --jq '[.artifacts[] | select(.name == "clayground-starter")] | length')
+          [ "$n" = "1" ] && exit 0
+          wasm=$(gh api "$api/attempts/$GITHUB_RUN_ATTEMPT/jobs" --jq '.jobs[] | select(.name == "wasm") | .conclusion')
+          if [ -n "$wasm" ] && [ "$wasm" != "null" ] && [ "$wasm" != "success" ]; then
+            echo "The WASM job ended ($wasm) without a starter bundle"
+            exit 1
+          fi
+          sleep 5
+        done
+        echo "No starter bundle after 10 minutes"
+        exit 1
+
+    - name: Download Starter Bundle
+      uses: actions/download-artifact@v4
+      with:
+        name: clayground-starter
+        run-id: ${{ github.run_id }}
+        github-token: ${{ github.token }}
+
+    - name: Net Gym (native and WASM)
+      run: |
+        mkdir starter
+        unzip -q clayground-starter.zip -d starter
+        pip install playwright wsproto
+        python3 plugins/clay_network/tests/gym/run_net_gym_mixed.py --loader build/bin/clayliveloader starter
+      env:
+        QT_QPA_PLATFORM: offscreen
+        CLAY_NET_GYM_LOG_ROOT: ${{ github.workspace }}/net-gym-logs
+
+    - name: Upload Net Gym Logs
+      if: failure()
+      uses: actions/upload-artifact@v7
+      with:
+        name: net-gym-logs-mixed
+        path: net-gym-logs
+        include-hidden-files: true
         if-no-files-found: ignore
         retention-days: 7

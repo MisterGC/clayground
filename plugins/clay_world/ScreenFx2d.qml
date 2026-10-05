@@ -53,10 +53,11 @@ Item {
     /*!
         \qmlproperty Item ScreenFx2d::sourceItem
         \brief The item the grade reads and hides; defaults to the world's
-        canvas. The effect covers the ScreenFx2d's own geometry, which fills
-        its parent.
+        \l {ClayWorld2d::picture}{picture} - its canvas, or the held frame of
+        a view-only hit stop. The effect covers the ScreenFx2d's own geometry,
+        which fills its parent.
     */
-    property Item sourceItem: world ? world.canvas : null
+    property Item sourceItem: world ? (world.picture ? world.picture : world.canvas) : null
 
     /*!
         \qmlproperty real ScreenFx2d::vignette

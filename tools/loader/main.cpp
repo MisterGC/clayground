@@ -56,8 +56,9 @@ class MsgHandlerWrapper {
 public:
     static ClayLiveLoader* theLoader;
 
-    static void customHandler(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+    static void customHandler(QtMsgType type, const QMessageLogContext &context, const QString &rawMsg)
     {
+        const QString msg = HotReloadContainer::withoutReloadMarker(rawMsg);
         QByteArray localMsg = msg.toLocal8Bit();
         auto* inspector = ClayInspector::current();
 
