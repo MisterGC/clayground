@@ -98,6 +98,12 @@ add_subdirectory (thirdparty/qml-box2d)
 if (TARGET Box2Dplugin)
     extend_static_plugin_cfg("Box2Dplugin" "Box2DPlugin")
 endif()
+# Box2D is no clay_plugin, so it joins the modules an app waits for by hand:
+# Clayground.Physics imports it, and a build of one app or its package
+# (clay_app_package) copied bin/qml without it (#380, as Svg in #381).
+if (TARGET Box2D)
+    clay_join_qml_modules(Box2D)
+endif()
 add_subdirectory (thirdparty/simple-svg-writer)
 add_subdirectory (thirdparty/csv-parser)
 add_subdirectory (thirdparty/earcut)
