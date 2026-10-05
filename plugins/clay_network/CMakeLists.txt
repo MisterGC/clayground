@@ -71,7 +71,15 @@ else()
         PATCH_COMMAND ${CMAKE_COMMAND}
             -DPATCH=${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-pollservice-fd-reuse.patch
             -P ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply_patch.cmake
+        # The bundled plog and usrsctp ask for CMake 3.0, which CMake 4
+        # refuses; a game that adds Clayground as a subdirectory had to pass
+        # -DCMAKE_POLICY_VERSION_MINIMUM=3.5 itself (#334). 3.5 is what that
+        # flag gave them, so their policies stay as they were.
+        COMMAND ${CMAKE_COMMAND}
+            -DPATCH=${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-cmake-minimum.patch
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply_patch.cmake
         CACHE_KEY_FILES ${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-pollservice-fd-reuse.patch
+                        ${CMAKE_CURRENT_SOURCE_DIR}/patches/libdatachannel-cmake-minimum.patch
                         ${CMAKE_CURRENT_SOURCE_DIR}/patches/apply_patch.cmake
     )
 
