@@ -49,7 +49,10 @@ import threading
 
 BOOT_MARKER = "Clayground Web Runtime"
 QML_OK_MARKER = "QML loaded successfully"
-ERROR_MARKERS = ("QML Error", "Failed to create QML object")
+# A shader WebGL2 will not link leaves the page loaded and the item blank -
+# no QML error, only this line on every frame (#330)
+ERROR_MARKERS = ("QML Error", "Failed to create QML object",
+                 "Failed to link shader program")
 MODULES_OK_MARKER = "SMOKE MODULES OK"
 FS_OK_MARKER = "SMOKE FS OK"
 # The app shell preloads asset files into the in-memory FS (/game/) so Qt can QFile-open

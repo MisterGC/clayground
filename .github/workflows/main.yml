@@ -371,6 +371,20 @@ jobs:
 
     # Music.play() used to kill the page instead of requesting the track
     # (#261) - the marker below only appears if the browser played the clip.
+    # WebGL2 does not link a fragment shader whose GLSL version is not its
+    # 300 es vertex shader's: clay_world's shaders were baked without 300 es,
+    # and a game with lights or screen effects drew only its HUD (#330). The
+    # page puts every clay_world shader on screen; the harness fails on
+    # "Failed to link shader program".
+    - name: World Shaders Regression
+      if: matrix.group == 'pages'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/world-fx \
+          --expect "world-fx: drawn" \
+          --screenshot world-fx.png \
+          --timeout 90
+
     - name: Music Regression
       if: matrix.group == 'pages'
       run: |
@@ -429,7 +443,9 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: starter-smoke
-        path: starter-smoke.png
+        path: |
+          starter-smoke.png
+          world-fx.png
         if-no-files-found: ignore
         retention-days: 7
 
