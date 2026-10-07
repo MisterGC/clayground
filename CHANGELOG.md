@@ -5,7 +5,7 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are
 calendar-style (`VERSION` at the repository root). Releases up to 2026.7 are
 described on their [GitHub release pages](https://github.com/MisterGC/clayground/releases).
 
-## [2026.8] - Unreleased
+## [2026.8] - 2026-10-07
 
 Games get a networking foundation: a host every node knows, a join handshake,
 keyed state in batches, a session clock and replicated objects, on native and
