@@ -139,8 +139,13 @@ TestCase {
             ball.x = i
         // The first at once, the rest held for the interval
         compare(stubNet.sent.length, 1)
-        tryCompare(stubNet.sent, "length", 2)
+        tryVerify(() => stubNet.sent.length >= 2)
         compare(stubNet.sent[1].data.x, 10)
+        verify(!stubNet.sent[1].data["$rest"], "the held state is not a rest copy")
+        // A slow machine may already see the stop copy that follows the
+        // held state 1.5 intervals later; nothing else may follow it
+        for (let i = 2; i < stubNet.sent.length; ++i)
+            verify(stubNet.sent[i].data["$rest"], "only rest copies follow the held state")
     }
 
     function test_others_apply_the_owners_state_numbers_and_strings() {
