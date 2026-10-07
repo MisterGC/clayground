@@ -14,6 +14,59 @@
 #include <QResizeEvent>
 #include <QQuickWindow>
 #include <QQuickGraphicsConfiguration>
+#include <QFileInfo>
+#include <QLibraryInfo>
+#include <QRegularExpression>
+#include <QUrlQuery>
+#include <QVersionNumber>
+
+namespace {
+
+const QString kReloadMarker = QStringLiteral("clayreload");
+
+// Qt 6.10 workaround: a reload's new engine was handed what the live engine
+// had compiled for the same URL, so an edit never showed and a broken save
+// "loaded" the old scene (#385; 6.11 reads the file again). Each reload gives
+// the sandbox's own .qml/.js files a URL of their own, so nothing compiled
+// before can match. Framework QML (qrc:, the import paths) is left alone.
+class ReloadUrlInterceptor : public QQmlAbstractUrlInterceptor
+{
+public:
+    ReloadUrlInterceptor(const QString& dir, int serial)
+        : m_dir(QDir::cleanPath(dir) + QLatin1Char('/')), m_serial(serial) {}
+
+    QUrl intercept(const QUrl& url, DataType type) override
+    {
+        if (type != QmlFile && type != JavaScriptFile)
+            return url;
+        if (!url.isLocalFile() || !url.toLocalFile().startsWith(m_dir))
+            return url;
+        QUrlQuery query(url);
+        query.removeAllQueryItems(kReloadMarker);
+        query.addQueryItem(kReloadMarker, QString::number(m_serial));
+        QUrl out(url);
+        out.setQuery(query);
+        return out;
+    }
+
+private:
+    QString m_dir;
+    int m_serial;
+};
+
+bool needsReloadUrls()
+{
+    return QLibraryInfo::version() < QVersionNumber(6, 11);
+}
+
+} // namespace
+
+QString HotReloadContainer::withoutReloadMarker(QString text)
+{
+    static const QRegularExpression marker(
+        QStringLiteral("[?&]") + kReloadMarker + QStringLiteral("=\\d+"));
+    return text.remove(marker);
+}
 
 HotReloadContainer::HotReloadContainer(QWidget *parent)
     : QWidget(parent)
@@ -218,6 +271,11 @@ void HotReloadContainer::createCandidate()
     m_nextEngine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     m_nextEngine->addImportPath("qml");
     ClayScene::applyStorageDir(m_nextEngine.get());
+    if (needsReloadUrls() && m_source.isLocalFile()) {
+        m_nextInterceptor = std::make_unique<ReloadUrlInterceptor>(
+            QFileInfo(m_source.toLocalFile()).absolutePath(), ++m_reloadSerial);
+        m_nextEngine->addUrlInterceptor(m_nextInterceptor.get());
+    }
 
     // Deliberately outside the layout and hidden: a candidate must neither be
     // visible nor squeeze the live scene into half the container. It is sized
@@ -249,6 +307,7 @@ void HotReloadContainer::promoteCandidate()
     // The engine has to outlive its widget, so it is replaced only after the
     // outgoing widget is gone.
     m_engine = std::move(m_nextEngine);
+    m_interceptor = std::move(m_nextInterceptor);
     m_currentWidget = std::move(m_nextWidget);
     m_nextEffect = nullptr;
 
@@ -270,6 +329,7 @@ void HotReloadContainer::discardCandidate()
         m_nextWidget.reset();
     }
     m_nextEngine.reset();
+    m_nextInterceptor.reset();
 
     if (m_currentWidget) {
         m_currentWidget->show();
@@ -358,7 +418,7 @@ void HotReloadContainer::onQuickWidgetStatusChanged(QQuickWidget::Status status)
             qCritical() << "QML loading failed!";
             QStringList errorLines;
             for (const auto& error : widget->errors()) {
-                QString line = error.toString();
+                QString line = withoutReloadMarker(error.toString());
                 qCritical() << line;
                 errorLines.append(line);
             }

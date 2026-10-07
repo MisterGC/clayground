@@ -25,6 +25,7 @@
 #include <QQmlContext>
 #include <QQuickItemGrabResult>
 #include <QSaveFile>
+#include <QThread>
 #include <QDateTime>
 #include <QDebug>
 #include <QTimer>
@@ -47,6 +48,30 @@ static constexpr qint64 EVENT_LOG_ROTATE_BYTES = 5LL * 1024 * 1024;
 // Qt/QML diagnostics carry their origin inline ("file:///a/Sandbox.qml:80:12:
 // TypeError: ..."). Pulling it out is best effort by design: a message without
 // a location keeps an empty file and line 0 rather than a guessed one.
+// Replaces path with data through QSaveFile, retrying a commit that fails.
+// On Windows the rename that replaces the file fails while another process
+// has it open, and a driver polls state.json and response.json many times a
+// second: a lost "ready" is never written again, a lost response is a request
+// that times out (#301). Ten attempts 10 ms apart outlast any single read.
+static bool replaceFile(const QString& path, const QByteArray& data)
+{
+    constexpr int kAttempts = 10;
+    for (int attempt = 1; attempt <= kAttempts; ++attempt) {
+        QSaveFile file(path);
+        if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
+            file.write(data);
+            if (file.commit()) {
+                if (attempt > 1)
+                    qWarning() << "ClayInspector: replacing" << path << "took"
+                               << attempt << "attempts";
+                return true;
+            }
+        }
+        QThread::msleep(10);
+    }
+    return false;
+}
+
 static void parseDiagnosticLocation(const QString& msg, QString& file, int& line)
 {
     static const QRegularExpression re(
@@ -114,6 +139,13 @@ ClayInspector::ClayInspector(HotReloadContainer* container, QObject* parent)
 {
     connect(&m_watcher, &QFileSystemWatcher::fileChanged,
             this, &ClayInspector::onRequestFileChanged);
+    m_requestPoll.setInterval(10);
+    connect(&m_requestPoll, &QTimer::timeout, this, [this]() {
+        const QString path = m_inspectDir + "/request.json";
+        const QFileInfo fi(path);
+        if (fi.lastModified() != m_requestSeenAt || fi.size() != m_requestSeenSize)
+            onRequestFileChanged(path);
+    });
     g_currentInspector = this;
 }
 
@@ -297,14 +329,9 @@ void ClayInspector::writeState()
     state["openAnnotations"] = openAnnotationCount();
     state["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
-    QSaveFile file(m_inspectDir + "/state.json");
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        qWarning() << "ClayInspector: cannot open state.json for write";
-        return;
-    }
-    file.write(QJsonDocument(state).toJson(QJsonDocument::Indented));
-    if (!file.commit())
-        qWarning() << "ClayInspector: failed to commit state.json";
+    if (!replaceFile(m_inspectDir + "/state.json",
+                     QJsonDocument(state).toJson(QJsonDocument::Indented)))
+        qWarning() << "ClayInspector: failed to write state.json";
 }
 
 void ClayInspector::setSandboxDir(const QString& dir)
@@ -361,16 +388,28 @@ void ClayInspector::setControls(ClayTimeControl* timeCtrl,
     m_inputCtrl = inputCtrl;
 }
 
+// mkpath until the directory is there. Instances started together create
+// the shared .clay/inspect/i/ at the same moment, and on Windows the loser of
+// that race gets false back - unchecked, an instance never had a directory,
+// never wrote state.json and never answered (#301)
+static void makePath(const QString& path)
+{
+    for (int attempt = 0; attempt < 10; ++attempt) {
+        if (QDir().mkpath(path) || QDir(path).exists())
+            return;
+        QThread::msleep(10);
+    }
+    qWarning() << "ClayInspector: cannot create" << path;
+}
+
 void ClayInspector::ensureInspectDir()
 {
-    QDir dir;
-    dir.mkpath(m_inspectDir);
+    makePath(m_inspectDir);
 }
 
 void ClayInspector::ensureCrewDir()
 {
-    QDir dir;
-    dir.mkpath(m_crewDir);
+    makePath(m_crewDir);
 }
 
 void ClayInspector::startWatching()
@@ -388,10 +427,25 @@ void ClayInspector::startWatching()
     }
 
     m_watcher.addPath(requestPath);
+
+    // The watcher alone answers late on macOS: Qt watches through FSEvents
+    // there, and it reported a write to request.json 466-537 ms after it
+    // happened in 20 of 20 round trips. Every inspector round trip paid that
+    // half second, and a driver like the net gym makes hundreds - it was
+    // most of the full test suite's time (#384). Looking at the file's size
+    // and mtime every 10 ms answers in milliseconds on every platform; the
+    // watcher stays for the writes the look misses (two writes of one size
+    // within a millisecond), and a request seen by both is carried out once
+    // (processRequest's id check).
+    const QFileInfo fi(requestPath);
+    m_requestSeenAt = fi.lastModified();
+    m_requestSeenSize = fi.size();
+    m_requestPoll.start();
 }
 
 void ClayInspector::stopWatching()
 {
+    m_requestPoll.stop();
     auto paths = m_watcher.files();
     if (!paths.isEmpty())
         m_watcher.removePaths(paths);
@@ -450,22 +504,59 @@ void ClayInspector::onRequestFileChanged(const QString& path)
     if (!m_watcher.files().contains(path))
         m_watcher.addPath(path);
 
+    const QFileInfo seen(path);
+    m_requestSeenAt = seen.lastModified();
+    m_requestSeenSize = seen.size();
+
+    QByteArray data;
     QFile file(path);
-    if (!file.open(QIODevice::ReadOnly))
-        return;
-
-    auto data = file.readAll();
-    file.close();
-
-    if (data.trimmed().isEmpty())
-        return;
-
-    QJsonParseError parseError;
-    auto doc = QJsonDocument::fromJson(data, &parseError);
-    if (parseError.error != QJsonParseError::NoError) {
-        qWarning() << "ClayInspector: invalid request JSON:" << parseError.errorString();
-        return;
+    if (file.open(QIODevice::ReadOnly)) {
+        data = file.readAll();
+        file.close();
     }
+
+    // The stamp is the file that was read only if nothing wrote in between:
+    // a client truncates, then writes, and a request read whole under the
+    // truncated file's stamp was carried out again at the next look at the
+    // written file - a reload without an id reloaded twice on a loaded
+    // Linux runner (#386). Changed under the read: look again.
+    const QFileInfo after(path);
+    const bool settled = after.lastModified() == seen.lastModified()
+                         && after.size() == seen.size() && seen.size() == data.size();
+
+    QJsonParseError parseError{};
+    QJsonDocument doc;
+    if (!data.trimmed().isEmpty())
+        doc = QJsonDocument::fromJson(data, &parseError);
+    const bool parsed = !data.trimmed().isEmpty() && parseError.error == QJsonParseError::NoError;
+    if (!settled || !parsed) {
+        // Caught mid-write - a client truncates, then writes - or still held
+        // by the writer on Windows. The notification for the rest of the
+        // write can be folded into this one, and waiting for one that never
+        // comes left a request unanswered (#301): look again shortly. A
+        // request read twice is carried out once (the handled stamp below,
+        // and processRequest's id check).
+        if (m_requestRereads++ < 10) {
+            QTimer::singleShot(20, this, [this, path]() { onRequestFileChanged(path); });
+            return;
+        }
+        if (!parsed) {
+            m_requestRereads = 0;
+            if (!data.trimmed().isEmpty())
+                qWarning() << "ClayInspector: invalid request JSON:" << parseError.errorString();
+            return;
+        }
+    }
+    m_requestRereads = 0;
+
+    // Already carried out: the watcher reports a write the look found long
+    // ago (on macOS 0.5 s later). The id check in processRequest catches
+    // that too, but only for a request that has an id - one without (e.g.
+    // tst_inspector_dojo's) was carried out twice, a reload reloaded again.
+    if (seen.lastModified() == m_requestHandledAt && seen.size() == m_requestHandledSize)
+        return;
+    m_requestHandledAt = seen.lastModified();
+    m_requestHandledSize = seen.size();
 
     processRequest(doc.object());
 }
@@ -1701,16 +1792,8 @@ void ClayInspector::writeResponse(const QJsonObject& response)
     // a half-written payload. Plain open(Truncate) briefly exposes an empty
     // file, which has been known to confuse QFileSystemWatcher-based waiters.
     QString responsePath = m_inspectDir + "/response.json";
-    QSaveFile file(responsePath);
-    if (!file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
-        qWarning() << "ClayInspector: cannot write response to" << responsePath;
-        return;
-    }
-
-    QJsonDocument doc(enveloped);
-    file.write(doc.toJson(QJsonDocument::Indented));
-    if (!file.commit())
-        qWarning() << "ClayInspector: failed to commit response to" << responsePath;
+    if (!replaceFile(responsePath, QJsonDocument(enveloped).toJson(QJsonDocument::Indented)))
+        qWarning() << "ClayInspector: failed to write response to" << responsePath;
 }
 
 QJsonObject ClayInspector::handleTrace(const QJsonObject& request)

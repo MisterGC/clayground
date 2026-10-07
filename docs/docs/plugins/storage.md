@@ -21,6 +21,7 @@ import Clayground.Storage
 ## Core Components
 
 - **KeyValueStore** - A persistent key-value storage component using SQLite database for saving game data, settings, and player progress.
+- **StorageSync** - Keeps stored data across a page reload in a WebAssembly build; `KeyValueStore` uses it on its own.
 
 ## Usage Examples
 
@@ -261,6 +262,26 @@ The KeyValueStore component:
 The storage location depends on the platform:
 - **Desktop**: User's application data directory
 - **Mobile**: App-specific secure storage area
+- **Web (WebAssembly)**: the browser's IndexedDB for the page's origin
+
+### On the web
+
+A WebAssembly build has no disk: files live in memory and are gone when the
+page reloads. Every app that links Clayground.Storage therefore keeps its data
+directory (`$HOME/.local/share`, where LocalStorage puts its databases) in
+IndexedDB. It is loaded before the app starts, and `KeyValueStore` writes it
+back after every `set()` and `remove()`, so a value stored before a reload is
+there after it. Nothing has to be configured.
+
+- Code that writes to that directory some other way - `QtQuick.LocalStorage`
+  directly, for instance - calls `StorageSync.persist()` after writing.
+- The write-back runs in the background and takes a few milliseconds; a change
+  made in the very moment the page closes can be lost.
+- Where the browser offers no IndexedDB (some private windows, blocked site
+  data), the app starts anyway and stored data lasts until the page reloads;
+  the console says so once.
+- Data belongs to the page's origin (scheme, host and port): the same game on
+  another host or port starts empty.
 
 ## API Reference
 

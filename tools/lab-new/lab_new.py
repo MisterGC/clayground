@@ -276,7 +276,11 @@ def main(argv=None):
         die(e.args[0], e.args[1] if len(e.args) > 1 else 2)
 
     def show(path):
-        rel = os.path.relpath(path, root)
+        try:
+            rel = os.path.relpath(path, root)
+        except ValueError:
+            # Windows: a target on another drive has no relative path
+            return path
         return rel if not rel.startswith("..") else path
 
     verb = "would write" if args.dry_run else "wrote"

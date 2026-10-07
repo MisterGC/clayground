@@ -1,6 +1,7 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 #include "signaling_local.h"
+#include "testhooks.h"
 #include <rtc/rtc.hpp>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -34,67 +35,33 @@ bool LocalSignalingServer::start(uint16_t port)
 
         server_ = std::make_shared<rtc::WebSocketServer>(config);
 
+        // libdatachannel calls these from its own threads: each one only
+        // queues its work here, so sockets_ and clients_ have one owner
         server_->onClient([this](std::shared_ptr<rtc::WebSocket> ws) {
-            QString peerId;
+            rtc::WebSocket *key = ws.get();
+            QMetaObject::invokeMethod(this, [this, ws]() {
+                sockets_.insert(ws.get(), Socket{ws});
+            }, Qt::QueuedConnection);
 
-            ws->onOpen([this, ws, &peerId]() {
-                // PeerJS sends id in URL query: ws://host:port/peerjs?key=...&id=PEER_ID&token=...
-                // For simplicity, we'll extract it from the first message or path
-                qDebug() << "LocalSignalingServer: Client WebSocket opened";
-            });
-
-            ws->onMessage([this, ws, peerId](auto message) mutable {
+            ws->onMessage([this, key](auto message) {
                 if (std::holds_alternative<std::string>(message)) {
                     std::string msg = std::get<std::string>(message);
-
-                    // First message should identify the peer
-                    if (peerId.isEmpty()) {
-                        // Parse the path to get peer ID from query params
-                        // Or get it from HELLO message
-                        QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(msg));
-                        if (doc.isObject()) {
-                            QJsonObject obj = doc.object();
-                            if (obj.contains("id")) {
-                                peerId = obj["id"].toString();
-                            }
-                        }
-
-                        // If still no peer ID, generate one
-                        if (peerId.isEmpty()) {
-                            peerId = QUuid::createUuid().toString(QUuid::Id128).left(16);
-                        }
-
-                        clients_[peerId] = ws;
-                        qDebug() << "LocalSignalingServer: Client registered as" << peerId;
-
-                        // Send OPEN message to confirm registration
-                        QJsonObject openMsg;
-                        openMsg["type"] = "OPEN";
-                        openMsg["id"] = peerId;
-                        ws->send(QJsonDocument(openMsg).toJson(QJsonDocument::Compact).toStdString());
-
-                        QMetaObject::invokeMethod(this, [this, peerId]() {
-                            emit clientConnected(peerId);
-                        }, Qt::QueuedConnection);
-                    }
-
-                    QMetaObject::invokeMethod(this, [this, peerId, msg]() {
-                        onClientMessage(peerId, msg);
+                    QMetaObject::invokeMethod(this, [this, key, msg]() {
+                        onSocketMessage(key, msg);
                     }, Qt::QueuedConnection);
                 }
             });
 
-            ws->onError([this](std::string error) {
+            ws->onError([](std::string error) {
                 qWarning() << "LocalSignalingServer: Client error:" << QString::fromStdString(error);
             });
 
-            ws->onClosed([this, ws, peerId]() mutable {
-                if (!peerId.isEmpty()) {
-                    clients_.remove(peerId);
-                    QMetaObject::invokeMethod(this, [this, peerId]() {
-                        emit clientDisconnected(peerId);
-                    }, Qt::QueuedConnection);
-                }
+            // Until the close is handled the socket stays in sockets_, so
+            // its address cannot be reused by a new one in the meantime
+            ws->onClosed([this, key]() {
+                QMetaObject::invokeMethod(this, [this, key]() {
+                    onSocketClosed(key);
+                }, Qt::QueuedConnection);
             });
         });
 
@@ -110,12 +77,23 @@ bool LocalSignalingServer::start(uint16_t port)
     }
 }
 
+void LocalSignalingServer::setSecret(const QString &secret)
+{
+    secret_ = secret;
+}
+
 void LocalSignalingServer::stop()
 {
     if (server_) {
         server_->stop();
         server_.reset();
     }
+    // Their callbacks hold a raw this; nothing may arrive after we are gone
+    for (const Socket &socket : std::as_const(sockets_)) {
+        socket.ws->resetCallbacks();
+        socket.ws->close();
+    }
+    sockets_.clear();
     clients_.clear();
     running_ = false;
     port_ = 0;
@@ -129,6 +107,107 @@ bool LocalSignalingServer::isRunning() const
 uint16_t LocalSignalingServer::port() const
 {
     return port_;
+}
+
+QStringList LocalSignalingServer::clientIds() const
+{
+    return clients_.keys();
+}
+
+int LocalSignalingServer::openSocketCount() const
+{
+    return sockets_.size();
+}
+
+void LocalSignalingServer::onSocketMessage(rtc::WebSocket *key, const std::string &message)
+{
+    auto it = sockets_.find(key);
+    if (it == sockets_.end() || it->refused) {
+        return;
+    }
+    // The first message identifies the peer
+    if (it->peerId.isEmpty() && !registerSocket(*it, message)) {
+        return;
+    }
+    // Looked up again: registering emits, and a slot may change sockets_
+    onClientMessage(sockets_.value(key).peerId, message);
+}
+
+void LocalSignalingServer::onSocketClosed(rtc::WebSocket *key)
+{
+    Socket socket = sockets_.take(key);
+    // Only the socket that holds the id gives it back
+    if (socket.peerId.isEmpty() || clients_.value(socket.peerId) != key) {
+        return;
+    }
+    clients_.remove(socket.peerId);
+    qDebug() << "LocalSignalingServer: Client" << socket.peerId << "closed";
+    emit clientDisconnected(socket.peerId);
+}
+
+namespace {
+// Takes as long whatever the first mismatching character
+bool sameSecret(const QString &a, const QString &b)
+{
+    if (a.size() != b.size()) {
+        return false;
+    }
+    char16_t diff = 0;
+    for (qsizetype i = 0; i < a.size(); ++i) {
+        diff |= a[i].unicode() ^ b[i].unicode();
+    }
+    return diff == 0;
+}
+}
+
+bool LocalSignalingServer::registerSocket(Socket &socket, const std::string &message)
+{
+    QJsonDocument doc = QJsonDocument::fromJson(QByteArray::fromStdString(message));
+    QJsonObject obj = doc.isObject() ? doc.object() : QJsonObject();
+
+    // The LAN code carries a secret; a joiner that does not know it never
+    // gets registered or relayed (#293)
+    if (!secret_.isEmpty() && !sameSecret(obj["secret"].toString(), secret_)) {
+        refuse(socket, "ERROR", "Wrong LAN code");
+        qWarning() << "LocalSignalingServer: Rejected client with wrong secret";
+        return false;
+    }
+
+    QString peerId = obj["id"].toString();
+    if (peerId.isEmpty()) {
+        peerId = QUuid::createUuid().toString(QUuid::Id128).left(16);
+    }
+    // An id belongs to the first socket that registered it, until that one
+    // closes: whoever has the code must not take over HOST, or any joiner,
+    // and receive the offers meant for it (#321)
+    if (clients_.contains(peerId)) {
+        refuse(socket, "ID-TAKEN", QString("ID \"%1\" is taken").arg(peerId));
+        qWarning() << "LocalSignalingServer: Refused client claiming taken id" << peerId;
+        return false;
+    }
+
+    socket.peerId = peerId;
+    clients_.insert(peerId, socket.ws.get());
+    qDebug() << "LocalSignalingServer: Client registered as" << peerId;
+
+    // Send OPEN message to confirm registration
+    QJsonObject openMsg;
+    openMsg["type"] = "OPEN";
+    openMsg["id"] = peerId;
+    socket.ws->send(QJsonDocument(openMsg).toJson(QJsonDocument::Compact).toStdString());
+
+    emit clientConnected(peerId);
+    return true;
+}
+
+void LocalSignalingServer::refuse(Socket &socket, const QString &type, const QString &msg)
+{
+    socket.refused = true;
+    QJsonObject err;
+    err["type"] = type;
+    err["payload"] = QJsonObject{{"msg", msg}};
+    socket.ws->send(QJsonDocument(err).toJson(QJsonDocument::Compact).toStdString());
+    socket.ws->close();
 }
 
 void LocalSignalingServer::onClientMessage(const QString &peerId, const std::string &message)
@@ -161,13 +240,13 @@ void LocalSignalingServer::onClientMessage(const QString &peerId, const std::str
 
 void LocalSignalingServer::sendToClient(const QString &peerId, const QString &message)
 {
-    auto it = clients_.find(peerId);
-    if (it == clients_.end()) {
+    auto it = sockets_.find(clients_.value(peerId));
+    if (it == sockets_.end()) {
         return;
     }
 
-    auto ws = it.value().lock();
-    if (ws && ws->isOpen()) {
+    const auto &ws = it->ws;
+    if (ws->isOpen()) {
         ws->send(message.toStdString());
     }
 }
@@ -186,13 +265,17 @@ LocalSignalingClient::~LocalSignalingClient()
     disconnect();
 }
 
-void LocalSignalingClient::connect(const QString &host, uint16_t port, const QString &peerId)
+void LocalSignalingClient::connect(const QString &host, uint16_t port, const QString &peerId,
+                                   const QString &secret)
 {
     if (ws_) {
         disconnect();
     }
 
     peerId_ = peerId.isEmpty() ? QUuid::createUuid().toString(QUuid::Id128).left(16) : peerId;
+    secret_ = secret;
+    closedByUs_ = false;
+    errorReported_ = false;
 
     // Connect to local signaling server
     QString url = QString("ws://%1:%2/peerjs?id=%3").arg(host).arg(port).arg(peerId_);
@@ -217,6 +300,7 @@ void LocalSignalingClient::connect(const QString &host, uint16_t port, const QSt
     });
 
     ws_->onClosed([this]() {
+        CLAY_NETWORK_CLOSE_HOOK(this);
         QMetaObject::invokeMethod(this, [this]() { onWsClosed(); }, Qt::QueuedConnection);
     });
 
@@ -225,7 +309,13 @@ void LocalSignalingClient::connect(const QString &host, uint16_t port, const QSt
 
 void LocalSignalingClient::disconnect()
 {
+    closedByUs_ = true;
     if (ws_) {
+        // Their callbacks hold a raw this, and the socket reports Closed on
+        // libdatachannel's thread after close() returned. Dropping the last
+        // rtc::WebSocket resets them too, but only if ws_ is the last one;
+        // this does not rely on it. It waits for a callback running now (#359)
+        ws_->resetCallbacks();
         ws_->close();
         ws_.reset();
     }
@@ -250,6 +340,8 @@ void LocalSignalingClient::onWsOpen()
     // Send identification message
     QJsonObject idMsg;
     idMsg["id"] = peerId_;
+    if (!secret_.isEmpty())
+        idMsg["secret"] = secret_;
     ws_->send(QJsonDocument(idMsg).toJson(QJsonDocument::Compact).toStdString());
 }
 
@@ -298,10 +390,11 @@ void LocalSignalingClient::onWsMessage(const std::string &message)
     }
     else if (type == "REJECT") {
         QString reason = obj["payload"].toObject()["reason"].toString();
-        emit errorOccurred(reason.isEmpty() ? "Connection rejected" : reason);
+        emit rejected(reason.isEmpty() ? "Connection rejected" : reason);
     }
-    else if (type == "ERROR") {
+    else if (type == "ERROR" || type == "ID-TAKEN") {
         QString errorMsg = obj["payload"].toObject()["msg"].toString();
+        errorReported_ = true;
         emit errorOccurred(errorMsg);
     }
 }
@@ -315,7 +408,12 @@ void LocalSignalingClient::onWsError(const std::string &error)
 void LocalSignalingClient::onWsClosed()
 {
     qDebug() << "LocalSignalingClient: WebSocket closed";
+    bool wasRegistered = connected_;
     connected_ = false;
+    // Closed before the server ever registered us (it turns away joiners
+    // whose LAN code is wrong): report it instead of waiting for the timeout
+    if (!wasRegistered && !closedByUs_ && !errorReported_)
+        emit errorOccurred("Signaling server closed the connection (wrong LAN code?)");
     emit disconnected();
 }
 

@@ -6,9 +6,15 @@ include(CMakeParseArguments)
 #   clay_add_qml_test(<Name>
 #       DIRECTORY <dir-with-qml-tests>
 #       [IMPORT_DIRS <additional-import-dirs>...]
+#       [IMPORTS_BUILT_MODULE] [RENDERS]
 #   )
+#
+# RENDERS: the suite compares pixels. The default "minimal" platform renders
+# nothing - grabImage() returns an empty image there, so two grabs always
+# compare equal. Such a suite runs on "offscreen" with the software Qt Quick
+# backend instead, which draws real pixels and needs no GPU on a CI runner.
 function(clay_add_qml_test NAME)
-    set(options IMPORTS_BUILT_MODULE)
+    set(options IMPORTS_BUILT_MODULE RENDERS)
     set(oneValueArgs DIRECTORY)
     set(multiValueArgs IMPORT_DIRS)
     cmake_parse_arguments(T "${options}" "${oneValueArgs}" "${multiValueArgs}" ${ARGN})
@@ -91,8 +97,13 @@ function(clay_add_qml_test NAME)
     )
 
     # Run headless, with software backend for stability
+    if(T_RENDERS)
+        set(_platform_env "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software")
+    else()
+        set(_platform_env "QT_QPA_PLATFORM=minimal;QT_OPENGL=software")
+    endif()
     set_tests_properties(qml_${NAME} PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=minimal;QT_OPENGL=software;${_runner_env}"
+        ENVIRONMENT "${_platform_env};${_runner_env}"
         LABELS "qml"
     )
 
@@ -175,4 +186,89 @@ function(clay_add_node_test NAME)
 
     add_test(NAME node_${NAME} COMMAND ${NODE_EXECUTABLE} ${T_SCRIPT})
     set_tests_properties(node_${NAME} PROPERTIES LABELS "node")
+endfunction()
+
+# The part of the tree a path belongs to, as verify.sh names it too:
+# plugins/<p>, tools/<t>, examples/<e> and thirdparty/<x> by their directory,
+# anything else by its top-level directory (labs, docs). Empty for a file at
+# the top level.
+function(clay_test_component REL_PATH OUT_VAR)
+    string(REPLACE "\\" "/" _rel "${REL_PATH}")
+    string(REGEX MATCH "^(plugins|tools|examples|thirdparty)/[^/]+" _comp "${_rel}")
+    if(NOT _comp)
+        string(REGEX MATCH "^[^/]+/" _top "${_rel}")
+        string(REGEX REPLACE "/$" "" _comp "${_top}")
+    endif()
+    set(${OUT_VAR} "${_comp}" PARENT_SCOPE)
+endfunction()
+
+# Every directory under DIR that registered a test, DIR included.
+function(clay_test_directories DIR OUT_VAR)
+    set(_found)
+    set(_dirs "${DIR}")
+    while(_dirs)
+        list(POP_FRONT _dirs _dir)
+        get_property(_subdirs DIRECTORY "${_dir}" PROPERTY SUBDIRECTORIES)
+        list(APPEND _dirs ${_subdirs})
+        get_property(_tests DIRECTORY "${_dir}" PROPERTY TESTS)
+        if(_tests)
+            list(APPEND _found "${_dir}")
+        endif()
+    endwhile()
+    set(${OUT_VAR} "${_found}" PARENT_SCOPE)
+endfunction()
+
+# The two functions below run once, at the end of the top-level
+# CMakeLists.txt, when every test exists. Setting a property on a test of
+# another directory needs CMake 3.28; below that they do nothing, and
+# verify.sh runs everything when it finds a test without a component label.
+
+# Gives every test registered under DIR a label naming the plugin or tool it
+# tests - plugins/clay_network, tools/loader, examples/platformer, labs - taken
+# from the directory that registered it, so a new test is labeled without a
+# line to remember. verify.sh selects tests by these labels (#384), and
+# `ctest -L '^plugins/clay_network$'` runs one plugin's tests by hand.
+function(clay_label_tests_by_component DIR)
+    if(CMAKE_VERSION VERSION_LESS 3.28)
+        message(STATUS "CMake < 3.28: tests get no component label - "
+                       "verify.sh will run the full suite")
+        return()
+    endif()
+    clay_test_directories("${DIR}" _dirs)
+    foreach(_dir IN LISTS _dirs)
+        file(RELATIVE_PATH _rel "${DIR}" "${_dir}")
+        clay_test_component("${_rel}/" _comp)
+        if(NOT _comp)
+            continue()
+        endif()
+        get_property(_tests DIRECTORY "${_dir}" PROPERTY TESTS)
+        foreach(_test IN LISTS _tests)
+            get_test_property(${_test} LABELS DIRECTORY "${_dir}" _labels)
+            if(NOT _comp IN_LIST _labels)
+                set_property(TEST ${_test} DIRECTORY "${_dir}"
+                             APPEND PROPERTY LABELS "${_comp}")
+            endif()
+        endforeach()
+    endforeach()
+endfunction()
+
+# Gives every test registered under DIR a settings store of its own,
+# build/test-storage/<test>, through CLAY_STORAGE_DIR (tools/scene/
+# claystorage.h). Without it every loader a test starts - the lab checks, the
+# gyms, the lab-new boots - opened the person's ~/.clayground, where LabPrefs
+# keeps language, theme and scale: tests running side by side (#384) would
+# change each other's settings, and every run changed the person's.
+function(clay_isolate_test_storage DIR)
+    if(CMAKE_VERSION VERSION_LESS 3.28)
+        return()
+    endif()
+    clay_test_directories("${DIR}" _dirs)
+    foreach(_dir IN LISTS _dirs)
+        get_property(_tests DIRECTORY "${_dir}" PROPERTY TESTS)
+        foreach(_test IN LISTS _tests)
+            set_property(TEST ${_test} DIRECTORY "${_dir}" APPEND PROPERTY
+                ENVIRONMENT_MODIFICATION
+                "CLAY_STORAGE_DIR=set:${CMAKE_BINARY_DIR}/test-storage/${_test}")
+        endforeach()
+    endforeach()
 endfunction()

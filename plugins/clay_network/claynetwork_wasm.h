@@ -7,7 +7,12 @@
 #include <QStringList>
 #include <QHash>
 #include <QElapsedTimer>
+#include <QTimer>
 #include <qqmlregistration.h>
+#include "link_conditioner.h"
+#include "statebatch.h"
+#include "replica.h"
+#include "sessionclock.h"
 
 /*!
     \qmltype ClayNetworkBackend
@@ -28,8 +33,10 @@ class ClayNetwork : public QObject
 
     Q_PROPERTY(QString roomId READ networkId NOTIFY networkIdChanged)
     Q_PROPERTY(QString playerId READ nodeId NOTIFY nodeIdChanged)
+    Q_PROPERTY(QString hostId READ hostId NOTIFY hostIdChanged)
     Q_PROPERTY(bool isHost READ isHost NOTIFY isHostChanged)
     Q_PROPERTY(bool connected READ connected NOTIFY connectedChanged)
+    Q_PROPERTY(QString hostLostReason READ hostLostReason NOTIFY hostLostReasonChanged)
     Q_PROPERTY(int playerCount READ nodeCount NOTIFY nodeCountChanged)
     Q_PROPERTY(QStringList players READ nodes NOTIFY nodesChanged)
     Q_PROPERTY(int maxPlayers READ maxNodes WRITE setMaxNodes NOTIFY maxNodesChanged)
@@ -39,12 +46,30 @@ class ClayNetwork : public QObject
     Q_PROPERTY(SignalingMode signalingMode READ signalingMode WRITE setSignalingMode NOTIFY signalingModeChanged)
     Q_PROPERTY(QVariantList iceServers READ iceServers WRITE setIceServers NOTIFY iceServersChanged)
     Q_PROPERTY(QString signalingUrl READ signalingUrl WRITE setSignalingUrl NOTIFY signalingUrlChanged)
+    // Kept so Network.qml can set it on every platform; the browser checks
+    // the signaling server's certificate itself and offers no opt-out
+    Q_PROPERTY(bool verifySignalingCertificate READ verifySignalingCertificate WRITE setVerifySignalingCertificate NOTIFY verifySignalingCertificateChanged)
     Q_PROPERTY(bool verbose READ verbose WRITE setVerbose NOTIFY verboseChanged)
     Q_PROPERTY(QString connectionPhase READ connectionPhase NOTIFY connectionPhaseChanged)
     Q_PROPERTY(QVariantMap phaseTiming READ phaseTiming NOTIFY phaseTimingChanged)
     Q_PROPERTY(int latency READ latency NOTIFY latencyChanged)
     Q_PROPERTY(QVariantMap peerStats READ peerStats NOTIFY peerStatsChanged)
     Q_PROPERTY(QVariantMap syncStats READ syncStats NOTIFY syncStatsChanged)
+    Q_PROPERTY(QVariantMap linkConditions READ linkConditions WRITE setLinkConditions NOTIFY linkConditionsChanged)
+    Q_PROPERTY(int gracePeriod READ gracePeriod WRITE setGracePeriod NOTIFY gracePeriodChanged)
+    Q_PROPERTY(bool acceptingJoins READ acceptingJoins NOTIFY acceptingJoinsChanged)
+    Q_PROPERTY(QString password READ password WRITE setPassword NOTIFY passwordChanged)
+    Q_PROPERTY(QString appId READ appId WRITE setAppId NOTIFY appIdChanged)
+    Q_PROPERTY(QString clientToken READ clientToken WRITE setClientToken NOTIFY clientTokenChanged)
+    Q_PROPERTY(QVariantMap clientTokens READ clientTokens NOTIFY clientTokensChanged)
+    // The host's clock, shared by every node (#304). Read live: it changes
+    // every ms but notifies only when it is set, synced or reset
+    Q_PROPERTY(double sessionTime READ sessionTime NOTIFY sessionClockChanged)
+    Q_PROPERTY(bool sessionTimeSynced READ sessionTimeSynced NOTIFY sessionClockChanged)
+    // Test hook: a joiner that speaks another wire version (#323)
+    // Host-owned session properties, the same on every node (#306)
+    Q_PROPERTY(QVariantMap sessionProperties READ sessionProperties NOTIFY sessionPropertiesChanged)
+    Q_PROPERTY(int wireVersion READ wireVersion WRITE setWireVersion NOTIFY wireVersionChanged)
 
 public:
     enum Topology {
@@ -72,8 +97,10 @@ public:
 
     QString networkId() const;
     QString nodeId() const;
+    QString hostId() const;
     bool isHost() const;
     bool connected() const;
+    QString hostLostReason() const { return hostLostReason_; }
     int nodeCount() const;
     QStringList nodes() const;
     int maxNodes() const;
@@ -89,6 +116,8 @@ public:
     void setIceServers(const QVariantList &servers);
     QString signalingUrl() const;
     void setSignalingUrl(const QString &url);
+    bool verifySignalingCertificate() const;
+    void setVerifySignalingCertificate(bool verify);
     bool verbose() const;
     void setVerbose(bool v);
     QString connectionPhase() const;
@@ -96,6 +125,23 @@ public:
     int latency() const;
     QVariantMap peerStats() const;
     QVariantMap syncStats() const;
+    QVariantMap linkConditions() const;
+    void setLinkConditions(const QVariantMap &conditions);
+    int gracePeriod() const;
+    void setGracePeriod(int ms);
+    bool acceptingJoins() const;
+    QString password() const;
+    void setPassword(const QString &password);
+    QString appId() const;
+    void setAppId(const QString &appId);
+    QString clientToken() const;
+    void setClientToken(const QString &token);
+    QVariantMap clientTokens() const;
+    int wireVersion() const;
+    void setWireVersion(int version);
+    double sessionTime() const;
+    bool sessionTimeSynced() const;
+    QVariantMap sessionProperties() const;
 
 public slots:
     void createRoom();
@@ -103,23 +149,72 @@ public slots:
     void leave();
     void broadcast(const QVariant &data);
     void broadcastState(const QVariant &data);
+    // Queues a keyed state (#302); the queue goes out as batches when
+    // control is back in the event loop, or at flushState()
+    void broadcastKeyedState(const QVariant &data, const QString &key);
+    void flushState();
     void sendTo(const QString &nodeId, const QVariant &data);
+    // Test hook: puts json on the wire to nodeId as it is, bypassing the
+    // message envelope - the net gym forges a sender id with it (#298)
+    void sendRaw(const QString &nodeId, const QString &json);
+    // Sends a ping to every peer. A peer that leaves one unanswered, and
+    // sends nothing else either, for gracePeriod ms is dropped (#299)
     void ping();
     int stateAgeMs(const QString &nodeId) const;
+    int keyedStateAgeMs(const QString &nodeId, const QString &key) const;
+    // How long the fastest state from nodeId in the last 3 s took, in
+    // session ms; NaN before one arrived (#304)
+    double transitMs(const QString &nodeId) const;
+
+    // Replicated objects (#306), see replica.h and the native backend
+    QString spawnObject(const QString &type, const QVariantMap &props, const QString &owner,
+                        const QString &onOwnerLeft);
+    bool despawnObject(const QString &id);
+    bool setObjectOwner(const QString &id, const QString &owner);
+    void sendObjectState(const QString &id, const QVariant &data);
+    void settleObjectState(const QString &id, const QVariant &data);
+    bool setSessionProperty(const QString &name, const QVariant &value);
+    QVariantList objects() const;
+    QVariantMap objectInfo(const QString &id) const;
+    // Test hook: the sequence entries kept for object states (#306)
+    int objectSequenceEntries() const;
 
 signals:
     void roomCreated(const QString &networkId);
     void playerJoined(const QString &nodeId);
     void playerLeft(const QString &nodeId);
-    void messageReceived(const QString &fromId, const QVariant &data);
-    void stateReceived(const QString &fromId, const QVariant &data);
+    // sentAt: the session time (#304) when the sender sent it, or -1 when
+    // the sender did not include one
+    void messageReceived(const QString &fromId, const QVariant &data, double sentAt);
+    // sentAt: the session time (#304) when the update was broadcast, or -1
+    // when the sender did not include one. key is the key it was broadcast
+    // with, empty for an unkeyed state (#302).
+    void stateReceived(const QString &fromId, const QVariant &data, double sentAt,
+                       const QString &key);
     void errorOccurred(const QString &message);
+    // The host refused this joiner in the handshake (#323); reason is one
+    // of handshake.h's codes, errorOccurred(message) follows
+    void joinRefused(const QString &reason, const QString &message);
+    // A joiner lost its host (#376); reason is one of hostloss.h's codes,
+    // already in hostLostReason when connected turned false.
+    // errorOccurred(message) follows
+    void hostLost(const QString &reason, const QString &message);
     void diagnosticMessage(const QString &phase, const QString &detail);
+    // Replicated objects (#306)
+    void objectSpawned(const QString &id, const QString &type, const QString &owner,
+                       const QVariantMap &props);
+    void objectDespawned(const QString &id, const QString &type);
+    void objectOwnerChanged(const QString &id, const QString &owner);
+    void objectStateReceived(const QString &id, const QVariantMap &data, double sentAt);
+    void sessionPropertyChanged(const QString &name, const QVariant &value);
+    void sessionPropertiesChanged();
 
     void networkIdChanged();
     void nodeIdChanged();
+    void hostIdChanged();
     void isHostChanged();
     void connectedChanged();
+    void hostLostReasonChanged();
     void nodeCountChanged();
     void nodesChanged();
     void maxNodesChanged();
@@ -129,12 +224,25 @@ signals:
     void signalingModeChanged();
     void iceServersChanged();
     void signalingUrlChanged();
+    void verifySignalingCertificateChanged();
+    // The PeerJS server connection dropped after it was up; the data
+    // connections stay and PeerJS reconnects under the same id (#299)
+    void signalingLost();
     void verboseChanged();
     void connectionPhaseChanged();
     void phaseTimingChanged();
     void latencyChanged();
     void peerStatsChanged();
     void syncStatsChanged();
+    void linkConditionsChanged();
+    void gracePeriodChanged();
+    void acceptingJoinsChanged();
+    void passwordChanged();
+    void appIdChanged();
+    void clientTokenChanged();
+    void clientTokensChanged();
+    void wireVersionChanged();
+    void sessionClockChanged();
 
 public:
     // Callbacks from JavaScript (via Emscripten)
@@ -142,23 +250,61 @@ public:
     void onConnectedToNetwork(const char* nodeId);
     void onNodeJoined(const char* nodeId);
     void onNodeLeft(const char* nodeId);
-    void onMessage(const char* fromId, const char* data, bool isState);
+    void onMessage(const char* linkPeerId, const char* data, bool isState);
     void onSystem(const char* json);
     void onError(const char* errorMsg);
     void onDisconnected();
+    void onSignalingLost();
+    void onSignalingRestored();
     void onDiagnostic(const char* phase, const char* detail);
-    void onPong(const char* peerId, int rtt);
+    // A pong arrived: sentLocal is the ping's send time and receivedLocal
+    // the pong's arrival, both on performance.now(); hostTime the session
+    // time the peer answered with, -1 if it gave none (#304)
+    void onPong(const char* peerId, double sentLocal, double hostTime, double receivedLocal);
+    // The join handshake (#323): a pending joiner's first message on the
+    // host, the host's first answer on a joiner
+    void onHello(const char* peerId, const char* json);
+    void onHandshakeReply(const char* nodeId, const char* json);
+    // A joiner reached a connection phase; ms is how long the one before took
+    void onPhase(const char* phase, int ms);
 
 private:
     void initPeerJS();
     QString generateNetworkCode() const;
     void setConnectionPhase(const QString &phase);
     void emitDiag(const QString &phase, const QString &detail);
+    // True (after reporting the error) when linkConditions.dropSignaling
+    // makes the signaling server unreachable
+    bool refuseWhileSignalingDropped();
+    void heard(const QString &linkPeer);
+    void checkLiveness();
+    void armLivenessCheck();
+    // Pings a link peer that has gone quiet, so its deadline starts right
+    // after the silence does and not at the next 2 s ping
+    void probeQuietPeers();
+    // A joiner's host left, went silent or its link closed: the network
+    // is over, every node it knew is reported gone
+    void loseHost(const QString &reason, const QString &message);
+    // Empty while the host is not lost, cleared by createRoom()/joinRoom()
+    void setHostLostReason(const QString &reason);
+    void removeNode(const QString &nodeId);
+    // leave() without the goodbye: everything back to Disconnected
+    void tearDown(bool goodbye);
+    void setAcceptingJoins(bool accepting);
+    void setupReplicas();
+    // Reliable, to one node
+    void sendJson(const QString &nodeId, const QJsonObject &msg);
+    // The pings that sync a joiner's session clock right after the welcome
+    void syncBurst();
+    // performance.now(), what the session clock and the pings read
+    double localMs() const;
 
     QString networkId_;
     QString nodeId_;
+    QString hostId_;  // node id of the host, the same on every node
     bool isHost_ = false;
     bool connected_ = false;
+    QString hostLostReason_;
     int maxNodes_ = 8;
     Topology topology_ = Star;
     Status status_ = Disconnected;
@@ -168,6 +314,7 @@ private:
 
     // Custom signaling
     QString signalingUrl_;
+    bool verifySignalingCertificate_ = true;
 
     // ICE configuration
     QVariantList iceServers_;
@@ -178,6 +325,9 @@ private:
     QVariantMap phaseTiming_;
     int latency_ = -1;
     QVariantMap peerLatencies_;
+    // States that came over each peer's link, as the native peerStats
+    // counts them (#307)
+    QHash<QString, qint64> peerStateRecv_;
 
     // State sync bookkeeping - keyed by ORIGIN node id
     void forgetSender(const QString &nodeId);
@@ -187,6 +337,49 @@ private:
     QHash<QString, qint64> stateRecvCount_;
     QHash<QString, qint64> stateDropCount_;
     QElapsedTimer clock_;
+    // Keyed states (#302): sent ones wait in the queue for the flush,
+    // received ones are sequenced per sender and key
+    clay::network::statebatch::Queue keyedOut_;
+    clay::network::statebatch::Tracker keyedIn_;
+    QTimer keyedFlush_;
+    // Replicated objects (#306): the table every node keeps, and the
+    // owner's object states waiting for the flush with the keyed ones
+    clay::network::replica::Table replicas_;
+    clay::network::statebatch::Queue objectsOut_;
+
+    // The session clock (#304): the host's runs from createRoom, a joiner's
+    // is synced from its pings to the host
+    clay::network::sessionclock::Clock session_;
+    clay::network::sessionclock::TransitTracker transit_;
+    QTimer syncBurst_;
+    int syncBurstLeft_ = 0;
+
+    // Holds the simulated link's conditions (#301). The traffic itself is
+    // conditioned in JS by link_conditioner.js, which sees every packet -
+    // relays and pongs never pass through C++ here.
+    clay::network::LinkConditioner conditions_;
+
+    // A peer that leaves a ping unanswered this long counts as gone (#299).
+    // Keyed by the peer at the other end of a link: the clock_ time of the
+    // first ping sent since it was last heard from.
+    int gracePeriod_ = 5000;
+    QHash<QString, qint64> unansweredSinceMs_;
+    QHash<QString, qint64> lastHeardMs_;
+    QTimer livenessCheck_;
+    QTimer quietProbe_;
+    bool acceptingJoins_ = false;
+    bool signalingDown_ = false;
+
+    // The join handshake (#323)
+    QString password_;
+    QString appId_;
+    QString clientToken_;
+    int wireVersion_;
+    QVariantMap clientTokens_;  // host: each joiner's token, by node id
+
+    // clock_ times of host()/join() and of the hello, for phaseTiming
+    qint64 connectStartMs_ = 0;
+    qint64 handshakeStartMs_ = -1;
 
     int instanceId_ = -1;
     static int nextInstanceId_;

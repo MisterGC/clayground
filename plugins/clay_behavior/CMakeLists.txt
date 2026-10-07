@@ -19,3 +19,9 @@ clay_plugin( Behavior
         ClayWorld
         ClayAlgorithm
 )
+
+include(claytest)
+# IMPORTS_BUILT_MODULE: MoveTo needs a ClayWorld2d and the C++ Box2D types,
+# so the suite loads the built modules from bin/qml (#192).
+clay_add_qml_test(behavior_qml IMPORTS_BUILT_MODULE
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)

@@ -17,6 +17,12 @@ clay_add_node_test(kit_sensor
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/sensor/sensor.test.js)
 clay_add_node_test(kit_hydro
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/hydro/hydro.test.js)
+# The part tables behind the two ExplodedView3D subjects (#274): what the
+# transistor and the valve are made of, checked against the kernel's rules.
+clay_add_node_test(kit_circuit_anatomy
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/circuit/anatomy.test.js)
+clay_add_node_test(kit_hydro_valve
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/hydro/valve.test.js)
 clay_add_node_test(kit_character
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/character/sheet.test.js)
 

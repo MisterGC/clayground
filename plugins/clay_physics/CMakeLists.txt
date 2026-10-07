@@ -13,6 +13,7 @@ clay_plugin( Physics
             CollisionTracker.qml
             ImageBoxBody.qml
             PhysicsItem.qml
+            PhysicsTimer.qml
             PhysicsUtils.qml
             RectBoxBody.qml
             VisualizedPolyBody.qml

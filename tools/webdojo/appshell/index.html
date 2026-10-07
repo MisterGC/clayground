@@ -123,23 +123,45 @@
                 // ... and hand over to your game. Everything referenced from
                 // Main.qml (images, sounds, more QML) is fetched relative to
                 // it - just put files next to it.
-                // Files Qt opens with QFile - Qt Quick 3D meshes and textures, balsam's
-                // Timeline keyframes (.qad), GLBs for RuntimeLoader - cannot come from an
-                // http URL. If the game ships an assets-manifest.json (a JSON array of
-                // relative paths), fetch them into the in-memory filesystem under /game/
-                // and reference them from QML as file:///game/<path>.
+                // Files Qt opens with QFile - ShaderEffect .qsb shaders, Qt Quick 3D meshes
+                // and textures, balsam's Timeline keyframes (.qad), GLBs for RuntimeLoader -
+                // cannot come from an http URL. If the game ships an assets-manifest.json (a
+                // JSON array of relative paths), fetch them into the in-memory filesystem
+                // under /game/ and reference them as file:///game/<path> - except .qsb
+                // shaders: the runtime serves a relative "shaders/x.frag.qsb" from there.
                 await preloadAssets(runtime, loading);
 
                 runtime.loadQmlFromUrl(new URL('Main.qml', window.location.href).href);
                 loading.style.display = 'none';
 
                 // Keyboard focus fix for Qt WASM (QTBUG-91095): refocus Qt's
-                // hidden input element after pointer interactions.
+                // hidden input element after pointer interactions - and focus it
+                // right away, so a keyboard-driven title screen works before the
+                // first click (otherwise keys go to <body> and Qt never sees them).
+                // A click Qt does not accept lets the browser's mousedown move
+                // focus to <body>, which is what pointerup undoes. The input to
+                // focus is the one of the window clicked, not the first one: a
+                // game whose root is a Window has a second Qt window, the
+                // runtime's own is then 0x0, and its input cannot take focus -
+                // a TextInput got no keys at all (#405). A focus Qt already
+                // holds is left alone.
                 setTimeout(() => {
                     const qtDiv = Array.from(screen.querySelectorAll('div')).find(d => d.shadowRoot);
-                    const qtInput = qtDiv?.shadowRoot.querySelector('input.qt-window-input-element');
-                    if (qtInput)
-                        screen.addEventListener('pointerup', () => qtInput.focus(), true);
+                    const qtRoot = qtDiv?.shadowRoot;
+                    if (!qtRoot)
+                        return;
+                    const shown = w => { const b = w.getBoundingClientRect(); return b.width > 0 && b.height > 0; };
+                    const inputOf = target => {
+                        const clicked = target?.closest?.('.qt-window');
+                        const win = clicked && shown(clicked) ? clicked
+                            : Array.from(qtRoot.querySelectorAll('.qt-window')).find(shown);
+                        return win?.querySelector('input.qt-window-input-element');
+                    };
+                    inputOf(null)?.focus();
+                    screen.addEventListener('pointerup', e => {
+                        if (!qtRoot.activeElement)
+                            inputOf(e.composedPath()[0])?.focus();
+                    }, true);
                 }, 100);
             } catch (e) {
                 loading.textContent = 'Failed to start: ' + e;

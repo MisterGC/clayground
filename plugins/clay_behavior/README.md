@@ -143,7 +143,7 @@ Item {
 
 The Clay Behavior plugin implements several patterns:
 
-- **Physics-Based Movement**: MoveTo uses Box2D's kinematic bodies with velocity adjustments
+- **Physics-Based Movement**: MoveTo uses Box2D's kinematic bodies with velocity adjustments, re-aimed every 100 ms of simulated time on a `PhysicsTimer` - pause, single step and hit stop hold it
 - **Waypoint System**: FollowPath manages sequential waypoint navigation
 - **Trigger System**: RectTrigger uses Box2D sensors for enter detection
 - **Builder Pattern**: DoorBuilder demonstrates complex object assembly from map data

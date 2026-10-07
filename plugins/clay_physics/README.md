@@ -22,6 +22,7 @@ import Box2D
 - **ImageBoxBody** - Image-based physics body with box collision
 - **VisualizedPolyBody** - Polygon physics body integrated with Canvas visualization
 - **CollisionTracker** - Tracks entities colliding with a fixture
+- **PhysicsTimer** - Timer on simulated time: pause, single-step and hit stop hold it
 - **PhysicsUtils** - Singleton with collision connection helpers
 
 ## Usage Examples
@@ -207,6 +208,22 @@ RectBoxBody {
 }
 ```
 
+### Game Logic on Simulated Time
+
+A QML `Timer` runs on wall clock, so it keeps firing while the world is
+paused, single-stepped or frozen by a hit stop. A `PhysicsTimer` counts the
+time of the physics steps instead and stands still with the world:
+
+```qml
+PhysicsTimer {
+    world: theWorld.physics   // a ClayWorld2d's Box2D world
+    interval: 800             // simulated milliseconds
+    repeat: true
+    running: true
+    onTriggered: enemy.decide()
+}
+```
+
 ## Best Practices
 
 1. **World Units**: Always use world units (Wu) for consistency across different screen sizes.
@@ -221,6 +238,8 @@ RectBoxBody {
 4. **Performance**: Use sensors for triggers to avoid physical collision responses.
 
 5. **Continuous Collision**: Enable `bullet` property for fast-moving objects to prevent tunneling.
+
+6. **Destroyed Bodies**: An item destroyed while it touches a sensor ends that contact first, so the sensor's `endContact` still names it (`other.getBody().target`). This holds for every body type of this plugin, not for a raw `Body`.
 
 ## Technical Implementation
 

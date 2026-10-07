@@ -32,6 +32,14 @@
         strokeColor: "purple"
         strokeStyle: ShapePath.DashLine
     }
+
+    // A chalk line, half drawn
+    Canv.Poly {
+        canvas: myCanvas
+        vertices: [{x: 0, y: 0}, {x: 4, y: 1}, {x: 6, y: 0}]
+        sketch: "chalk"
+        progress: 0.5
+    }
     \endqml
 
     \qmlproperty ClayCanvas Poly::canvas
@@ -59,11 +67,26 @@
     \readonly
     \brief Whether the shape is closed. True when fillColor is not transparent.
 
+    \qmlproperty string Poly::sketch
+    \brief The pen: "none" (default), "chalk" or "marker".
+
+    "chalk" draws a wobbly, slightly jagged line with a wider, fainter grain
+    pass beside it; "marker" a smooth slow wobble with round caps. The
+    vertices themselves are never moved, so a stroke starts and ends where it
+    was asked to.
+
+    \qmlproperty real Poly::progress
+    \brief How much of the outline is drawn, 0 to 1 along its length from the first vertex. Default 1.
+
+    \qmlproperty int Poly::seed
+    \brief Which wobble a sketched stroke gets. Two polys with the same seed and vertices draw the same line. Default 0.
+
     \qmlmethod void Poly::refresh()
     \brief Refreshes the shape visualization after vertex changes.
 */
 import QtQuick
 import QtQuick.Shapes
+import "sketch.js" as Sketch
 
 Shape {
     id: theShape
@@ -72,12 +95,22 @@ Shape {
     parent: canvas ? canvas.coordSys : null
 
     property alias _shapePath: theShapePath
+    property alias _grainPath: grainPath
     property alias strokeWidth: theShapePath.strokeWidth
     property alias strokeColor: theShapePath.strokeColor
     property alias fillColor:   theShapePath.fillColor
     property alias strokeStyle: theShapePath.strokeStyle
     property alias dashPattern: theShapePath.dashPattern
-    property bool closed: (fillColor != "transparent")
+    // Qt.colorEqual, not `!=`: a color compared to a string is compared as
+    // its "#aarrggbb" text, which never equals "transparent" - every Poly
+    // used to be closed, dashed paths included.
+    property bool closed: !Qt.colorEqual(fillColor, "transparent")
+
+    property string sketch: "none"
+    property real progress: 1
+    property int seed: 0
+    readonly property var _look: Sketch.look(sketch)
+    readonly property real _progress: Math.max(0, Math.min(1, progress))
 
     Component.onCompleted: refresh();
 
@@ -91,16 +124,26 @@ Shape {
     y: canvas ? canvas.yToScreen(_yWu) : 0
     width: _widthWu * (canvas ? canvas.pixelPerUnit : 0)
     height: _heightWu * (canvas ? canvas.pixelPerUnit : 0)
+    // A sketched stroke is resampled when its length in pixels crosses a
+    // STEP: the sample spacing is a pixel thing, and the canvas has neither
+    // its size nor its zoom yet when a poly first completes.
+    readonly property int _pieces: Sketch.isSketch(sketch) && canvas
+        ? Sketch.pieces(Sketch.polyLength(vertices) * canvas.pixelPerUnit, Sketch.STEP) : 1
     onVerticesChanged: refresh()
+    onSketchChanged: refresh()
+    onSeedChanged: refresh()
+    onClosedChanged: refresh()
+    on_PiecesChanged: refresh()
     function refresh() { _syncVisu(); }
     function _syncVisu() {
         theShapePath.pathElements = [];
+        grainPath.pathElements = [];
         let verts = theShape.vertices;
 
         let xMin = Number.MAX_VALUE;
         let yMin = Number.MAX_VALUE;
-        let xMax = Number.MIN_VALUE;
-        let yMax = Number.MIN_VALUE;
+        let xMax = -Number.MAX_VALUE;
+        let yMax = -Number.MAX_VALUE;
         for (const p of verts)  {
          if (p.x < xMin) xMin = p.x;
          if (p.y < yMin) yMin = p.y;
@@ -112,27 +155,53 @@ Shape {
         theShape._widthWu = (xMax - xMin)
         theShape._heightWu = (yMax - yMin)
 
-        for (const [i, v] of verts.entries())
-            _addPoint(v, i===0);
-        if (verts.length > 0 && closed) _addPoint(verts[0]);
+        if (verts.length === 0) return;
+        let pts = verts.slice();
+        if (closed) pts.push(verts[0]);
+
+        if (!Sketch.isSketch(theShape.sketch)) {
+            for (const [i, v] of pts.entries())
+                _addPoint(theShapePath, v, i === 0, 0, 0, 0);
+            return;
+        }
+
+        // The hand samples the stroke every STEP pixels, taken in world units
+        // at the current scale (see _pieces). The sideways offset per sample
+        // is bound to the stroke width, so a heavier pen wobbles more.
+        const ppu = (canvas && canvas.pixelPerUnit > 0) ? canvas.pixelPerUnit : 1;
+        const samples = Sketch.sample(pts, Sketch.STEP / ppu);
+        for (const [k, s] of samples.entries()) {
+            const o = Sketch.offset(k, theShape.seed, theShape._look);
+            _addPoint(theShapePath, s, k === 0, s.nx, s.ny, s.vertex ? 0 : o);
+        }
+        if (!theShape._look.grain) return;
+        // The grain is the same stroke with another wobble: chalk dust lies
+        // beside the line, not on it, so the two must not coincide.
+        for (const [k, s] of samples.entries()) {
+            const o = Sketch.offset(k, theShape.seed + 1000, theShape._look);
+            _addPoint(grainPath, s, k === 0, s.nx, s.ny, s.vertex ? 0 : o);
+        }
     }
 
     Component {id: pathLine; PathLine {}}
-    function _addPoint(vertex, isStart) {
+    // `off` is the sideways displacement in stroke widths along the world
+    // normal (nx, ny); the screen y axis runs the other way, hence the minus.
+    function _addPoint(path, vertex, isStart, nx, ny, off) {
         let xWu = vertex.x
         let yWu = vertex.y
+        const dx = nx * off, dy = -ny * off;
         if (!isStart){
-            let path = pathLine.createObject( theShapePath,{});
-            path.x = Qt.binding( function()
-            {return (xWu - theShape._xWu) * canvas.pixelPerUnit;});
-            path.y = Qt.binding( function()
-            {return (theShape._yWu - yWu) * canvas.pixelPerUnit;});
-            theShapePath.pathElements.push(path);
+            let el = pathLine.createObject(path, {});
+            el.x = Qt.binding( function()
+            {return (xWu - theShape._xWu) * canvas.pixelPerUnit + dx * theShapePath.strokeWidth;});
+            el.y = Qt.binding( function()
+            {return (theShape._yWu - yWu) * canvas.pixelPerUnit + dy * theShapePath.strokeWidth;});
+            path.pathElements.push(el);
         }
         else {
-            theShapePath.startX = Qt.binding( function()
+            path.startX = Qt.binding( function()
             {return (xWu - theShape._xWu) * canvas.pixelPerUnit;});
-            theShapePath.startY = Qt.binding( function()
+            path.startY = Qt.binding( function()
             {return (theShape._yWu - yWu) * canvas.pixelPerUnit;});
         }
     }
@@ -142,5 +211,22 @@ Shape {
         strokeWidth: 2
         strokeColor: "black"
         fillColor: "transparent"
+        capStyle: Sketch.isSketch(theShape.sketch) ? ShapePath.RoundCap : ShapePath.SquareCap
+        joinStyle: Sketch.isSketch(theShape.sketch) ? ShapePath.RoundJoin : ShapePath.BevelJoin
+        // One number on the renderer's side: the path is cut at this share of
+        // its length, so drawing an item on costs no rebuild per frame.
+        trim.end: theShape._progress
+    }
+
+    ShapePath {
+        id: grainPath
+        strokeWidth: theShapePath.strokeWidth * theShape._look.grainWidth
+        strokeColor: Qt.rgba(theShapePath.strokeColor.r, theShapePath.strokeColor.g,
+                             theShapePath.strokeColor.b,
+                             theShapePath.strokeColor.a * theShape._look.grainAlpha)
+        fillColor: "transparent"
+        capStyle: ShapePath.RoundCap
+        joinStyle: ShapePath.RoundJoin
+        trim.end: theShape._progress
     }
 }

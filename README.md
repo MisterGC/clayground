@@ -127,9 +127,36 @@ ctest --preset default
 ```
 
 `cmake --preset default` configures a Release build with tests into `build/`,
-and sets `CMAKE_POLICY_VERSION_MINIMUM=3.5`, which the libdatachannel
-dependencies need under CMake 4. `--preset debug` is the same into
-`build-debug/`.
+with the Ninja generator. `--preset debug` is the same into `build-debug/`.
+Ninja has to be on the `PATH` (Qt's installer puts one in `~/Qt/Tools/Ninja`,
+or `brew install ninja` / `apt install ninja-build`; on Windows, configure
+from a Visual Studio developer prompt). A `build/` made with another generator
+before cannot be reconfigured by the preset: remove it, or configure it with
+`cmake build`.
+
+#### A fresh checkout or worktree
+
+`./verify.sh` initialises missing submodules, configures and builds, so it is
+all a new worktree needs. Its first build takes from the builds before it, by
+default, with nothing to set up:
+
+- **The fetched dependencies** (llama.cpp, libdatachannel) are cloned once, into
+  `~/Library/Caches/clayground/fetch` on macOS, `$XDG_CACHE_HOME/clayground/fetch`
+  or `~/.cache/clayground/fetch` on Linux, `%LOCALAPPDATA%\clayground\fetch` on
+  Windows - one copy per pinned tag and patch, shared by every checkout. Another
+  place: `-DCLAY_FETCH_CACHE=<dir>` or the `CLAY_FETCH_CACHE` environment
+  variable; `-DCLAY_FETCH_CACHE=` (empty) keeps them in `build/_deps` as before.
+  When the `CI` environment variable is set it is off, as CI caches
+  `build/_deps` itself.
+- **Compiled objects** come from [ccache](https://ccache.dev) when it is
+  installed: the build compiles through it with `CCACHE_BASEDIR` at the
+  checkout, so the same file in another worktree is the same cache entry.
+  `-DCLAY_CCACHE=OFF`, or a compiler launcher of your own
+  (`-DCMAKE_CXX_COMPILER_LAUNCHER=...`), turns that off.
+
+Measured on an 18-core Mac (#385): a fresh worktree's `./verify.sh` up to its
+tests takes 36 s with both caches warm; the very first one on a machine, which
+fills them, about 100 s (7.3 min before: one file compiled at a time, both dependencies cloned and everything compiled again for every worktree).
 
 Two things stay out of the committed presets, on purpose:
 
@@ -148,7 +175,7 @@ Without presets (CMake < 3.21, or a one-off configuration) the explicit form
 still works:
 
 ```bash
-cmake -B build -DCMAKE_PREFIX_PATH=~/Qt/6.11.1/macos -DCMAKE_POLICY_VERSION_MINIMUM=3.5 -DBUILD_TESTING=ON
+cmake -B build -DCMAKE_PREFIX_PATH=~/Qt/6.11.1/macos -DBUILD_TESTING=ON
 cmake --build build
 ```
 
@@ -213,7 +240,9 @@ Clayground uses a layered testing approach:
 **Running tests:**
 ```bash
 cmake --preset default && cmake --build --preset default
-ctest --preset default
+ctest --preset default          # the full suite, 8 tests at a time
+./verify.sh                     # build, then the tests your change can reach
+./verify.sh --all               # build, then the full suite
 
 # without presets
 ctest --test-dir build --output-on-failure

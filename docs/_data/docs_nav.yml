@@ -13,6 +13,8 @@
       url: /docs/getting-started/your-website/
     - title: WASM Builds
       url: /docs/getting-started/wasm-builds/
+    - title: Desktop Packages
+      url: /docs/getting-started/desktop-packages/
 
 - title: Manual
   url: /docs/manual/

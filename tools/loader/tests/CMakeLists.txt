@@ -78,7 +78,10 @@ target_link_libraries(tst_annotations PRIVATE
     Qt6::Widgets
 )
 
-add_test(NAME annotations COMMAND tst_annotations)
+add_test(NAME annotations
+    COMMAND ${CMAKE_COMMAND} -P ${CMAKE_CURRENT_SOURCE_DIR}/run_logged.cmake
+            $<TARGET_FILE:tst_annotations>
+            ${CMAKE_CURRENT_BINARY_DIR}/tst_annotations.log)
 set_tests_properties(annotations PROPERTIES
     LABELS "annotations;gui"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_QUICK_BACKEND=software"

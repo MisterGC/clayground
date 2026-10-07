@@ -21,6 +21,7 @@ import Clayground.Canvas
 - **Image** - Image positioned and sized in world units
 - **Poly** - Polygon or polyline shape from vertex arrays in world units
 - **Connector** - Visual line connecting two items with automatic position tracking
+- **Axes** - An x and a y axis out of one origin, with labels and an optional series
 
 ## Usage Examples
 
@@ -164,6 +165,60 @@ Canv.Connector {
     style: ShapePath.DashLine
 }
 ```
+
+### Sketching a board
+
+A board is a 2D world with a camera, so its pieces are ordinary canvas items in
+world units. `sketch` picks the pen - "chalk" or "marker" instead of the default
+"none" - and `seed` picks which wobble, so the same points with the same seed
+give the same line every time. `progress` says how much of a stroke is drawn,
+`arrow` puts heads on a connector, a `Text` with `sketch` set is written by hand,
+and `Axes` draws two labeled axes with a series on them.
+
+```qml
+// A chalk stroke, drawn to 60% of its length
+Canv.Poly {
+    canvas: canvas
+    vertices: [{x: 0, y: 0}, {x: 2, y: 1.4}, {x: 4, y: 0}]
+    strokeColor: "#f1efe6"
+    strokeWidth: 3
+    sketch: "chalk"
+    progress: 0.6
+}
+```
+
+```qml
+// An arrow between two world points - no items needed, but a canvas is
+Canv.Connector {
+    canvas: canvas
+    from: {x: 0, y: 0}
+    to: {x: 4, y: 2}
+    arrow: "to"        // "none", "to", "from" or "both"
+    attach: "edge"     // "center" or "edge", for ends that are items
+    sketch: "marker"
+    color: "#00d9ff"
+}
+```
+
+```qml
+// Two axes out of one origin, with a series drawn on them
+Canv.Axes {
+    canvas: canvas
+    xWu: 1; yWu: 1            // the origin
+    widthWu: 5; heightWu: 3   // axis lengths
+    xLabel: "Ib"; yLabel: "Ic"
+    series: [{x: 1.4, y: 1.2}, {x: 3.0, y: 2.0}, {x: 5.5, y: 3.4}]
+    sketch: "chalk"
+    strokeColor: "#f1efe6"
+}
+```
+
+`Text.sketch` switches the font family to the hand font the plugin ships
+(Caveat, OFL), so hand text needs no font installed on the machine.
+
+`ClayCanvas.fit(xMin, yMin, xMax, yMax, marginWu)` frames a world rectangle: it
+sets the scale so the rectangle plus its margin fills the view, centers the
+viewport on it and stops following `observedItem`.
 
 ## Best Practices
 

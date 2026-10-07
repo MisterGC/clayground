@@ -37,6 +37,40 @@ Node {
     property bool selected: false
     property int wiringTerminal: -1  // terminal glowing during wiring, -1 none
 
+    // --- the part as a thing with parts -------------------------------------
+    // Only the transistor has an anatomy so far, and these are its handles: a
+    // lesson sets the goals, the element passes them down to the body it loads,
+    // and anything that needs a point on a named part asks partAt(). The part
+    // table itself is anatomy.js; the body that draws it is
+    // TransistorAnatomy3D.qml.
+
+    /*! Goal: 0 the part as it sits on the board, 1 the package off, 2 the
+        inside apart. Fractions are part-way through a stage. */
+    property real spread: 0
+    /*! Goal: the id of the part to look at ("die.base"), or "" for all of it. */
+    property string focus: ""
+    /*! Goal, 0..1: how far the epoxy is ghosted so the die shows through it. */
+    property real xray: 0
+    /*! Part id to display text - the lesson's own vocabulary, never looked up
+        here: a kit part does not choose a language. */
+    property var labels: ({})
+    /*! Which parts carry a label: a list of ids, or "all". */
+    property var labelled: []
+    /*! The loaded anatomy, or null for every type that has none. */
+    readonly property var anatomy: _npnLoader.item
+    /*! One {id, at, label} per labelled part - what a MarkLayer takes. */
+    readonly property var marks: root.anatomy ? root.anatomy.marks : []
+
+    /*! Where the named part's mark anchor is in scene coordinates, now - or,
+        with \a atSpread, where it WILL be at that spread, which is what a
+        camera framing an explosion before it happens has to ask. A part this
+        element does not have answers NaN rather than the origin, so a lesson
+        naming it shows up as a mark that cannot be placed. */
+    function partAt(id, atSpread) {
+        if (!root.anatomy) return Qt.vector3d(NaN, NaN, NaN)
+        return root.anatomy.partAt(id, atSpread)
+    }
+
     readonly property real termOffset: 3.5
 
     // --- terminals, as geometry ---------------------------------------------
@@ -358,127 +392,52 @@ Node {
     }
 
     // --- transistor (NPN, TO-92: collector, base, emitter) ------------------
-    // A real small-signal transistor: a black epoxy blob with a flat face and
+    // The one body on this board drawn by another file: at spread 0 it IS
+    // TransistorAnatomy3D - the same black epoxy blob with a flat face and
     // three legs, standing on a printed footprint that names the pads. The
     // footprint is the point - which leg is which is the one thing a learner
     // cannot deduce from looking at the part, and a kit that does not say it
-    // teaches guessing.
-    Node {
-        id: _npn
+    // teaches guessing. Having the part and its anatomy be ONE file is the
+    // other point: a lesson that takes the package off opens the part that was
+    // on the board, not a model of it.
+    //
+    // Loaded rather than instantiated like every other body here, which is the
+    // whole reason a Loader3D is in this file: the anatomy is eleven parts plus
+    // a wire repeater, and a board carries resistors and LEDs by the dozen. An
+    // always-built anatomy would be paid for on every one of them and drawn on
+    // none.
+    Loader3D {
+        id: _npnLoader
+        active: root.type === "transistor"
+        sourceComponent: Component {
+            TransistorAnatomy3D {
+                spread: root.spread
+                focus: root.focus
+                xray: root.xray
+                labels: root.labels
+                labelled: root.labelled
+            }
+        }
+    }
+
+    // What region it is working in, as a collar around the foot. It stays with
+    // the element rather than joining the anatomy on purpose: it says what the
+    // part is DOING, not what it is made of, so it must still be there when the
+    // package has come off. A logic gate is unreadable without it: five black
+    // blobs all look alike, and "which of these is switched on" is the entire
+    // question being asked.
+    Model {
         visible: root.type === "transistor"
-
-        // The silkscreen: a printed square lying on the board under the part,
-        // C / B / E next to the pads they belong to - the one thing about a
-        // transistor a learner cannot deduce by looking at it. Inside the
-        // stage's overlay budget, so it lies ON the paper rather than over it.
-        //
-        // The print is opaque edge to edge on purpose: a rounded or otherwise
-        // transparent corner comes out BLACK here, because this material does
-        // no alpha blending and there is nothing behind the plate to blend
-        // with. Any shaping has to be painted, not cut.
-        Model {
-            position: Qt.vector3d(0, 0.52, 0)
-            source: "#Rectangle"
-            eulerRotation.x: -90
-            scale: Qt.vector3d(0.098, 0.098, 1)
-            materials: PrincipledMaterial {
-                lighting: PrincipledMaterial.NoLighting
-                baseColorMap: Texture {
-                    // an Item holding a filled Rectangle, never a Rectangle
-                    // used directly as the source
-                    sourceItem: Item {
-                        width: 240; height: 240
-                        // The working sheet's own colour, so only the printed
-                        // marks show and the plate reads as ink ON the board
-                        // rather than as a tile lying on it. `sheet` and not
-                        // the 2D `paper`: this is a 3D surface, and the board
-                        // roles are the ones that invert with the room - a
-                        // paper-coloured plate came out LIGHTER than the board
-                        // it was printed on as soon as the theme went dark.
-                        Rectangle { anchors.fill: parent; color: LabTheme.sheet }
-                        Rectangle {   // a painted rim, since a cut one goes black
-                            anchors.fill: parent
-                            anchors.margins: 4
-                            color: "transparent"
-                            // how far from the sheet, not which way: on a dark
-                            // board there is no light left to take away
-                            border.color: LabTheme.step(LabTheme.sheet, 1.3)
-                            border.width: 3
-                        }
-                        // Laid out the way the pads are - C left, E right, B on
-                        // the near side - but each letter is set BESIDE its pad
-                        // rather than on it: a pad is a raised dome, and a
-                        // letter directly under one is a letter nobody will
-                        // ever see. Pin letters, not words: they read the same
-                        // in every language, like the A and V on a meter.
-                        Text {
-                            x: 13; y: 58
-                            text: "C"; color: LabTheme.inkSoft
-                            font.pixelSize: 44; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        Text {
-                            anchors.right: parent.right; anchors.rightMargin: 13
-                            y: 58
-                            text: "E"; color: LabTheme.inkSoft
-                            font.pixelSize: 44; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        Text {
-                            x: 152
-                            anchors.bottom: parent.bottom; anchors.bottomMargin: 7
-                            text: "B"; color: LabTheme.inkSoft
-                            font.pixelSize: 44; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                    }
-                }
-            }
-        }
-
-        // What region it is working in, as a collar around the foot. A logic
-        // gate is unreadable without it: five black blobs all look alike, and
-        // "which of these is switched on" is the entire question being asked.
-        Model {
-            source: "#Cylinder"
-            position: Qt.vector3d(0, 0.60, -0.35)
-            scale: Qt.vector3d(0.050, 0.004, 0.050)
-            materials: Matte {
-                baseColor: root.mode === "sat" ? LabTheme.forest
-                         : root.mode === "active" ? LabTheme.highlight
-                         : LabTheme.inkFaint
-                emissiveFactor: root.mode === "sat" ? Qt.vector3d(0.06, 0.16, 0.08)
-                              : root.mode === "active" ? Qt.vector3d(0.16, 0.12, 0.01)
-                              : Qt.vector3d(0, 0, 0)
-            }
-        }
-
-        Model {  // epoxy body
-            source: "#Cylinder"
-            position: Qt.vector3d(0, 1.55, -0.35)
-            scale: Qt.vector3d(0.042, 0.031, 0.042)
-            materials: Matte { baseColor: "#2a2724" }
-        }
-        Model {  // the flat face, on the side the base pad is on
-            source: "#Cube"
-            position: Qt.vector3d(0, 1.55, 0.85)
-            scale: Qt.vector3d(0.038, 0.031, 0.012)
-            materials: Matte { baseColor: "#332f2b" }
-        }
-        Repeater3D {  // three legs, down to the three pads
-            model: 3
-            Model {
-                readonly property var pad: root.termAt(index)
-                source: "#Cylinder"
-                // half way out from the body, lying flat just above the board
-                position: Qt.vector3d(pad.x * 0.5, 0.55, pad.z * 0.5)
-                // a #Cylinder stands along Y: tip it onto X for the two side
-                // legs, onto Z for the base leg that reaches the near pad
-                eulerRotation: index === 1 ? Qt.vector3d(90, 0, 0)
-                                           : Qt.vector3d(0, 0, 90)
-                scale: Qt.vector3d(0.0032, 0.035, 0.0032)
-                materials: Matte { baseColor: LabTheme.muted }
-            }
+        source: "#Cylinder"
+        position: Qt.vector3d(0, 0.60, -0.35)
+        scale: Qt.vector3d(0.050, 0.004, 0.050)
+        materials: Matte {
+            baseColor: root.mode === "sat" ? LabTheme.forest
+                     : root.mode === "active" ? LabTheme.highlight
+                     : LabTheme.inkFaint
+            emissiveFactor: root.mode === "sat" ? Qt.vector3d(0.06, 0.16, 0.08)
+                          : root.mode === "active" ? Qt.vector3d(0.16, 0.12, 0.01)
+                          : Qt.vector3d(0, 0, 0)
         }
     }
 

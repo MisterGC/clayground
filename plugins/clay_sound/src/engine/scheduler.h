@@ -11,6 +11,7 @@
 #pragma once
 
 #include "note_event.h"
+#include <cstddef>
 #include <cstdint>
 #include <vector>
 

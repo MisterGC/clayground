@@ -189,10 +189,13 @@ public:
     // "what happened" into "nothing happened".
     void sample(QQuickItem* root)
     {
-        if (m_frames == 0) {
+        if (m_frames == 0)
             m_clock.start();
+        // A sample is stamped when it is taken, before its expressions run:
+        // read after them, the first one was 1 ms on Windows, not 0 (#386)
+        const double t = static_cast<double>(m_clock.elapsed());
+        if (m_frames == 0)
             writeMeta();
-        }
         QJsonObject values;
         for (const auto& expression : m_expressions) {
             QJsonValue value;
@@ -204,7 +207,7 @@ public:
         }
         QJsonObject line;
         line["frame"] = m_frames;
-        line["t"] = static_cast<double>(m_clock.elapsed());
+        line["t"] = t;
         line["values"] = values;
         writeLine(line);
         ++m_frames;

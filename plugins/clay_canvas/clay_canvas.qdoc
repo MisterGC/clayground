@@ -100,6 +100,12 @@
     \qmlmethod real ClayCanvas::screenYToWorld(real yScr)
     Converts a screen Y coordinate to world Y coordinate.
 
+    \qmlmethod void ClayCanvas::fit(real xMin, real yMin, real xMax, real yMax, real marginWu)
+    Frames the world rectangle (xMin, yMin) to (xMax, yMax): sets pixelPerUnit so
+    the rectangle plus marginWu on each side fills the view with its aspect ratio
+    kept, centers the viewport on it and stops following observedItem. marginWu is
+    optional and defaults to 0.
+
     \section1 Signals
 
     \qmlsignal ClayCanvas::keyPressed(var event)
@@ -219,6 +225,23 @@
 
     \qmlproperty real Text::fontSizeWu
     Font size in world units.
+
+    \qmlproperty string Text::sketch
+    Pen used for the text: "none" (default), "chalk" or "marker". Both sketch pens
+    switch font.family to the hand font the plugin ships; "chalk" adds a faint
+    offset copy as grain.
+
+    \qmlproperty real Text::progress
+    How much of the text is written, from 0 to 1 (default 1). Whole characters are
+    revealed from the left. Single line text; a wrapped text is revealed by width only.
+
+    \qmlproperty int Text::shownCharacters
+    \readonly
+    Number of characters currently shown, ceil(progress * text.length).
+
+    \qmlproperty string Text::handFont
+    \readonly
+    Family name of the hand font shipped with the plugin, empty until it is loaded.
 */
 
 /*!
@@ -272,6 +295,19 @@
     \readonly
     Whether the shape is closed. True when fillColor is not transparent.
 
+    \qmlproperty string Poly::sketch
+    Pen used for the outline: "none" (default), "chalk" or "marker". "chalk" draws a
+    wobbly, slightly jagged line plus a wider, fainter grain pass; "marker" draws a
+    smooth slow wobble with round caps and joins. The vertices stay exact.
+
+    \qmlproperty real Poly::progress
+    How much of the outline is drawn, from 0 to 1 (default 1), measured along its
+    length from the first vertex.
+
+    \qmlproperty int Poly::seed
+    Which wobble the sketch pens use (default 0). Same seed and same vertices draw
+    the same line.
+
     \section1 Methods
 
     \qmlmethod void Poly::refresh()
@@ -302,11 +338,27 @@
 
     \section1 Properties
 
-    \qmlproperty Item Connector::from
-    The source item to connect from. Required.
+    \qmlproperty ClayCanvas Connector::canvas
+    The canvas the connector belongs to (default null). When set, the connector pans
+    and zooms with the world and its ends may be world points.
 
-    \qmlproperty Item Connector::to
-    The target item to connect to. Required.
+    \qmlproperty var Connector::from
+    The source: an item (its center is used) or a world point {x, y}, which needs
+    canvas to be set. Required.
+
+    \qmlproperty var Connector::to
+    The target: an item (its center is used) or a world point {x, y}, which needs
+    canvas to be set. Required.
+
+    \qmlproperty string Connector::attach
+    Where the line meets an end that is an item: "center" (default) or "edge", the
+    edge of the item's bounding box.
+
+    \qmlproperty string Connector::arrow
+    Which ends carry an arrow head: "none" (default), "to", "from" or "both".
+
+    \qmlproperty real Connector::headSize
+    Length of an arrow head in pixels, 4 * strokeWidth + 4 by default.
 
     \qmlproperty real Connector::strokeWidth
     Width of the connector line.
@@ -319,4 +371,105 @@
 
     \qmlproperty var Connector::dashPattern
     Custom dash pattern as an array of dash/gap lengths.
+
+    \qmlproperty string Connector::sketch
+    Pen used for the line and the heads: "none" (default), "chalk" or "marker", as
+    on Poly.
+
+    \qmlproperty real Connector::progress
+    How much of the connector is drawn, from 0 to 1 (default 1), in the order shaft,
+    head at to, head at from.
+
+    \qmlproperty int Connector::seed
+    Which wobble the sketch pens use (default 0).
+*/
+
+/*!
+    \qmltype Axes
+    \inqmlmodule Clayground.Canvas
+    \brief An x and a y axis out of one origin, with labels and an optional series.
+
+    Axes draws two arrow-headed axes from a common origin, a label at the end of
+    each, and an optional series of points on them. Everything is placed in world
+    units, so the axes pan and zoom with the canvas like any other canvas item.
+
+    With progress below 1 the parts draw themselves in order: x axis, y axis,
+    x label, y label, series - each part priced by the ink it costs, so a
+    progress of 0.5 is half the drawing and not the third part of five.
+
+    Example usage:
+    \qml
+    import Clayground.Canvas as Canv
+
+    Canv.Axes {
+        canvas: myCanvas
+        xWu: 1; yWu: 1
+        widthWu: 5; heightWu: 3
+        xLabel: "Ib"; yLabel: "Ic"
+        series: [{x: 1.4, y: 1.2}, {x: 3.0, y: 2.0}, {x: 5.5, y: 3.4}]
+        sketch: "chalk"
+        strokeColor: "#f1efe6"
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty ClayCanvas Axes::canvas
+    The parent canvas for coordinate transformation. Required.
+
+    \qmlproperty real Axes::xWu
+    X position of the origin in world units.
+
+    \qmlproperty real Axes::yWu
+    Y position of the origin in world units.
+
+    \qmlproperty real Axes::widthWu
+    Length of the x axis in world units.
+
+    \qmlproperty real Axes::heightWu
+    Length of the y axis in world units.
+
+    \qmlproperty string Axes::xLabel
+    Label drawn at the end of the x axis.
+
+    \qmlproperty string Axes::yLabel
+    Label drawn at the end of the y axis.
+
+    \qmlproperty real Axes::fontSizeWu
+    Font size of the labels in world units. Default is 0.4.
+
+    \qmlproperty var Axes::series
+    Array of points {x, y} in world units drawn as a polyline on the axes. Empty by
+    default.
+
+    \qmlproperty color Axes::strokeColor
+    Color of the axes and the labels. Default is black.
+
+    \qmlproperty real Axes::strokeWidth
+    Width of the axis lines in pixels. Default is 2.
+
+    \qmlproperty color Axes::seriesColor
+    Color of the series line. Defaults to strokeColor.
+
+    \qmlproperty real Axes::seriesWidth
+    Width of the series line in pixels. Defaults to strokeWidth.
+
+    \qmlproperty real Axes::headSize
+    Length of an axis arrow head in pixels, 4 * strokeWidth + 4 by default.
+
+    \qmlproperty string Axes::sketch
+    Pen used for the axes, labels and series: "none" (default), "chalk" or "marker",
+    as on Poly.
+
+    \qmlproperty real Axes::progress
+    How much of the drawing is done, from 0 to 1 (default 1), spent in the order x
+    axis, y axis, x label, y label, series.
+
+    \qmlproperty int Axes::seed
+    Which wobble the sketch pens use (default 0).
+
+    \qmlproperty var Axes::fractions
+    \readonly
+    The five part fractions at the current progress, in the order x axis, y axis, x
+    label, y label, series.
 */

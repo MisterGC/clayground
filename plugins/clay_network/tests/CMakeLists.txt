@@ -3,6 +3,7 @@
 # Unit tests for clay_network plugin
 
 find_package(Qt6 REQUIRED COMPONENTS Test)
+include(claytest)
 
 # Serialization tests (no network required)
 add_executable(tst_network_serialization
@@ -11,6 +12,9 @@ add_executable(tst_network_serialization
 
 set_target_properties(tst_network_serialization PROPERTIES AUTOMOC ON)
 
+# sender.h - the sender attribution both backends share
+target_include_directories(tst_network_serialization PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
 target_link_libraries(tst_network_serialization PRIVATE
     Qt6::Core
     Qt6::Test
@@ -18,6 +22,66 @@ target_link_libraries(tst_network_serialization PRIVATE
 
 add_test(NAME network_serialization COMMAND tst_network_serialization)
 set_tests_properties(network_serialization PROPERTIES LABELS "network;unit")
+
+# Link conditioner (#301): what loss, latency, jitter, a bandwidth cap and a
+# blackout do to a packet, on a test clock. Qt Core only.
+add_executable(tst_link_conditioner
+    tst_link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+)
+
+set_target_properties(tst_link_conditioner PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_link_conditioner PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_link_conditioner PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME network_link_conditioner COMMAND tst_link_conditioner)
+set_tests_properties(network_link_conditioner PROPERTIES LABELS "network;unit")
+
+# The browser's twin of it, link_conditioner.js, against the same cases
+clay_add_node_test(network_link_conditioner
+    SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/link_conditioner.test.js)
+
+# Session clock (#304): a joiner's offset to the host from ping round
+# trips, how close two joiners get under jitter, the per-sender transit.
+# Header only, Qt Core.
+add_executable(tst_session_clock
+    tst_session_clock.cpp
+)
+
+set_target_properties(tst_session_clock PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_session_clock PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_session_clock PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME network_session_clock COMMAND tst_session_clock)
+set_tests_properties(network_session_clock PROPERTIES LABELS "network;unit")
+
+# Replicated objects (#306): the object table every node keeps, three of
+# them wired like a Star network in memory. Header only, Qt Core.
+add_executable(tst_replica
+    tst_replica.cpp
+)
+
+set_target_properties(tst_replica PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_replica PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_replica PRIVATE
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME network_replica COMMAND tst_replica)
+set_tests_properties(network_replica PROPERTIES LABELS "network;unit")
 
 # HTTP auth tests - drive ClayHttpClient against a local echo server and assert
 # the headers that actually go out. ClayWebAccess is compiled in and registered
@@ -65,7 +129,187 @@ if(Python3_FOUND AND CLAYGROUND_WITH_TOOLS AND NOT (ANDROID OR IOS OR EMSCRIPTEN
     )
     set_tests_properties(network_sync_gym PROPERTIES
         LABELS "network;integration;gym"
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-        TIMEOUT 180
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_NET_GYM_LOG_ROOT=${CMAKE_BINARY_DIR}/net-gym-logs"
+        TIMEOUT 300
+        # four loader instances: four of ctest's parallel slots (#384)
+        PROCESSORS 4
     )
+
+    # The same gym over Cloud signaling, through clay-dev-server's PeerJS
+    # relay from this checkout (#301). The relay needs wsproto; without it
+    # the test is not registered, and configure says so.
+    execute_process(COMMAND ${Python3_EXECUTABLE} -c "import wsproto"
+                    RESULT_VARIABLE _clay_has_wsproto OUTPUT_QUIET ERROR_QUIET)
+    if(_clay_has_wsproto EQUAL 0)
+        add_test(NAME network_sync_gym_cloud
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/gym/run_net_gym.py
+                    --loader $<TARGET_FILE:clayliveloader> --signaling cloud
+        )
+        set_tests_properties(network_sync_gym_cloud PROPERTIES
+            LABELS "network;integration;gym"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_NET_GYM_LOG_ROOT=${CMAKE_BINARY_DIR}/net-gym-logs"
+            TIMEOUT 300
+            # four loader instances: four of ctest's parallel slots (#384)
+            PROCESSORS 4
+        )
+    else()
+        message(STATUS "wsproto not found for ${Python3_EXECUTABLE} - "
+                       "network_sync_gym_cloud is not registered (pip install wsproto)")
+    endif()
 endif()
+
+# Native Cloud signaling against an in-process PeerJS server: certificate
+# check and its opt-out, the heartbeat that keeps a host joinable past the
+# server's idle timeout, a dropped connection as signalingLost (#320). The
+# backend is compiled in, so neither the plugin nor a QML engine is needed.
+# The hold takes the full 120 s the issue asks for; CLAY_NET_HOLD_MS shortens
+# it for a quick local run.
+find_package(OpenSSL REQUIRED)
+
+add_executable(tst_cloud_signaling
+    tst_cloud_signaling.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_cloud_signaling PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_cloud_signaling PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_cloud_signaling PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+    OpenSSL::Crypto
+)
+
+add_test(NAME network_cloud_signaling COMMAND tst_cloud_signaling)
+set_tests_properties(network_cloud_signaling PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 300
+)
+
+# LAN signaling (#321): a taken id is refused, closed sockets are dropped
+# after connect/close cycles, a malformed LAN code fails before it connects.
+# Same compiled-in backend as tst_cloud_signaling.
+add_executable(tst_local_signaling
+    tst_local_signaling.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_local_signaling PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_local_signaling PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_local_signaling PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+)
+
+add_test(NAME network_local_signaling COMMAND tst_local_signaling)
+set_tests_properties(network_local_signaling PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 120
+)
+
+# Leaving (#299): a goodbye reaches the other side at once, a silent host is
+# dropped from missing pongs within the grace period plus a ping interval, a
+# link out for less than the grace period loses nobody. Two backends in one
+# process over Local signaling.
+add_executable(tst_peer_liveness
+    tst_peer_liveness.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_peer_liveness PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_peer_liveness PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_link_libraries(tst_peer_liveness PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+)
+
+add_test(NAME network_peer_liveness COMMAND tst_peer_liveness)
+set_tests_properties(network_peer_liveness PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 120
+)
+
+# A close that libdatachannel reports after its object is gone (#357, #359):
+# the test hook holds the close callback while the test destroys the object.
+# The hook is compiled into this target only.
+add_executable(tst_late_close
+    tst_late_close.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_late_close PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_late_close PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_compile_definitions(tst_late_close PRIVATE CLAY_NETWORK_TEST_HOOKS)
+
+target_link_libraries(tst_late_close PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+)
+
+add_test(NAME network_late_close COMMAND tst_late_close)
+set_tests_properties(network_late_close PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 120
+)
+
+# Replicated objects (#306) between a host and two joiners in one process
+# over Local signaling. With the object-operation test hook, so a test can
+# make the host drop a spawn.
+add_executable(tst_replicated_objects
+    tst_replicated_objects.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../claynetwork_native.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../link_conditioner.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_peerjs.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/../signaling_local.cpp
+)
+
+set_target_properties(tst_replicated_objects PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_replicated_objects PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/..)
+
+target_compile_definitions(tst_replicated_objects PRIVATE CLAY_NETWORK_TEST_HOOKS)
+
+target_link_libraries(tst_replicated_objects PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    LibDataChannel::LibDataChannel
+)
+
+add_test(NAME network_replicated_objects COMMAND tst_replicated_objects)
+set_tests_properties(network_replicated_objects PROPERTIES
+    LABELS "network;integration"
+    TIMEOUT 180
+)

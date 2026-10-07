@@ -22,6 +22,14 @@
     }
     \endqml
 
+    When the item is destroyed while its body touches fixtures of other
+    bodies, each of those fixtures gets \c endContact before the body goes,
+    with the item still readable as \c {other.getBody().target} - a sensor
+    learns whom it lost. Box2D itself ends those contacts only after the item
+    is gone, and they never reached QML. Only the fixtures the body has when
+    the item completes are covered; a raw \c Body outside a PhysicsItem ends
+    nothing when it is destroyed. VisualizedPolyBody does the same.
+
     \note When declaring fixtures inline, use an explicit ID to reference
     the item's dimensions — \b not \c parent. Box2D fixture types (Box, Circle,
     Polygon, etc.) are QObjects. In QML, \c parent inside a QObject resolves
@@ -71,11 +79,18 @@ Item {
     property bool _wuSyncActive: false
     onXWuChanged: { _wuSyncActive = true; x = xWu * pixelPerUnit; _wuSyncActive = false; }
     onYWuChanged: { _wuSyncActive = true; y = parent ? parent.height - yWu * pixelPerUnit : 0; _wuSyncActive = false; }
-    onXChanged: if (!_wuSyncActive && pixelPerUnit > 0) xWu = (1/pixelPerUnit) * x;
+    onXChanged: if (!_wuSyncActive && pixelPerUnit > 0) xWu = (1/pixelPerUnit) * x
     onYChanged: if (!_wuSyncActive && pixelPerUnit > 0) yWu = item.parent ? (1/pixelPerUnit) * (item.parent.height - y) : 0
     onPixelPerUnitChanged: _syncFromWu()
     onParentChanged: _syncFromWu()
-    Component.onCompleted: _syncFromWu()
+    Component.onCompleted: {
+        _syncFromWu();
+        _contacts = PhysicsUtils._trackContacts(itemBody);
+    }
+    // A body destroyed mid-contact ends its contacts while its item is still
+    // there, so a sensor it touched hears whom it lost (#371).
+    property var _contacts: null
+    Component.onDestruction: if (_contacts) _contacts.end()
     Connections {
         target: item.parent
         function onHeightChanged() { item._syncFromWu(); }

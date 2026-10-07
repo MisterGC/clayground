@@ -262,8 +262,64 @@ an honest `null`. Per solve: `netCount` and `iterations`.
   its edge, so a caller drawing symbols **next to real wires** has to size the
   box from the part's actual pad separation. Get that wrong and the wire stops
   at the pad while the lead stops somewhere else — a diagram with gaps in it.
-- QML: `CircuitElement3D`, `SymbolIcon`.
-- `strings.js` — the kit's EN/DE part vocabulary.
+- `anatomy.js` — the transistor's part table: `PARTS` (one row per piece, with
+  its role, teaching `order`, `stage`, `offset` and mark `anchor`), the geometry
+  the rows are written against (`PADS`, `PAD_OFFSET`, `BODY`, `FACE`, `HEADER`,
+  `DIE`, `ROLES`), and `partById`, `partIds`, `explainOrder`, `stageCount`,
+  `offsetAt`, `dieStack`, `validate`. See *The transistor's anatomy* below.
+- QML: `CircuitElement3D`, `TransistorAnatomy3D`, `SymbolIcon`.
+- `strings.js` — the kit's EN/DE part vocabulary, including one short noun
+  phrase per anatomy row under `anatomy.<part id>`.
+
+### The transistor's anatomy
+
+The transistor is the one part here that can be taken apart, and it is taken
+apart as *itself*: `CircuitElement3D` loads `TransistorAnatomy3D` as its
+transistor body, so at `spread 0` the thing on the board and the thing that
+comes apart are one object. There is no second model to keep in step.
+
+`TransistorAnatomy3D` is an `ExplodedView3D` (the lab kernel's) whose
+`ExplodePart` children each take one row of `anatomy.js` — id, role, teaching
+order, stage, travel and where a mark lands. Nothing about a part is typed
+twice: the QML declares only the assembled pose, because that is geometry and
+belongs beside the models it has to match silhouettes with. Roles name what a
+piece is made of (`epoxy`, `metal`, `gold`, `n`, `p`, `print`) and the QML maps
+them to theme tokens; the epoxy and the facet are the two admitted colour
+literals, because those are physical part colours.
+
+Two stages, and the order is the lesson: the shell and what is outside it
+(legs, case, flat face, print) travel while `spread` goes 0 → 1, what is inside
+(header, the three die layers, the bond wires) while it goes 1 → 2. A die that
+climbed out through a case still sitting on it would teach the wrong thing.
+
+What the element adds for a lesson to drive:
+
+| | |
+|---|---|
+| `spread` | goal: 0 on the board, 1 package off, 2 the inside apart |
+| `focus` | goal: a part id to look at, or `""` — everything else dims |
+| `xray` | goal, 0..1: how far the epoxy is ghosted, package still on |
+| `labels` | part id → display text, the lesson's own vocabulary |
+| `labelled` | which parts carry a label: a list of ids, or `"all"` |
+| `anatomy` | the loaded `TransistorAnatomy3D`, `null` for every other type |
+| `marks` | one `{id, at, label}` per labelled part — hand it to a `MarkLayer` |
+| `partAt(id, atSpread)` | where a part's anchor is, or *will be* at `atSpread` |
+
+`spread`, `focus` and `xray` are goals; the eased interpolants (`spreadNow`,
+`focusNow`, `xrayNow`) live on the anatomy and are read-only, which is what
+lets a flow assert them headless. `partAt(id, atSpread)` answers the goal
+position, so a camera can hold the whole explosion before it has happened; an
+id the part does not have answers `NaN` rather than the origin.
+
+Everything above the board that the assembled part does not show — the header,
+the three-layer die, the two bond wires — is teaching geometry, not a
+datasheet. A real die is a tenth of the package and its layers are microns
+thick; here the die is a third of the body so a finger can land on each layer.
+
+`AnatomyBench.qml` is the kit's own bench for it (`clayrender
+labs/kits/circuit/AnatomyBench.qml --settle`): the real element at the origin,
+keys `E` `X` `F` `L`, a seven-step lesson on `T`, and a `report()` that answers
+where every part is in numbers instead of in a picture.
 
 ## Wire routing
 
@@ -328,6 +384,7 @@ spot, so the same board always letters the same way.
 node labs/kits/circuit/circuit.test.js
 node labs/kits/circuit/route.test.js
 node labs/kits/circuit/plan.test.js
+node labs/kits/circuit/anatomy.test.js
 ```
 
 The solver suite covers its derivations (series, parallel, dividers), the
@@ -342,6 +399,16 @@ degenerate boards - no parts, one part, every part in the same place), and the
 lettering: no label on a symbol, no label on another label, none outside the
 sheet, the contested-spot order, and a deliberately crowded grid where some
 labels must honestly report that they did not fit.
+
+The anatomy suite covers the part table twice: against what only the kit knows
+(the pads are the element's own 3.5, the roles are the six it colours by, the
+lesson names each of the eight explained pieces once, the die layers are N–P–N)
+and against the lab kernel's own `explode.js` rules, so a row written here and
+a row `ExplodedView3D` can use stay the same thing. It also pins the two
+stages — the case is out at `spread 1` while the die has not moved, the die is
+out at `spread 2` — and that at full spread the layers clear each other, the
+case rises above the wires and the flat face leaves sideways rather than toward
+the camera, which is what keeps the die column visible.
 
 The router suite covers the property that makes it a Manhattan router at all
 (every segment axis-aligned, on every board it is given), that leads leave and

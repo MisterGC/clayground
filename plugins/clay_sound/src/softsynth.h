@@ -14,6 +14,7 @@
 #include <QAudioFormat>
 #include <QIODevice>
 #include <QTimer>
+#include <cstddef>
 #include <memory>
 #include <vector>
 

@@ -4,6 +4,7 @@
 #include <QObject>
 #include <QString>
 #include <QHash>
+#include <QStringList>
 #include <memory>
 
 namespace rtc {
@@ -21,8 +22,15 @@ public:
 
     bool start(uint16_t port = 0);
     void stop();
+    // Joiners must present this in their first message or they are turned
+    // away before anything is relayed. Set before start(). Empty = no check.
+    void setSecret(const QString &secret);
     bool isRunning() const;
     uint16_t port() const;
+    // The ids registered right now, and the sockets held (registered or
+    // not): both drop a client once its socket has closed
+    QStringList clientIds() const;
+    int openSocketCount() const;
 
 signals:
     void clientConnected(const QString &peerId);
@@ -30,11 +38,28 @@ signals:
     void errorOccurred(const QString &error);
 
 private:
+    // One accepted socket. The server holds it until it closes; peerId is
+    // set once its first message registered it, refused once it was turned
+    // away (its later messages are ignored until the close arrives).
+    struct Socket {
+        std::shared_ptr<rtc::WebSocket> ws;
+        QString peerId;
+        bool refused = false;
+    };
+
+    void onSocketMessage(rtc::WebSocket *key, const std::string &message);
+    void onSocketClosed(rtc::WebSocket *key);
+    bool registerSocket(Socket &socket, const std::string &message);
+    void refuse(Socket &socket, const QString &type, const QString &msg);
     void onClientMessage(const QString &peerId, const std::string &message);
     void sendToClient(const QString &peerId, const QString &message);
 
     std::shared_ptr<rtc::WebSocketServer> server_;
-    QHash<QString, std::weak_ptr<rtc::WebSocket>> clients_;
+    // Both touched only on this object's thread; the libdatachannel
+    // callbacks queue their work here instead
+    QHash<rtc::WebSocket *, Socket> sockets_;
+    QHash<QString, rtc::WebSocket *> clients_;
+    QString secret_;
     uint16_t port_ = 0;
     bool running_ = false;
 };
@@ -47,7 +72,8 @@ public:
     explicit LocalSignalingClient(QObject *parent = nullptr);
     ~LocalSignalingClient() override;
 
-    void connect(const QString &host, uint16_t port, const QString &peerId = QString());
+    void connect(const QString &host, uint16_t port, const QString &peerId = QString(),
+                 const QString &secret = QString());
     void disconnect();
     bool isConnected() const;
     QString peerId() const;
@@ -64,6 +90,9 @@ signals:
     void answerReceived(const QString &fromId, const QString &sdp);
     void candidateReceived(const QString &fromId, const QString &candidate, const QString &mid);
     void errorOccurred(const QString &error);
+    // The host turned this joiner away (a full network) before any data
+    // channel existed - a refusal like the handshake's, not a failure (#323)
+    void rejected(const QString &reason);
 
 private:
     void onWsOpen();
@@ -74,5 +103,8 @@ private:
 
     std::shared_ptr<rtc::WebSocket> ws_;
     QString peerId_;
+    QString secret_;
     bool connected_ = false;
+    bool closedByUs_ = false;
+    bool errorReported_ = false;
 };

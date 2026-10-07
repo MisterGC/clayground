@@ -177,7 +177,11 @@ ClayWorldBase {
             id: _physicsWorld
             gravity: Qt.point(0,15*9.81)
             timeStep: 1/60.0
+            // hitStop() multiplies on top of the global time scale, so the
+            // dojo's time control and a hit stop never overwrite each other.
+            // A view-only hit stop leaves the simulation at full speed.
             timeScale: Clayground.timeScale
+                       * (_world.hitStopMode === "view" ? 1 : _world._hitStopScale)
             pixelsPerMeter: _theCanvas.pixelPerUnit ? _theCanvas.pixelPerUnit : 1
             running: true
         }
@@ -201,6 +205,92 @@ ClayWorldBase {
                 Clayground.ackStep(frames);
             }
         }
+    }
+
+    /*!
+        \qmlmethod void ClayWorld2d::hitStop(int ms, real scale)
+        \brief Freezes or slows the world for \a ms milliseconds of wall
+        clock - the freeze frame that sells a heavy hit.
+
+        What freezes follows \l hitStopMode. In \c "physics" mode (the
+        default) \a scale is the physics speed meanwhile: 0 (default) stops
+        it, 0.2 is slow motion. It multiplies with the global time scale and
+        does not touch pause. In \c "view" mode the picture holds instead
+        and \a scale is ignored. Overlapping calls merge: the lower scale and
+        the later end win. QML timers and animations of the game keep their
+        pace either way, as they do through the dojo's pause and single
+        step: game logic that must stand still with the world (enemy AI,
+        cooldowns, telegraphs) belongs on a PhysicsTimer, which counts the
+        simulated time of \l physics. Typical: 50..90 ms at 0 on a heavy
+        hit, 120 ms at 0.2 on a parry.
+    */
+    function hitStop(ms, scale) {
+        var s = (scale === undefined || scale === null) ? 0 : Math.max(0, Math.min(1, scale));
+        var until = Date.now() + Math.max(0, ms);
+        if (_hitStopTimer.running) {
+            s = Math.min(s, _hitStopScale);
+            until = Math.max(until, _hitStopUntil);
+        }
+        _hitStopScale = s;
+        _hitStopUntil = until;
+        _hitStopTimer.interval = Math.max(1, until - Date.now());
+        _hitStopTimer.restart();
+    }
+
+    /*!
+        \qmlproperty string ClayWorld2d::hitStopMode
+        \brief What a hitStop() freezes: \c "physics" (default) or
+        \c "view".
+
+        \c "physics" scales the physics world's time, so the simulation
+        itself halts. \c "view" keeps the physics stepping at full rate and
+        holds the drawn world instead: the canvas is captured once when the
+        stop begins and that frame is shown until it ends. Use \c "view"
+        where the simulation must not stall - a networked game whose node
+        owns shared objects and streams their state. The held frame
+        includes everything drawn on the canvas, the camera shake with it;
+        items beside the canvas (a HUD) stay live.
+    */
+    property string hitStopMode: "physics"
+
+    /*!
+        \qmlproperty bool ClayWorld2d::hitStopActive
+        \readonly
+        \brief True while a hitStop() is slowing the physics or holding
+        the picture.
+    */
+    readonly property bool hitStopActive: _hitStopTimer.running
+
+    /*!
+        \qmlproperty Item ClayWorld2d::picture
+        \readonly
+        \brief The item that shows the world: the \l canvas, or the held
+        frame while a view-only hitStop() runs. Effects that redraw the
+        world from a texture read this item, so they see what is shown.
+    */
+    readonly property Item picture: _held.visible ? _held : _theCanvas
+
+    property real _hitStopScale: 1
+    property real _hitStopUntil: 0
+    Timer {
+        id: _hitStopTimer
+        repeat: false
+        onTriggered: _world._hitStopScale = 1
+    }
+
+    // The held frame of a view-only hit stop. live: false renders the canvas
+    // once; scheduleUpdate() on every start, because a ShaderEffectSource
+    // grabs by itself only the first time and would show the previous stop's
+    // frame. sourceItem is released at rest, so no texture is kept.
+    ShaderEffectSource {
+        id: _held
+        anchors.fill: _theCanvas
+        readonly property bool holding: _world.hitStopActive && _world.hitStopMode === "view"
+        visible: holding
+        sourceItem: holding ? _theCanvas : null
+        hideSource: holding
+        live: false
+        onHoldingChanged: if (holding) scheduleUpdate()
     }
 
     /*!
@@ -231,6 +321,10 @@ ClayWorldBase {
         info["running"] = running;
         info["gravity"] = [gravity.x, gravity.y];
         info["timeStep"] = timeStep;
+        info["hitStop"] = {"active": hitStopActive, "mode": hitStopMode,
+                           "scale": _hitStopScale,
+                           "remainingMs": hitStopActive
+                               ? Math.max(0, _hitStopUntil - Date.now()) : 0};
         info["baseZCoord"] = baseZCoord;
         info["lastZCoord"] = lastZCoord;
         return info;
@@ -275,6 +369,11 @@ ClayWorldBase {
     }
 
     function _updatePropertyBindingsOnDemand(obj){
+        // A child an entity owns but parents into the room (a trail, a
+        // shadow) is marked deleted together with the entity, before the
+        // entity leaves the room; that leave runs this over room.children,
+        // where the part then reads as null and `in` throws (#335).
+        if (!obj) return;
         if ("pixelPerUnit" in obj)
             obj.pixelPerUnit = Qt.binding( _ => {return _theCanvas.pixelPerUnit;} );
         if ("world" in obj)

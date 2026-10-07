@@ -5,9 +5,11 @@
 #include <QHash>
 #include <QJSEngine>
 #include <QJSValue>
+#include <QJSValueIterator>
 #include <QJsonDocument>
 #include <QMetaObject>
 #include <QMetaProperty>
+#include <QQuaternion>
 #include <QQmlContext>
 #include <QQmlEngine>
 #include <QQmlExpression>
@@ -16,6 +18,7 @@
 #include <QVector2D>
 #include <QtMath>
 #include <QVector3D>
+#include <QVector4D>
 #include <functional>
 
 namespace ClayScene {
@@ -216,7 +219,284 @@ QJsonObject buildItemTreeRec(QQuickItem* item, int maxDepth, int depth,
     return node;
 }
 
+// --- Values to JSON (#336) ---------------------------------------------------
+//
+// QJsonValue::fromVariant knows scalars, lists and maps only: a QObject, a JS
+// object (a QJSValue) or a gadget comes out as null, so `eval Balance` on a
+// singleton answered null. The walk below takes them apart instead. It is
+// bounded - a cyclic or huge value must come back cut off with a marker, never
+// hang the inspector that is answering for the whole session.
+
+constexpr int kMaxJsonDepth = 8;
+constexpr int kMaxJsonValues = 5000;
+
+// Properties up to this index belong to Qt's own C++ classes (QQuickItem,
+// QQuick3DNode, ...). Their object-valued ones (anchors, layer, ...) are lazy
+// getters: reading them creates the object, and what comes back is noise.
+int qtObjectBoundary(const QObject* obj)
+{
+    int boundary = QObject::staticMetaObject.propertyCount();
+    for (const QMetaObject* m = obj->metaObject(); m; m = m->superClass()) {
+        const QString cls = QString::fromUtf8(m->className());
+        const bool isQtInternal = cls.startsWith("QQuick") || cls.startsWith("QQml");
+        if (isQtInternal && !cls.contains("QMLTYPE") && !cls.contains("_QML_"))
+            boundary = qMax(boundary, m->propertyCount());
+    }
+    return boundary;
+}
+
+class JsonWalk
+{
+public:
+    QJsonValue value(const QVariant& v, int depth)
+    {
+        if (m_budget <= 0)
+            return kCutSize;
+        --m_budget;
+
+        if (!v.isValid())
+            return QJsonValue::Null;
+        const QMetaType type = v.metaType();
+        if (type == QMetaType::fromType<QJSValue>())
+            return jsValue(v.value<QJSValue>(), depth);
+        if (type.flags() & QMetaType::PointerToQObject)
+            return object(v.value<QObject*>(), depth);
+        if (type == QMetaType::fromType<QVariantList>())
+            return list(v.toList(), depth);
+        if (type == QMetaType::fromType<QVariantMap>())
+            return map(v.toMap(), depth);
+        if (type == QMetaType::fromType<QVariantHash>()) {
+            const QVariantHash hash = v.toHash();
+            QVariantMap members;
+            for (auto it = hash.cbegin(); it != hash.cend(); ++it)
+                members.insert(it.key(), it.value());
+            return map(members, depth);
+        }
+        if (auto geometry = geometryValue(v); !geometry.isEmpty())
+            return geometry;
+        if ((type.flags() & QMetaType::IsGadget) && type.metaObject())
+            return gadget(v, depth);
+        if (type != QMetaType::fromType<QString>()
+                && type != QMetaType::fromType<QByteArray>()
+                && type != QMetaType::fromType<QStringList>()
+                && QMetaType::canConvert(type, QMetaType::fromType<QVariantList>())) {
+            return list(v.value<QVariantList>(), depth);
+        }
+        // Everything fromVariant already knew stays exactly as it was.
+        return QJsonValue::fromVariant(v);
+    }
+
+private:
+    static inline const QString kCutCycle = QStringLiteral("<cut: cycle>");
+    static inline const QString kCutDepth = QStringLiteral("<cut: depth>");
+    static inline const QString kCutSize = QStringLiteral("<cut: size>");
+    static inline const QString kCutKey = QStringLiteral("<cut>");
+    static inline const QString kFunction = QStringLiteral("<function>");
+
+    QJsonValue jsValue(const QJSValue& js, int depth)
+    {
+        if (js.isQObject())
+            return object(js.toQObject(), depth);
+        if (js.isCallable())
+            return kFunction;
+        if (js.isDate() || !js.isObject())
+            return QJsonValue::fromVariant(js.toVariant());
+        if (!js.isArray()) {
+            // A value type (vector3d, rect, ...) is an object too, wrapping a
+            // C++ value. A plain JS object stays a QJSValue this way - letting
+            // toVariant() convert it would recurse into any cycle it has.
+            const QVariant wrapped = js.toVariant(QJSValue::RetainJSObjects);
+            if (wrapped.metaType() != QMetaType::fromType<QJSValue>())
+                return value(wrapped, depth);
+        }
+
+        for (const QJSValue& seen : std::as_const(m_jsPath)) {
+            if (seen.strictlyEquals(js))
+                return kCutCycle;
+        }
+        if (depth >= kMaxJsonDepth)
+            return kCutDepth;
+        m_jsPath.append(js);
+
+        QJsonValue result;
+        if (js.isArray()) {
+            QJsonArray out;
+            const int length = js.property(QStringLiteral("length")).toInt();
+            for (int i = 0; i < length; ++i) {
+                if (m_budget <= 0) {
+                    out.append(kCutSize);
+                    break;
+                }
+                out.append(jsElement(js.property(i), depth + 1));
+            }
+            result = out;
+        } else {
+            QJsonObject out;
+            QJSValueIterator it(js);
+            while (it.hasNext()) {
+                it.next();
+                if (m_budget <= 0) {
+                    out[kCutKey] = kCutSize;
+                    break;
+                }
+                const QJSValue member = it.value();
+                // JSON.stringify drops undefined members; so does this.
+                if (!member.isUndefined())
+                    out[it.name()] = jsElement(member, depth + 1);
+            }
+            result = out;
+        }
+        m_jsPath.removeLast();
+        return result;
+    }
+
+    QJsonValue jsElement(const QJSValue& js, int depth)
+    {
+        if (m_budget <= 0)
+            return kCutSize;
+        --m_budget;
+        return jsValue(js, depth);
+    }
+
+    QJsonValue object(QObject* obj, int depth)
+    {
+        if (!obj)
+            return QJsonValue::Null;
+        if (m_objectPath.contains(obj))
+            return kCutCycle;
+        if (depth >= kMaxJsonDepth)
+            return kCutDepth;
+        m_objectPath.append(obj);
+
+        QJsonObject out;
+        const QMetaObject* meta = obj->metaObject();
+        const int qtBoundary = qtObjectBoundary(obj);
+        for (int i = 0; i < meta->propertyCount(); ++i) {
+            const QMetaProperty prop = meta->property(i);
+            const QString name = QString::fromUtf8(prop.name());
+            if (!prop.isReadable() || name == QLatin1String("parent"))
+                continue;
+            if (name == QLatin1String("objectName") && obj->objectName().isEmpty())
+                continue;
+            const QMetaType type = prop.metaType();
+            // Child lists are what `tree` is for; walking them here turns one
+            // item into the whole scene.
+            if (QByteArray(type.name()).startsWith("QQmlListProperty"))
+                continue;
+            if ((type.flags() & QMetaType::PointerToQObject) && i < qtBoundary)
+                continue;
+            if (m_budget <= 0) {
+                out[kCutKey] = kCutSize;
+                break;
+            }
+            out[name] = value(prop.read(obj), depth + 1);
+        }
+        m_objectPath.removeLast();
+        return out;
+    }
+
+    QJsonValue list(const QVariantList& items, int depth)
+    {
+        if (depth >= kMaxJsonDepth)
+            return kCutDepth;
+        QJsonArray out;
+        for (const QVariant& item : items) {
+            if (m_budget <= 0) {
+                out.append(kCutSize);
+                break;
+            }
+            out.append(value(item, depth + 1));
+        }
+        return out;
+    }
+
+    QJsonValue map(const QVariantMap& members, int depth)
+    {
+        if (depth >= kMaxJsonDepth)
+            return kCutDepth;
+        QJsonObject out;
+        for (auto it = members.cbegin(); it != members.cend(); ++it) {
+            if (m_budget <= 0) {
+                out[kCutKey] = kCutSize;
+                break;
+            }
+            out[it.key()] = value(it.value(), depth + 1);
+        }
+        return out;
+    }
+
+    QJsonValue gadget(const QVariant& v, int depth)
+    {
+        if (depth >= kMaxJsonDepth)
+            return kCutDepth;
+        const QMetaObject* meta = v.metaType().metaObject();
+        QJsonObject out;
+        for (int i = 0; i < meta->propertyCount(); ++i) {
+            const QMetaProperty prop = meta->property(i);
+            if (m_budget <= 0) {
+                out[kCutKey] = kCutSize;
+                break;
+            }
+            out[QString::fromUtf8(prop.name())] =
+                value(prop.readOnGadget(v.constData()), depth + 1);
+        }
+        return out;
+    }
+
+    // The QML value types a scene is made of are plain C++ classes, not
+    // gadgets; they read as the members QML gives them.
+    static QJsonObject geometryValue(const QVariant& v)
+    {
+        switch (v.metaType().id()) {
+        case QMetaType::QPointF:
+        case QMetaType::QPoint: {
+            const QPointF p = v.toPointF();
+            return {{"x", p.x()}, {"y", p.y()}};
+        }
+        case QMetaType::QSizeF:
+        case QMetaType::QSize: {
+            const QSizeF s = v.toSizeF();
+            return {{"width", s.width()}, {"height", s.height()}};
+        }
+        case QMetaType::QRectF:
+        case QMetaType::QRect: {
+            const QRectF r = v.toRectF();
+            return {{"x", r.x()}, {"y", r.y()},
+                    {"width", r.width()}, {"height", r.height()}};
+        }
+        case QMetaType::QVector2D: {
+            const auto u = v.value<QVector2D>();
+            return {{"x", u.x()}, {"y", u.y()}};
+        }
+        case QMetaType::QVector3D: {
+            const auto u = v.value<QVector3D>();
+            return {{"x", u.x()}, {"y", u.y()}, {"z", u.z()}};
+        }
+        case QMetaType::QVector4D: {
+            const auto u = v.value<QVector4D>();
+            return {{"x", u.x()}, {"y", u.y()}, {"z", u.z()}, {"w", u.w()}};
+        }
+        case QMetaType::QQuaternion: {
+            const auto q = v.value<QQuaternion>();
+            return {{"scalar", q.scalar()}, {"x", q.x()}, {"y", q.y()},
+                    {"z", q.z()}};
+        }
+        default:
+            return {};
+        }
+    }
+
+    int m_budget = kMaxJsonValues;
+    QList<const QObject*> m_objectPath;
+    QList<QJSValue> m_jsPath;
+};
+
 } // namespace
+
+QJsonValue toJson(const QVariant& value)
+{
+    return JsonWalk().value(value, 0);
+}
 
 QString shortTypeName(const QObject* obj)
 {
@@ -632,7 +912,7 @@ QJsonObject evalExpressions(QQuickItem* root, const QJsonArray& expressions)
         } else if (valueIsUndefined) {
             results[exprStr] = QJsonValue::Null;
         } else {
-            results[exprStr] = QJsonValue::fromVariant(result);
+            results[exprStr] = toJson(result);
         }
     }
 

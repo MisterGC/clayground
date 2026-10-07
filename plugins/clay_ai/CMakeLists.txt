@@ -5,7 +5,7 @@
 # WASM: wllama (JS bridge), whisper.cpp WASM, sherpa-onnx WASM
 #
 include(clayplugin)
-include(FetchContent)
+include(claybuildcache)
 
 # Common sources (all platforms)
 set(COMMON_SOURCES
@@ -33,13 +33,6 @@ if(EMSCRIPTEN)
     )
 else()
     # Native: Use llama.cpp directly
-    FetchContent_Declare(
-        llama_cpp
-        GIT_REPOSITORY https://github.com/ggerganov/llama.cpp
-        GIT_TAG master
-        GIT_SHALLOW TRUE
-    )
-
     # Configure llama.cpp build options
     set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
     set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
@@ -56,7 +49,14 @@ else()
         set(GGML_METAL OFF CACHE BOOL "" FORCE)
     endif()
 
-    FetchContent_MakeAvailable(llama_cpp)
+    # A release tag, not master: master moved every day, so every build
+    # fetched and compiled a different llama.cpp - no compiler cache could
+    # hit, and a break upstream broke this build without a change here (#386)
+    clay_fetch(llama_cpp
+        GIT_REPOSITORY https://github.com/ggerganov/llama.cpp
+        GIT_TAG b11374
+        GIT_SHALLOW TRUE
+    )
 
     set(PLATFORM_SOURCES
         src/llmengine_llama.cpp
