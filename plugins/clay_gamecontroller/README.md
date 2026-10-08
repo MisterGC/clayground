@@ -160,6 +160,10 @@ GameController {
 3. **Platform Detection**: Use Qt.platform.os to automatically select appropriate input methods.
 
 4. **Key Forwarding**: Use Keys.forwardTo to ensure the controller receives keyboard input.
+   The keyboard input tracks which keys are held: opposite directions cancel,
+   releasing one leaves the other in effect, and all keys count as released
+   when the window's focus item changes or the window becomes inactive - so
+   opening a menu needs no manual reset of the axes.
 
 5. **Debug Mode**: Enable showDebugOverlay during development to visualize input states.
 
