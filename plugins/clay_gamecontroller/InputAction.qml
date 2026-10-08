@@ -14,9 +14,10 @@
     cooldown is not lost (\l consume()).
 
     Its clock is \l world, the physics world, when one is given: a pause, a
-    single step or a hit stop holds every reading exactly as it holds the
-    bodies, the same clock a PhysicsTimer counts. Without a world it runs
-    on wall clock.
+    single step or a hit stop in ClayWorld2d's \c "physics" mode holds
+    every reading exactly as it holds the bodies, the same clock a
+    PhysicsTimer counts. A \c "view" mode hit stop keeps the physics
+    stepping, and the clock with it. Without a world it runs on wall clock.
 
     Keys reach it the way they reach a GameController: list it in the
     \c Keys.forwardTo of the focused item. It leaves key events unaccepted,
@@ -37,11 +38,11 @@
 
         InputAction {
             id: swing
-            world: theWorld.physics     // held by pause and hit stop
+            world: theWorld.physics     // held by pause and a physics hit stop
             key: Qt.Key_J
             mouseButton: Qt.LeftButton
             holdThresholdMs: 200
-            onTapped: player.swing()
+            onPressedChanged: if (pressed) trySwing()
             onReleased: (heldMs) => { if (heldMs >= 600) player.heavySwing() }
         }
 
@@ -53,12 +54,18 @@
             onCanceled: swing.release()
         }
 
-        // A swing pressed during the cooldown still comes out when it ends.
+        // A swing pressed during the cooldown still comes out when it
+        // ends, if it is at most bufferMs old by then.
+        function trySwing() {
+            if (cooldown.running || !swing.consume()) return;
+            player.swing();
+            cooldown.start();
+        }
         PhysicsTimer {
             id: cooldown
             world: theWorld.physics
             interval: 300
-            onTriggered: if (swing.consume()) player.swing()
+            onTriggered: trySwing()
         }
     }
     \endqml

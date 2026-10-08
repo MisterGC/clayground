@@ -163,8 +163,10 @@ A `GameController` says whether a button is down. An `InputAction` says how it
 is used: a tap or a hold, how long it has been held, how long ago it was
 pressed or released, and whether a press made a moment too early can still be
 claimed. Its clock is the physics world when one is given, so the dojo's pause,
-a single step and a hit stop hold every reading - the same clock a
-`PhysicsTimer` counts. Without a world it runs on wall clock.
+a single step and a hit stop in `ClayWorld2d`'s `"physics"` mode hold every
+reading - the same clock a `PhysicsTimer` counts. A `"view"` mode hit stop
+keeps the physics stepping, and the clock with it. Without a world it runs on
+wall clock.
 
 ```qml
 import QtQuick
@@ -191,7 +193,7 @@ ClayWorld2d {
             mouseButton: Qt.LeftButton
             holdThresholdMs: 200     // shorter is a tap, longer a hold
             bufferMs: 150            // a press stays claimable this long
-            onTapped: player.swing()
+            onPressedChanged: if (pressed) trySwing()
             onHoldStarted: player.startCharging()
             onReleased: (heldMs) => { if (heldMs >= 600) player.heavySwing() }
         }
@@ -218,11 +220,18 @@ ClayWorld2d {
         else if (block.pressed) player.block()
     }
 
-    // A swing pressed during the cooldown comes out when it ends.
+    // A swing pressed during the cooldown comes out when it ends, if it is
+    // at most bufferMs old by then.
+    function trySwing() {
+        if (cooldown.running || !swing.consume()) return
+        player.swing()
+        cooldown.start()
+    }
     PhysicsTimer {
+        id: cooldown
         world: theWorld.physics
         interval: 300
-        onTriggered: if (swing.consume()) player.swing()
+        onTriggered: trySwing()
     }
 }
 ```
@@ -231,7 +240,8 @@ ClayWorld2d {
   two are `Infinity` before the first press or release.
 - `tapped()` follows `released(heldMs)` on a release before the threshold;
   `holdStarted()` comes once per press, on the step that reaches it.
-- `consume()` returns true once for a press at most `bufferMs` old.
+- `consume()` returns true once per press, while the press is at most
+  `bufferMs` old - also for several presses made while the clock stands.
 - `press()` / `release()` without an event press the action from anything
   else - a touch button, a script.
 - A key press counts as released (with no tap) when the focus item changes or
