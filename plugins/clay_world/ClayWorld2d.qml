@@ -215,8 +215,9 @@ ClayWorldBase {
         What freezes follows \l hitStopMode. In \c "physics" mode (the
         default) \a scale is the physics speed meanwhile: 0 (default) stops
         it, 0.2 is slow motion. It multiplies with the global time scale and
-        does not touch pause. In \c "view" mode the picture holds instead
-        and \a scale is ignored. Overlapping calls merge: the lower scale and
+        does not touch pause. In \c "view" mode \a scale is the rate at
+        which the held picture advances: 0 holds one frame, 0.25 shows a new
+        one every fourth frame. Overlapping calls merge: the lower scale and
         the later end win. QML timers and animations of the game keep their
         pace either way, as they do through the dojo's pause and single
         step: game logic that must stand still with the world (enemy AI,
@@ -244,12 +245,24 @@ ClayWorldBase {
 
         \c "physics" scales the physics world's time, so the simulation
         itself halts. \c "view" keeps the physics stepping at full rate and
-        holds the drawn world instead: the canvas is captured once when the
-        stop begins and that frame is shown until it ends. Use \c "view"
-        where the simulation must not stall - a networked game whose node
-        owns shared objects and streams their state. The held frame
-        includes everything drawn on the canvas, the camera shake with it;
-        items beside the canvas (a HUD) stay live.
+        holds the drawn world instead: the canvas is captured when the stop
+        begins and that frame is shown until it ends. Use \c "view" where
+        the simulation must not stall - a networked game whose node owns
+        shared objects and streams their state. Items beside the canvas (a
+        HUD) stay live.
+
+        The camera's shake and kick go on through the stop: the held frame
+        moves by how far they have moved the view since it was captured,
+        and stops at the world's edge where the live view would. The strip
+        that move uncovers at the side of the screen shows the frame's own
+        edge mirrored. On the software Qt Quick backend, which runs no
+        shaders, that strip stays empty.
+
+        A stop with a \c scale above 0 cannot slow the picture down - the
+        simulation runs at full speed and only its present state can be
+        drawn. It captures the canvas again every 1 / \c scale frames
+        instead, so the world moves on in steps at that rate: at 0.25 every
+        fourth frame is shown, each one held for four.
     */
     property string hitStopMode: "physics"
 
