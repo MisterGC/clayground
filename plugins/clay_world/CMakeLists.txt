@@ -39,6 +39,7 @@ qt6_add_shaders(ClayWorld "clay_world_shaders"
         "100 es,120,150,300 es"
     FILES
         anchored_mask.frag
+        held_frame.frag
         light_layer.frag
         screen_grade.frag
         screen_overlay.frag

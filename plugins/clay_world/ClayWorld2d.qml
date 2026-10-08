@@ -268,7 +268,8 @@ ClayWorldBase {
         frame while a view-only hitStop() runs. Effects that redraw the
         world from a texture read this item, so they see what is shown.
     */
-    readonly property Item picture: _held.visible ? _held : _theCanvas
+    readonly property Item picture: !_holding ? _theCanvas
+                                              : (_softwareHold ? _held : _heldView)
 
     property real _hitStopScale: 1
     property real _hitStopUntil: 0
@@ -278,19 +279,106 @@ ClayWorldBase {
         onTriggered: _world._hitStopScale = 1
     }
 
+    readonly property bool _holding: hitStopActive && hitStopMode === "view"
+    // The software backend runs no ShaderEffect: there the capture itself is
+    // shown, moved by a plain translation.
+    readonly property bool _softwareHold: GraphicsInfo.api === GraphicsInfo.Software
+
+    // Where the held frame was captured: the viewport centre and the
+    // camera's shake plus kick, in world units. The frame moves by how far
+    // shake and kick have moved since, not by the follow - the followed
+    // body moves on with the simulation, the picture of it does not.
+    property point _heldCenter: Qt.point(0, 0)
+    property point _heldJuice: Qt.point(0, 0)
+    property int _heldGrabs: 0
+    property real _heldDue: 0
+    property bool _heldPending: false
+    readonly property point _juice: camera
+        ? Qt.point(camera.shakeXWu + camera.kickXWu, camera.shakeYWu + camera.kickYWu)
+        : Qt.point(0, 0)
+
+    // The viewport centre the canvas really shows for a wanted one: it keeps
+    // the viewport inside the world, which also clamps the shake.
+    function _shownCenterX(v) {
+        var half = _theCanvas.sWidthInWU / 2;
+        return Math.min(Math.max(v, xWuMin + half), xWuMax - half);
+    }
+    function _shownCenterY(v) {
+        var half = _theCanvas.sHeightInWU / 2;
+        return Math.min(Math.max(v, yWuMin + half), yWuMax - half);
+    }
+
+    // On screen the content moves against the viewport; world y points up.
+    readonly property point _heldShiftPx: _holding
+        ? Qt.point(-(_shownCenterX(_heldCenter.x + _juice.x - _heldJuice.x)
+                     - _shownCenterX(_heldCenter.x)) * pixelPerUnit,
+                   (_shownCenterY(_heldCenter.y + _juice.y - _heldJuice.y)
+                    - _shownCenterY(_heldCenter.y)) * pixelPerUnit)
+        : Qt.point(0, 0)
+
+    on_HoldingChanged: {
+        _heldDue = 0;
+        if (!_holding) return;
+        _heldGrabs = 0;
+        _captureHeld();
+    }
+
+    // scheduleUpdate() on every capture, because a ShaderEffectSource with
+    // live: false grabs by itself only the first time. The capture happens in
+    // the next scene graph sync, so where the view stood is noted right before
+    // it, after the frame's animations (the camera's shake among them) have
+    // run - noted earlier, the frame would jump by one frame of shake.
+    function _captureHeld() {
+        _noteHeld();
+        _heldPending = true;
+        _heldGrabs += 1;
+        _held.scheduleUpdate();
+    }
+    function _noteHeld() {
+        _heldCenter = Qt.point(viewPortCenterWuX, viewPortCenterWuY);
+        _heldJuice = _juice;
+    }
+    Connections {
+        target: _world.Window.window
+        enabled: _world._heldPending
+        function onAfterAnimating() {
+            _world._heldPending = false;
+            _world._noteHeld();
+        }
+    }
+
+    // A slowed view stop: a new capture every 1 / scale frames.
+    FrameAnimation {
+        running: _world._holding && _world._hitStopScale > 0
+        onTriggered: {
+            _world._heldDue += _world._hitStopScale;
+            if (_world._heldDue >= 1) {
+                _world._heldDue -= 1;
+                _world._captureHeld();
+            }
+        }
+    }
+
     // The held frame of a view-only hit stop. live: false renders the canvas
-    // once; scheduleUpdate() on every start, because a ShaderEffectSource
-    // grabs by itself only the first time and would show the previous stop's
-    // frame. sourceItem is released at rest, so no texture is kept.
+    // only on _captureHeld(). sourceItem is released at rest, so no texture is
+    // kept.
     ShaderEffectSource {
         id: _held
         anchors.fill: _theCanvas
-        readonly property bool holding: _world.hitStopActive && _world.hitStopMode === "view"
-        visible: holding
-        sourceItem: holding ? _theCanvas : null
-        hideSource: holding
+        visible: _world._holding && _world._softwareHold
+        sourceItem: _world._holding ? _theCanvas : null
+        hideSource: _world._holding
         live: false
-        onHoldingChanged: if (holding) scheduleUpdate()
+        transform: Translate { x: _world._heldShiftPx.x; y: _world._heldShiftPx.y }
+    }
+    ShaderEffect {
+        id: _heldView
+        anchors.fill: _theCanvas
+        visible: _world._holding && !_world._softwareHold
+        property var source: _held
+        property point shift: Qt.point(_world._heldShiftPx.x / Math.max(1, width),
+                                       _world._heldShiftPx.y / Math.max(1, height))
+        fragmentShader: "held_frame.frag.qsb"
     }
 
     /*!
@@ -323,6 +411,11 @@ ClayWorldBase {
         info["timeStep"] = timeStep;
         info["hitStop"] = {"active": hitStopActive, "mode": hitStopMode,
                            "scale": _hitStopScale,
+                           // How far the held frame is moved by shake and
+                           // kick, and how often the latest view stop
+                           // captured the canvas.
+                           "heldShiftPx": [_heldShiftPx.x, _heldShiftPx.y],
+                           "heldCaptures": _heldGrabs,
                            "remainingMs": hitStopActive
                                ? Math.max(0, _hitStopUntil - Date.now()) : 0};
         info["baseZCoord"] = baseZCoord;
