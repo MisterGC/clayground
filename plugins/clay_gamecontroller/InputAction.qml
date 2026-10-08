@@ -217,9 +217,9 @@ Item {
     */
     function consume() {
         _tick();
-        if (_consumedAt === _pressAt) return false;
+        if (_claimed) return false;
         if (pressedAgoMs > bufferMs + _epsilonMs) return false;
-        _consumedAt = _pressAt;
+        _claimed = true;
         return true;
     }
 
@@ -228,7 +228,9 @@ Item {
     property real _now: 0
     property real _pressAt: -Infinity
     property real _releaseAt: -Infinity
-    property real _consumedAt: NaN
+    // Each press is claimable once. A flag, not a timestamp: presses made
+    // while the clock stands (pause, physics hit stop) share one time.
+    property bool _claimed: true
     property bool _keyDown: false
     property bool _otherDown: false
     property bool _holdEmitted: false
@@ -261,6 +263,7 @@ Item {
         if (!was && down) {
             _pressAt = _now;
             _holdEmitted = false;
+            _claimed = false;
         }
         else if (was && !down && (isKey ? !_otherDown : !_keyDown)) {
             _checkHold();
@@ -285,7 +288,7 @@ Item {
         _otherDown = false;
         _pressAt = -Infinity;
         _releaseAt = -Infinity;
-        _consumedAt = NaN;
+        _claimed = true;
         _now = 0;
         _tick();
     }
