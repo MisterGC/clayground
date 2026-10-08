@@ -17,3 +17,7 @@ clay_plugin( GameController
         Qt::Quick
         Qt::Qml
 )
+
+include(claytest)
+clay_add_qml_test(gamecontroller_qml IMPORTS_BUILT_MODULE
+    DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)
