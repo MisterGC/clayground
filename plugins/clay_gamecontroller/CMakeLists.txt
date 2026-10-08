@@ -8,6 +8,7 @@ clay_plugin( GameController
             GameController.qml
             GameControllerDV.qml
             GamepadWrapper.qml
+            InputAction.qml
             KeyboardGamepad.qml
             SyntheticGamepad.qml
             TouchscreenGamepad.qml
