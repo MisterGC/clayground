@@ -22,6 +22,7 @@ import Clayground.GameController
 
 - **GameController** - Main unified input component with axis and button states
 - **GameControllerDV** - Debug visualization showing current controller state
+- **InputAction** - One action read as a tap, a hold or a buffered press, timed on the game clock
 - **KeyboardGamepad** - Internal keyboard-to-controller mapping
 - **TouchscreenGamepad** - Virtual on-screen gamepad for touch devices
 - **GamepadWrapper** - Qt Gamepad API wrapper (currently disabled in Qt6)
@@ -155,6 +156,86 @@ GameController {
     }
 }
 ```
+
+### Tap, Hold and Buffered Press
+
+A `GameController` says whether a button is down. An `InputAction` says how it
+is used: a tap or a hold, how long it has been held, how long ago it was
+pressed or released, and whether a press made a moment too early can still be
+claimed. Its clock is the physics world when one is given, so the dojo's pause,
+a single step and a hit stop hold every reading - the same clock a
+`PhysicsTimer` counts. Without a world it runs on wall clock.
+
+```qml
+import QtQuick
+import Clayground.GameController
+import Clayground.Physics
+import Clayground.World
+
+ClayWorld2d {
+    id: theWorld
+    components: new Map()
+
+    Item {
+        anchors.fill: parent
+        focus: true
+        // Actions first: they leave key events unaccepted for the controller.
+        Keys.forwardTo: [swing, controller]
+
+        GameController { id: controller }
+
+        InputAction {
+            id: swing
+            world: theWorld.physics
+            key: Qt.Key_J
+            mouseButton: Qt.LeftButton
+            holdThresholdMs: 200     // shorter is a tap, longer a hold
+            bufferMs: 150            // a press stays claimable this long
+            onTapped: player.swing()
+            onHoldStarted: player.startCharging()
+            onReleased: (heldMs) => { if (heldMs >= 600) player.heavySwing() }
+        }
+
+        InputAction {
+            id: block
+            world: theWorld.physics
+            mouseButton: Qt.RightButton
+        }
+
+        // The game's MouseArea keeps aiming; it hands its buttons on.
+        MouseArea {
+            anchors.fill: parent
+            acceptedButtons: Qt.LeftButton | Qt.RightButton
+            onPressed: (mouse) => { swing.press(mouse); block.press(mouse) }
+            onReleased: (mouse) => { swing.release(mouse); block.release(mouse) }
+            onCanceled: { swing.release(); block.release() }
+        }
+    }
+
+    // A blow lands: a shield raised in the last 133 ms is a perfect block.
+    function onBlow() {
+        if (block.pressed && block.pressedAgoMs <= 133) player.perfectBlock()
+        else if (block.pressed) player.block()
+    }
+
+    // A swing pressed during the cooldown comes out when it ends.
+    PhysicsTimer {
+        world: theWorld.physics
+        interval: 300
+        onTriggered: if (swing.consume()) player.swing()
+    }
+}
+```
+
+- `pressed`, `heldMs`, `pressedAgoMs`, `releasedAgoMs` are properties; the last
+  two are `Infinity` before the first press or release.
+- `tapped()` follows `released(heldMs)` on a release before the threshold;
+  `holdStarted()` comes once per press, on the step that reaches it.
+- `consume()` returns true once for a press at most `bufferMs` old.
+- `press()` / `release()` without an event press the action from anything
+  else - a touch button, a script.
+- A key press counts as released (with no tap) when the focus item changes or
+  the window becomes inactive, as the keyboard gamepad does.
 
 ## Best Practices
 
