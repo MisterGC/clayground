@@ -186,6 +186,24 @@ Item {
             verify(!a.consume(), "200 ms old with bufferMs 150");
         }
 
+        // A full hit stop steps with timeStep 0: presses in it share one
+        // clock time, and each is its own press to claim.
+        function test_each_press_in_a_hit_stop_is_claimable_data() { return sources(); }
+        function test_each_press_in_a_hit_stop_is_claimable(data) {
+            const a = action(data);
+            physicsWorld.timeStep = 0;
+            down(data);
+            up(data);
+            step(5);
+            verify(a.consume(), "the first press");
+            verify(!a.consume(), "the first press, again");
+            down(data);
+            up(data);
+            step(5);
+            verify(a.consume(), "the second press at the same clock time");
+            verify(!a.consume(), "the second press, again");
+        }
+
         function test_pressedAgoMs_and_releasedAgoMs_data() { return sources(); }
         function test_pressedAgoMs_and_releasedAgoMs(data) {
             const a = action(data);
