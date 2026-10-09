@@ -6,7 +6,8 @@ import Clayground.World
 // ScreenFx2d, camera shake/kick and hitStop on a lit dungeon. The HUD (health
 // bar, key help) is a sibling of the canvas and stays still and ungraded.
 // Keys: H hit, J parry, L low health, V vignette, T temperature, G grain,
-// C posterise, A auto hits.
+// C posterise, A auto hits, M hit stop mode (physics or view, the one a
+// networked game uses).
 Item {
     id: sbx
     anchors.fill: parent
@@ -104,6 +105,7 @@ Item {
             styleColor: "#000000"
             text: "[H]it [J]parry [L]ow health [V]ignette [T]emperature [G]rain"
                   + " [C]posterise [A]uto " + sbx.autoHits
+                  + " [M]ode " + dungeon.hitStopMode
                   + "   trauma " + cam.trauma.toFixed(2)
                   + (dungeon.hitStopActive ? "  HIT STOP" : "")
         }
@@ -142,5 +144,6 @@ Item {
         else if (event.key === Qt.Key_G) fx.grain = fx.grain > 0 ? 0 : 0.6;
         else if (event.key === Qt.Key_C) fx.colorLevels = fx.colorLevels > 0 ? 0 : 6;
         else if (event.key === Qt.Key_A) autoHits = !autoHits;
+        else if (event.key === Qt.Key_M) dungeon.hitStopMode = dungeon.hitStopMode === "view" ? "physics" : "view";
     }
 }
