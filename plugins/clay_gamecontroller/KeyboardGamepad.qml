@@ -35,11 +35,22 @@
 
     \qmlmethod void KeyboardGamepad::configure(var uk, var dk, var lk, var rk, var bA, var bB)
     \brief Configures all key mappings at once.
+
+    \qmlmethod void KeyboardGamepad::releaseAll()
+    \brief Forgets every held key and writes neutral axes and released buttons.
+
+    The gamepad keeps the set of held keys and computes each axis from it:
+    opposite keys cancel, and releasing one leaves the other in effect. A key
+    released while the keys go elsewhere never reports its release, so the
+    set is cleared whenever the window's active focus item changes or the
+    window becomes inactive.
 */
 import QtQuick
 
 Item
 {
+    id: theKeyboard
+
     enabled: false
     property var upKey: null
     property var downKey: null
@@ -49,6 +60,11 @@ Item
     property var buttonBKey: null
     property var gameController: null
 
+    // Held keys as key code -> true. Axes are derived from it rather than set
+    // per event: setting on press and clearing on release lost the opposite
+    // key still held (hold A, tap D, release D -> axisX 0).
+    property var _held: ({})
+
     function configure(uk, dk, lk, rk, bA, bB) {
         upKey = uk;
         downKey = dk;
@@ -56,31 +72,57 @@ Item
         rightKey = rk;
         buttonAKey = bA;
         buttonBKey = bB;
+        releaseAll();
+    }
+
+    function releaseAll() {
+        _held = {};
+        _apply();
+    }
+
+    // Writes only when something was held, so a focus change does not
+    // overwrite touch or agent input with neutral values.
+    function _releaseHeld() {
+        if (Object.keys(_held).length > 0) releaseAll();
+    }
+
+    function _isMapped(key) {
+        return key === upKey || key === downKey || key === leftKey ||
+               key === rightKey || key === buttonAKey || key === buttonBKey;
+    }
+
+    function _apply() {
+        if (!enabled || !gameController) return;
+        const h = _held;
+        gameController.axisX = (h[rightKey] ? 1 : 0) - (h[leftKey] ? 1 : 0);
+        gameController.axisY = (h[upKey] ? 1 : 0) - (h[downKey] ? 1 : 0);
+        gameController.buttonBPressed = !!h[buttonAKey];
+        gameController.buttonAPressed = !!h[buttonBKey];
+    }
+
+    onEnabledChanged: _held = {}
+
+    // A release that goes to another item (an overlay took focus, another
+    // window is in front) never arrives here, so a key would stay held once
+    // focus returns. The controller rarely has focus itself - games forward
+    // keys to it from a parent - so any change of the focus item counts.
+    Connections {
+        target: theKeyboard.Window.window
+        function onActiveFocusItemChanged() { theKeyboard._releaseHeld(); }
+        function onActiveChanged() {
+            if (!theKeyboard.Window.window.active) theKeyboard._releaseHeld();
+        }
     }
 
     Keys.onPressed: (event)=> {
-        if (!enabled || event.isAutoRepeat) return;
-        switch (event.key)
-        {
-            case upKey: gameController.axisY = 1; break;
-            case downKey: gameController.axisY = -1; break;
-            case leftKey: gameController.axisX = -1; break;
-            case rightKey: gameController.axisX = 1; break;
-            case buttonAKey: gameController.buttonBPressed = true; break;
-            case buttonBKey: gameController.buttonAPressed = true; break;
-        }
+        if (!enabled || event.isAutoRepeat || !_isMapped(event.key)) return;
+        _held[event.key] = true;
+        _apply();
     }
 
     Keys.onReleased: (event)=> {
-        if (!enabled || event.isAutoRepeat) return;
-        switch (event.key)
-        {
-            case upKey: if (gameController.axisY > 0) gameController.axisY = 0; break;
-            case downKey: if (gameController.axisY < 0) gameController.axisY = 0; break;
-            case leftKey: if (gameController.axisX < 0) gameController.axisX = 0; break;
-            case rightKey: if (gameController.axisX > 0) gameController.axisX = 0; break;
-            case buttonAKey: gameController.buttonBPressed = false; break;
-            case buttonBKey: gameController.buttonAPressed = false; break;
-        }
+        if (!enabled || event.isAutoRepeat || !_isMapped(event.key)) return;
+        delete _held[event.key];
+        _apply();
     }
 }
