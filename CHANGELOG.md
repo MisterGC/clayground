@@ -5,6 +5,24 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are
 calendar-style (`VERSION` at the repository root). Releases up to 2026.7 are
 described on their [GitHub release pages](https://github.com/MisterGC/clayground/releases).
 
+## [2026.9] - 2026-10-10
+
+Input gets a game's timing: one action reads its tap, hold and buffered press
+on the game clock, and the keyboard gamepad no longer keeps a key held after
+the window loses focus. A view-mode hit stop keeps the camera shake.
+
+### Added
+
+- **`InputAction`** in `Clayground.GameController`: one action bound to a key and/or a mouse button reports `pressed`, `heldMs`, `pressedAgoMs` and `releasedAgoMs`, the signals `tapped`, `holdStarted` and `released(heldMs)`, and `consume()` for a press buffered for `bufferMs`. Its clock is the given `world`, so pause and hit stop hold every reading; without one it is wall clock. (#416)
+
+### Changed
+
+- **A view-mode hit stop keeps the camera shake and kick**, and a slowed one (`scale > 0`) captures the canvas again every 1 / `scale` frames, so the world moves on in steps instead of standing frozen. `clayInspect().hitStop` reports `heldShiftPx` and `heldCaptures`. (#415)
+
+### Fixed
+
+- **The keyboard gamepad knows which keys are held**: opposite keys cancel, releasing one leaves the other in effect, and every held key is released when the window's focus item changes or the window becomes inactive. (#413)
+
 ## [2026.8] - 2026-10-07
 
 Games get a networking foundation: a host every node knows, a join handshake,
@@ -87,4 +105,5 @@ is opt-in.
 - A note card exactly as tall as the annotation list was scrolled 6 px past its top. (#330)
 - `Poly.closed` was always true, so every open poly drew a closing edge. (#272)
 
+[2026.9]: https://github.com/MisterGC/clayground/compare/v2026.8...v2026.9
 [2026.8]: https://github.com/MisterGC/clayground/compare/v2026.7...v2026.8
