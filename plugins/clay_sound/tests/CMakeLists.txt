@@ -61,6 +61,31 @@ add_test(NAME clay_sound_song_parser COMMAND tst_clay_sound_song_parser)
 set_tests_properties(clay_sound_song_parser PROPERTIES LABELS "clay_sound;unit")
 
 # ----------------------------------------------------------------------
+# Song v2 offline (#430): the adaptive demo song switches state on a bar
+# and fades a layer in by intensity, measured on renderSong(); the
+# sequencer's sync points. Clayground::SoundEngine alone.
+# ----------------------------------------------------------------------
+
+add_executable(tst_clay_sound_song_v2
+    tst_song_v2.cpp
+)
+
+set_target_properties(tst_clay_sound_song_v2 PROPERTIES AUTOMOC ON)
+
+target_compile_definitions(tst_clay_sound_song_v2 PRIVATE
+    CLAY_SOUND_DEMO_ADAPTIVE="${CMAKE_CURRENT_SOURCE_DIR}/../demo/songs/adaptive.song.json"
+)
+
+target_link_libraries(tst_clay_sound_song_v2 PRIVATE
+    Clayground::SoundEngine
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME clay_sound_song_v2 COMMAND tst_clay_sound_song_v2)
+set_tests_properties(clay_sound_song_v2 PROPERTIES LABELS "clay_sound;unit")
+
+# ----------------------------------------------------------------------
 # SongPlayer tests (drives a fake instrument via Q_INVOKABLE triggerNote).
 # ----------------------------------------------------------------------
 

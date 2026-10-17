@@ -44,17 +44,17 @@ int addInstrument(Engine &engine, const InstrumentSpec &spec)
     return engine.addInstrument(std::move(inst));
 }
 
-bool scheduleNote(Engine &engine, int id, IInstrument &inst, const InstrumentSpec &spec,
-                  double freqHz, double velocity, double durationSeconds,
-                  int64_t at, int gainStage)
+EventId scheduleNote(Engine &engine, int id, IInstrument &inst, const InstrumentSpec &spec,
+                     double freqHz, double velocity, double durationSeconds,
+                     int64_t at, int gainStage)
 {
-    if (freqHz <= 0.0 || id < 0) return false;
+    if (freqHz <= 0.0 || id < 0) return 0;
     const int rate = engine.sampleRate();
     const bool sampler = spec.kind == InstrumentSpec::Kind::Sampler;
 
     double dur = durationSeconds;
     if (sampler) {
-        if (!spec.sample) return false;
+        if (!spec.sample) return 0;
         // Without a duration the note plays to the sample's end (adjusted
         // for the playback rate). A loop still gets 60 s so the scheduler
         // has an end frame; it can be retriggered beyond.
@@ -71,7 +71,7 @@ bool scheduleNote(Engine &engine, int id, IInstrument &inst, const InstrumentSpe
             }
         }
     } else if (dur <= 0.0) {
-        return false;
+        return 0;
     }
 
     NoteEvent ev;
@@ -85,7 +85,7 @@ bool scheduleNote(Engine &engine, int id, IInstrument &inst, const InstrumentSpe
     const EventId ticket = engine.schedule(ev);
     if (sampler) static_cast<SamplerInstrument &>(inst).pushPatch(ticket, spec.sampler);
     else         static_cast<OscillatorInstrument &>(inst).pushPatch(ticket, spec.synth);
-    return true;
+    return ticket;
 }
 
 } // namespace clay::sound

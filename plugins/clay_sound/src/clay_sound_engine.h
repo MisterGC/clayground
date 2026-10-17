@@ -20,6 +20,15 @@
 //   auto pcm = clay::sound::renderSong(song, inst, 10.0, 1.0f, false,
 //                                      clay::sound::kSampleRate, false);
 //
+// A version 2 song defines its instruments, so it needs none; a
+// performance names its start, intensity and the cues a game sends:
+//
+//   clay::sound::loadSong("adaptive.song.json", &song);
+//   clay::sound::SongPerformance perf;
+//   perf.cues = {{clay::sound::kSampleRate * 3, clay::sound::SongCue::Kind::State, "combat"}};
+//   auto adaptive = clay::sound::renderSong(song, perf, 10.0, 1.0f, false,
+//                                           clay::sound::kSampleRate, true);
+//
 // A render here is the one SfxPlayer.renderOffline(seed) and
 // SongPlayer.renderOffline(seconds) return for the same input.
 

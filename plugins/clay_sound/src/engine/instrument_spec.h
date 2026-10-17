@@ -15,6 +15,7 @@
 #include "bus.h"
 #include "oscillator_voice.h"
 #include "sample_voice.h"
+#include "scheduler.h"
 
 #include <cstdint>
 #include <memory>
@@ -55,10 +56,11 @@ void applyMix(IInstrument &inst, const InstrumentSpec &spec);
 // Schedule one note of `spec` on the engine instrument `id` (`inst`,
 // built for spec.kind) to start at engine frame `at`. velocity 0..1;
 // a sampler note of durationSeconds <= 0 plays to the sample's end, or
-// 60 s when it loops. Returns false when the note cannot sound (no
-// frequency, no duration for a synth, no sample for a sampler).
-bool scheduleNote(Engine &engine, int id, IInstrument &inst, const InstrumentSpec &spec,
-                  double freqHz, double velocity, double durationSeconds,
-                  int64_t at, int gainStage = -1);
+// 60 s when it loops. Returns the scheduler ticket (Engine::cancel()),
+// 0 when the note cannot sound (no frequency, no duration for a synth,
+// no sample for a sampler).
+EventId scheduleNote(Engine &engine, int id, IInstrument &inst, const InstrumentSpec &spec,
+                     double freqHz, double velocity, double durationSeconds,
+                     int64_t at, int gainStage = -1);
 
 } // namespace clay::sound

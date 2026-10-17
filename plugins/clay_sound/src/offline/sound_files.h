@@ -31,7 +31,8 @@ struct RecipeFile
 // thing that fails.
 bool loadRecipe(const std::string &path, RecipeFile *out, std::string *error = nullptr);
 
-// Parse the song (v1, song/song_parser.h) at `path`.
+// Parse the song (song/song_parser.h) at `path`; a version 2 song's
+// sample instruments get their files decoded, each relative to the song.
 bool loadSong(const std::string &path, SongModel *out, std::string *error = nullptr);
 
 enum class WavFormat {

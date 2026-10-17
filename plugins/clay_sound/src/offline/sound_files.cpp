@@ -85,10 +85,25 @@ bool loadRecipe(const std::string &path, RecipeFile *out, std::string *error)
 
 bool loadSong(const std::string &path, SongModel *out, std::string *error)
 {
+    const QString file = QString::fromStdString(path);
     QByteArray bytes;
-    if (!readAll(QString::fromStdString(path), &bytes, error)) return false;
-    const auto res = SongParser::parse(bytes);
+    if (!readAll(file, &bytes, error)) return false;
+    auto res = SongParser::parse(bytes);
     if (!res.ok) return fail(error, res.error);
+    // A v2 sample instrument's file is relative to the song file.
+    const QDir base = QFileInfo(file).absoluteDir();
+    for (auto it = res.model.instruments.begin(); it != res.model.instruments.end(); ++it) {
+        if (it->sample.isEmpty()) continue;
+        const QString what = QStringLiteral("instruments.%1.sample").arg(it.key());
+        QByteArray wav;
+        std::string why;
+        if (!readAll(QDir::cleanPath(base.filePath(it->sample)), &wav, &why))
+            return fail(error, QStringLiteral("%1: %2").arg(what, QString::fromStdString(why)));
+        auto pcm = PcmBuffer::loadWavFromBytes(reinterpret_cast<const std::uint8_t *>(wav.constData()),
+                                               static_cast<std::size_t>(wav.size()), &why);
+        if (!pcm) return fail(error, QStringLiteral("%1: %2").arg(what, QString::fromStdString(why)));
+        it->spec.sample = std::make_shared<const PcmBuffer>(std::move(*pcm));
+    }
     if (out) *out = res.model;
     return true;
 }
