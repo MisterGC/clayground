@@ -389,3 +389,70 @@ set_tests_properties(clay_sound_effects PROPERTIES
     LABELS "clay_sound;unit"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+# ----------------------------------------------------------------------
+# Effect recipes: parser, seeded variation and SfxPlayer, measured on
+# offline renders and against live playback.
+# ----------------------------------------------------------------------
+
+add_executable(tst_clay_sound_sfx
+    tst_sfx_recipe.cpp
+    ../src/audio_devices.cpp
+    ../src/audio_devices.h
+    ../src/audio_output.cpp
+    ../src/audio_output.h
+    ../src/source_url.cpp
+    ../src/source_url.h
+    ../src/sfx_player.cpp
+    ../src/sfx_player.h
+    ../src/sfx/sfx_recipe.h
+    ../src/sfx/sfx_parser.cpp
+    ../src/sfx/sfx_parser.h
+    ../src/sfx/sfx_render.cpp
+    ../src/sfx/sfx_render.h
+    ../src/engine/bus.h
+    ../src/engine/bus_effects.cpp
+    ../src/engine/bus_effects.h
+    ../src/engine/scheduler.cpp
+    ../src/engine/scheduler.h
+    ../src/engine/engine.cpp
+    ../src/engine/engine.h
+    ../src/engine/voice.h
+    ../src/engine/instrument.h
+    ../src/engine/note_event.h
+    ../src/engine/oscillator_voice.cpp
+    ../src/engine/oscillator_voice.h
+    ../src/engine/oscillator_instrument.cpp
+    ../src/engine/oscillator_instrument.h
+    ../src/engine/pcm_buffer.cpp
+    ../src/engine/pcm_buffer.h
+    ../src/engine/sample_voice.cpp
+    ../src/engine/sample_voice.h
+    ../src/engine/sampler_instrument.cpp
+    ../src/engine/sampler_instrument.h
+)
+
+set_target_properties(tst_clay_sound_sfx PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_clay_sound_sfx PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(tst_clay_sound_sfx PRIVATE
+    CLAY_SOUND_DEMO_WAV="${CMAKE_CURRENT_SOURCE_DIR}/../demo/sound.wav"
+    CLAY_SOUND_DEMO_SFX="${CMAKE_CURRENT_SOURCE_DIR}/../demo/sfx/wheel-detent.sfx.json"
+)
+
+target_link_libraries(tst_clay_sound_sfx PRIVATE
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    Qt6::Multimedia
+)
+
+add_test(NAME clay_sound_sfx COMMAND tst_clay_sound_sfx)
+set_tests_properties(clay_sound_sfx PROPERTIES
+    LABELS "clay_sound;unit"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
