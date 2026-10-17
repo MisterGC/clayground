@@ -213,7 +213,8 @@ needs. `demo/songs/adaptive.song.json` uses all of it:
 - **Segments** are the parts the music moves between. A segment plays its
   sections, then `next` (itself by default). A v2 pattern lasts whole bars.
   Without `segments` the sections are one segment, `main`, after which the
-  song ends, or starts again with `loop`.
+  song ends, or starts again with `loop`; such a song needs at least one
+  section.
 - **Exits** are beats into a segment where a transition synced to `exit`
   may leave it.
 - **Layers** are tracks that sound only as loud as the intensity lets them:

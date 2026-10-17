@@ -511,6 +511,10 @@ static bool parseStructure(const QJsonObject &root, SongModel &model, QString *e
         if (root.contains("start"))
             return fail(errorOut, QStringLiteral("start"), QStringLiteral("names a segment, and the song has no 'segments'"));
         // The sections are the one segment, and the song ends after it.
+        // Without any it would last no beat, and a loop of it never ends.
+        if (model.sections.isEmpty())
+            return fail(errorOut, QStringLiteral("sections"),
+                        QStringLiteral("a version 2 song plays at least one section (or has 'segments')"));
         Segment main;
         main.sections = model.sections;
         model.segments.insert(QStringLiteral("main"), main);

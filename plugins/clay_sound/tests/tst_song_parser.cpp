@@ -33,6 +33,7 @@ private slots:
     void v2Structure();
     void v2WithoutSegmentsPlaysOneSegment();
     void v2KeysNeedVersion2();
+    void v2NeedsASectionToPlay();
     void v2Errors_data();
     void v2Errors();
 };
@@ -380,6 +381,21 @@ void TestSongParser::v2KeysNeedVersion2()
 
     QVERIFY(!SongParser::parse(R"({ "version": 3, "tempo": 120,
         "tracks": { "t": { "instrument": "i" } } })").ok);
+}
+
+// A v2 song without segments and without a section would last no beat;
+// looped, its sequencer would never get past it.
+void TestSongParser::v2NeedsASectionToPlay()
+{
+    const QByteArray head = R"({ "version": 2, "tempo": 120,
+        "instruments": { "i": { "source": "sine" } },
+        "tracks": { "t": { "instrument": "i" } })";
+    for (const QByteArray &rest : {QByteArray(R"(, "patterns": { "A": { "t": [] } }, "sections": [] })"),
+                                   QByteArray(" }")}) {
+        const auto r = SongParser::parse(head + rest);
+        QVERIFY(!r.ok);
+        QCOMPARE(r.error, QStringLiteral("sections: a version 2 song plays at least one section (or has 'segments')"));
+    }
 }
 
 void TestSongParser::v2Errors_data()
