@@ -73,7 +73,9 @@ void TestRenderOutside::initTestCase()
     // The demo's song instruments, as demo/Sandbox.qml declares them
     // with its volume slider at 0.8.
     QQmlComponent c(&qml_);
-    c.setData(QByteArrayLiteral(R"(
+    // fromLocalFile, not "file://" + path: a Windows path would parse
+    // as a host there (file://D:/... -> //d/...).
+    const QString qmlText = QStringLiteral(R"(
         import QtQml
         import ClayOutsideTest
         QtObject {
@@ -90,13 +92,15 @@ void TestRenderOutside::initTestCase()
                 volume: 0.8 * 0.6
             }
             property SongPlayer song: SongPlayer {
-                source: "file://)" CLAY_SOUND_DEMO_SONG R"("
+                source: "%1"
                 instruments: [lead, bass]
             }
             property SfxPlayer detent: SfxPlayer {
-                source: "file://)" CLAY_SOUND_DEMO_SFX R"("
+                source: "%2"
             }
-        })"), QUrl());
+        })").arg(QUrl::fromLocalFile(CLAY_SOUND_DEMO_SONG).toString(),
+                 QUrl::fromLocalFile(CLAY_SOUND_DEMO_SFX).toString());
+    c.setData(qmlText.toUtf8(), QUrl());
     scene_.reset(c.create());
     QVERIFY2(scene_, qPrintable(c.errorString()));
 
