@@ -18,6 +18,33 @@
 //
 // Unknown top-level or note-object keys are rejected — we want
 // typo-surfacing, not silent data drop.
+//
+// Version 2 ("version": 2; a file without "version" is v1) defines its
+// instruments and adds the structure adaptive music needs:
+//   {
+//     "version": 2, "tempo": 120, "beatsPerBar": 4,
+//     "instruments": { "lead": { "source": "square", "pulseWidth": 0.25,
+//                                "envelope": { "attack": 5, "release": 80 },
+//                                "filter": { "type": "lowpass", "cutoff": 2400 },
+//                                "gain": -6, "pan": 0, "bus": "music" },
+//                      "kick": { "source": "sample", "sample": "kick.wav", "root": "C2" } },
+//     "tracks":   { "melody": { "instrument": "lead" }, ... },
+//     "patterns": { ... as v1 ... },
+//     "segments": { "explore": { "sections": [ { "pattern": "A" } ], "exits": [8] },
+//                   "combat":  { "sections": [ { "pattern": "C" } ], "next": "combat" } },
+//     "start": "explore",
+//     "layers": { "drums": { "tracks": ["perc"], "intensity": [0.3, 0.6], "fade": 4 } },
+//     "transitions": [ { "from": "explore", "to": "combat", "sync": "bar", "stinger": "alarm" } ],
+//     "stingers": { "alarm": { "pattern": "S", "sync": "beat" } }
+//   }
+// An instrument takes an effect recipe layer's fields and units (ms,
+// dB, Hz, semitones) plus "bus" (default music) and "maxVoices"; a
+// sample instrument takes "sample" (relative to the song file), "root",
+// "interpolation" and "loop". Every track plays a defined instrument.
+// A v2 pattern lasts whole bars. Without "segments" the sections are
+// one segment, "main", after which the song ends (or loops); a segment
+// goes on to "next", itself by default. song_model.h says what layers,
+// transitions and stingers mean.
 
 #ifndef CLAY_SOUND_SONG_PARSER_H
 #define CLAY_SOUND_SONG_PARSER_H
