@@ -10,6 +10,12 @@ namespace cs = clay::sound;
 
 SoundMixer::SoundMixer(QObject *parent)
     : QObject(parent)
+    , sfxEcho_(new EchoEffect(cs::Bus::Sfx, this))
+    , musicEcho_(new EchoEffect(cs::Bus::Music, this))
+    , voiceEcho_(new EchoEffect(cs::Bus::Voice, this))
+    , sfxReverb_(new ReverbEffect(cs::Bus::Sfx, this))
+    , musicReverb_(new ReverbEffect(cs::Bus::Music, this))
+    , voiceReverb_(new ReverbEffect(cs::Bus::Voice, this))
 {
 }
 

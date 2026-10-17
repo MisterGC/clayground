@@ -236,6 +236,8 @@ add_executable(tst_clay_sound_mix
     ../src/audio_output.h
     ../src/sound_mixer.cpp
     ../src/sound_mixer.h
+    ../src/bus_effect_objects.cpp
+    ../src/bus_effect_objects.h
     ../src/synth_instrument.cpp
     ../src/synth_instrument.h
     ../src/engine/bus.h
