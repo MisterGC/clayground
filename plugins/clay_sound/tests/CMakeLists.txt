@@ -89,6 +89,15 @@ add_executable(tst_clay_sound_song_player
     ../src/song/song_model.h
     ../src/song/song_parser.cpp
     ../src/song/song_parser.h
+    # SongPlayer's volume is a gain stage of AudioOutput's engine.
+    ../src/audio_devices.cpp
+    ../src/audio_devices.h
+    ../src/audio_output.cpp
+    ../src/audio_output.h
+    ../src/engine/scheduler.cpp
+    ../src/engine/scheduler.h
+    ../src/engine/engine.cpp
+    ../src/engine/engine.h
 )
 
 set_target_properties(tst_clay_sound_song_player PROPERTIES AUTOMOC ON)
@@ -101,6 +110,7 @@ target_link_libraries(tst_clay_sound_song_player PRIVATE
     Qt6::Core
     Qt6::Qml
     Qt6::Test
+    Qt6::Multimedia
 )
 
 add_test(NAME clay_sound_song_player COMMAND tst_clay_sound_song_player)

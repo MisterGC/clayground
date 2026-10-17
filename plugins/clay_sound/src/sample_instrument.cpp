@@ -146,6 +146,33 @@ void SampleInstrument::setVolume(qreal v)
     emit volumeChanged();
 }
 
+void SampleInstrument::setPan(qreal v)
+{
+    v = std::clamp(v, -1.0, 1.0);
+    if (pan_ == v) return;
+    pan_ = v;
+    if (core_) core_->setPan(static_cast<float>(v));
+    emit panChanged();
+}
+
+QString SampleInstrument::bus() const
+{
+    return cs::AudioOutput::busName(bus_);
+}
+
+void SampleInstrument::setBus(const QString &name)
+{
+    cs::Bus b = bus_;
+    if (!cs::AudioOutput::busFromName(name, b)) {
+        qWarning() << "SampleInstrument: unknown bus" << name << "- use sfx, music or voice";
+        return;
+    }
+    if (b == bus_) return;
+    bus_ = b;
+    if (core_) core_->setBus(b);
+    emit busChanged();
+}
+
 int SampleInstrument::activeVoices() const
 {
     if (coreId_ < 0) return 0;
@@ -302,6 +329,7 @@ bool SampleInstrument::trigger(qreal freqHz, qreal velocity, qreal durationSecon
     ev.freqHz         = freqHz;
     ev.velocity       = static_cast<float>(std::clamp(velocity, 0.0, 1.0));
     ev.instrumentId   = coreId_;
+    ev.gainStage      = output.triggerGainStage();
 
     const cs::EventId id = eng.schedule(ev);
     core_->pushPatch(id, patch_);
@@ -337,6 +365,8 @@ void SampleInstrument::stopAll()
         coreId_ = cs::AudioOutput::instance().registerInstrument(std::move(core));
         if (core_) {
             core_->setGain(static_cast<float>(volume_));
+            core_->setPan(static_cast<float>(pan_));
+            core_->setBus(bus_);
             if (buffer_) {
                 core_->setSource(buffer_);
                 core_->setRootMidiNote(rootMidiNote_);

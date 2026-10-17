@@ -36,6 +36,7 @@ set(CPP_SRC
     src/synth_instrument.cpp src/synth_instrument.h
     src/sample_instrument.cpp src/sample_instrument.h
     src/song_player.cpp src/song_player.h
+    src/sound_mixer.cpp src/sound_mixer.h
     src/sound.cpp src/sound.h
     src/music.cpp src/music.h
     src/chiptracker.cpp src/chiptracker.h

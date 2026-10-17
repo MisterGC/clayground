@@ -268,6 +268,33 @@ void SynthInstrument::setVolume(qreal v)
     emit volumeChanged();
 }
 
+void SynthInstrument::setPan(qreal v)
+{
+    v = std::clamp(v, -1.0, 1.0);
+    if (pan_ == v) return;
+    pan_ = v;
+    if (oscInst_) oscInst_->setPan(static_cast<float>(v));
+    emit panChanged();
+}
+
+QString SynthInstrument::bus() const
+{
+    return cs::AudioOutput::busName(bus_);
+}
+
+void SynthInstrument::setBus(const QString &name)
+{
+    cs::Bus b = bus_;
+    if (!cs::AudioOutput::busFromName(name, b)) {
+        qWarning() << "SynthInstrument: unknown bus" << name << "- use sfx, music or voice";
+        return;
+    }
+    if (b == bus_) return;
+    bus_ = b;
+    if (oscInst_) oscInst_->setBus(b);
+    emit busChanged();
+}
+
 int SynthInstrument::activeVoices() const
 {
     if (oscInstId_ < 0) return 0;
@@ -301,6 +328,7 @@ bool SynthInstrument::trigger(qreal freqHz, qreal velocity, qreal durationSecond
     ev.freqHz         = freqHz;
     ev.velocity       = static_cast<float>(std::clamp(velocity, 0.0, 1.0));
     ev.instrumentId   = oscInstId_;
+    ev.gainStage      = output.triggerGainStage();
 
     const cs::EventId id = eng.schedule(ev);
     oscInst_->pushPatch(id, patch_);

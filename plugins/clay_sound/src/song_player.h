@@ -15,6 +15,11 @@
 // `objectName` of the provided instruments, then advances playback
 // position in beats on an internal timer, firing `triggerNote()` on
 // the matching instrument.
+//
+// `volume` scales every note the player triggers, on whichever
+// instrument, and keeps scaling them while they ring, so animating it
+// fades a whole song. It is a gain stage of the shared engine that the
+// player names around each triggerNote() it sends.
 
 #ifndef CLAY_SOUND_SONG_PLAYER_H
 #define CLAY_SOUND_SONG_PLAYER_H
@@ -51,6 +56,7 @@ class SongPlayer : public QObject
     Q_PROPERTY(qreal         tempo       READ tempo       NOTIFY tempoChanged)
     Q_PROPERTY(qreal         totalBeats  READ totalBeats  NOTIFY totalBeatsChanged)
     Q_PROPERTY(bool          loop        READ loop        WRITE setLoop        NOTIFY loopChanged)
+    Q_PROPERTY(qreal         volume      READ volume      WRITE setVolume      NOTIFY volumeChanged)
     Q_PROPERTY(QString       error       READ error       NOTIFY errorChanged)
 
 public:
@@ -70,6 +76,8 @@ public:
     qreal  totalBeats() const { return totalBeats_; }
     bool   loop() const { return loop_; }
     void   setLoop(bool v);
+    qreal  volume() const { return volume_; }
+    void   setVolume(qreal v);
     QString error() const { return error_; }
 
     Q_INVOKABLE void play();
@@ -86,6 +94,7 @@ signals:
     void tempoChanged();
     void totalBeatsChanged();
     void loopChanged();
+    void volumeChanged();
     void errorChanged();
     void finished();
     void parseError(const QString &message);
@@ -134,6 +143,8 @@ private:
     bool              loaded_  = false;
     bool              playing_ = false;
     bool              loop_    = false;
+    qreal             volume_  = 1.0;
+    int               gainStage_ = -1;  // in AudioOutput's engine
     double            position_ = 0.0;
     QString           error_;
 

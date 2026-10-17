@@ -36,6 +36,7 @@
 #include <QAudioDevice>
 #include <QElapsedTimer>
 #include <QObject>
+#include <QString>
 #include <QTimer>
 
 #include <memory>
@@ -66,6 +67,29 @@ public:
     // to schedule events and push patches.
     Engine& engine() { return engine_; }
     const Engine& engine() const { return engine_; }
+
+    // The gain stage (Engine::addGainStage) that notes triggered right
+    // now play through, -1 for none. SongPlayer sets it around each
+    // triggerNote() it sends and the instruments stamp it on the note,
+    // so a song's volume reaches its notes whatever plays them - also
+    // through a QML object that wraps an instrument. GUI thread only.
+    int triggerGainStage() const { return triggerGainStage_; }
+    class TriggerGainStage
+    {
+    public:
+        explicit TriggerGainStage(int id) : prev_(instance().triggerGainStage_)
+        { instance().triggerGainStage_ = id; }
+        ~TriggerGainStage() { instance().triggerGainStage_ = prev_; }
+        TriggerGainStage(const TriggerGainStage&) = delete;
+        TriggerGainStage& operator=(const TriggerGainStage&) = delete;
+    private:
+        int prev_;
+    };
+
+    // The QML names of the buses: "sfx", "music", "voice". busFromName
+    // returns false and leaves `bus` alone for any other name.
+    static bool busFromName(const QString& name, Bus& bus);
+    static QString busName(Bus bus);
 
     int sampleRate() const { return engine_.sampleRate(); }
     bool isRunning() const { return sinkRunning_; }
@@ -106,6 +130,7 @@ private:
     QAudioSink* sink_     = nullptr;
     QIODevice*  device_   = nullptr;
     int         channels_ = 2;      // of the open sink: 2, or 1 on a mono-only device
+    int         triggerGainStage_ = -1;
     QTimer      pullTimer_;
     bool        sinkRunning_ = false;
     QElapsedTimer sinceFailedOpen_;

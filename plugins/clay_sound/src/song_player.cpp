@@ -2,6 +2,7 @@
 
 #include "song_player.h"
 
+#include "audio_output.h"
 #include "song/song_parser.h"
 
 #include <QDebug>
@@ -52,10 +53,21 @@ QString urlToLocalPath(const QUrl &url)
 SongPlayer::SongPlayer(QObject *parent)
     : QObject(parent)
 {
+    gainStage_ = clay::sound::AudioOutput::instance().engine().addGainStage();
     tickTimer_.setInterval(kTickMs);
     connect(&tickTimer_, &QTimer::timeout, this, &SongPlayer::tick);
     connect(&watcher_, &QFileSystemWatcher::fileChanged,
             this, &SongPlayer::onWatchedFileChanged);
+}
+
+void SongPlayer::setVolume(qreal v)
+{
+    v = std::clamp(v, 0.0, 1.0);
+    if (volume_ == v) return;
+    volume_ = v;
+    clay::sound::AudioOutput::instance().engine()
+        .setGainStage(gainStage_, static_cast<float>(v));
+    emit volumeChanged();
 }
 
 SongPlayer::~SongPlayer() = default;
@@ -146,6 +158,7 @@ void SongPlayer::tick()
         QObject *inst = resolveInstrument(model_.tracks.value(ev.track).instrument);
         if (inst) {
             const double durSeconds = ev.durBeats * 60.0 / bpm;
+            const clay::sound::AudioOutput::TriggerGainStage stage(gainStage_);
             QMetaObject::invokeMethod(inst, "triggerNote",
                                       Q_ARG(int,   ev.midi),
                                       Q_ARG(qreal, ev.vel),

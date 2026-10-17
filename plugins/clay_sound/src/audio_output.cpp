@@ -39,6 +39,24 @@ AudioOutput::~AudioOutput()
     stop();
 }
 
+bool AudioOutput::busFromName(const QString& name, Bus& bus)
+{
+    if (name == QLatin1String("sfx"))   { bus = Bus::Sfx;   return true; }
+    if (name == QLatin1String("music")) { bus = Bus::Music; return true; }
+    if (name == QLatin1String("voice")) { bus = Bus::Voice; return true; }
+    return false;
+}
+
+QString AudioOutput::busName(Bus bus)
+{
+    switch (bus) {
+    case Bus::Music: return QStringLiteral("music");
+    case Bus::Voice: return QStringLiteral("voice");
+    case Bus::Sfx:   break;
+    }
+    return QStringLiteral("sfx");
+}
+
 int AudioOutput::registerInstrument(std::unique_ptr<IInstrument> inst)
 {
     return engine_.addInstrument(std::move(inst));

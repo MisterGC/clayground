@@ -13,6 +13,7 @@
 #ifndef SYNTH_INSTRUMENT_H
 #define SYNTH_INSTRUMENT_H
 
+#include "engine/bus.h"
 #include "engine/oscillator_voice.h"
 
 #include <QObject>
@@ -48,6 +49,8 @@ class SynthInstrument : public QObject
     Q_PROPERTY(qreal   filterRelease   READ filterRelease   WRITE setFilterRelease   NOTIFY filterReleaseChanged)
     Q_PROPERTY(qreal   filterEnvAmount READ filterEnvAmount WRITE setFilterEnvAmount NOTIFY filterEnvAmountChanged)
     Q_PROPERTY(qreal   volume      READ volume      WRITE setVolume      NOTIFY volumeChanged)
+    Q_PROPERTY(qreal   pan        READ pan        WRITE setPan        NOTIFY panChanged)
+    Q_PROPERTY(QString bus        READ bus        WRITE setBus        NOTIFY busChanged)
 
     Q_PROPERTY(int activeVoices READ activeVoices NOTIFY activeVoicesChanged)
 
@@ -99,6 +102,14 @@ public:
 
     qreal volume() const { return volume_; }
     void  setVolume(qreal v);
+
+    // -1 left .. +1 right; 0 plays centred, the same in both channels.
+    qreal pan() const { return pan_; }
+    void  setPan(qreal v);
+
+    // The bus the voices mix into: "sfx" (default), "music" or "voice".
+    QString bus() const;
+    void    setBus(const QString &name);
 
     int activeVoices() const;
 
@@ -160,6 +171,8 @@ signals:
     void filterReleaseChanged();
     void filterEnvAmountChanged();
     void volumeChanged();
+    void panChanged();
+    void busChanged();
     void activeVoicesChanged();
 
 private slots:
@@ -189,6 +202,8 @@ private:
     QString filterTypeName_ = "none";
 
     qreal volume_ = 0.8;
+    qreal pan_ = 0.0;
+    clay::sound::Bus bus_ = clay::sound::Bus::Sfx;
     int   lastActive_ = 0;
 };
 
