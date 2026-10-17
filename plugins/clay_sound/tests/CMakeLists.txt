@@ -113,6 +113,11 @@ target_include_directories(tst_clay_sound_song_player PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
+target_compile_definitions(tst_clay_sound_song_player PRIVATE
+    CLAY_SOUND_DEMO_WAV="${CMAKE_CURRENT_SOURCE_DIR}/../demo/sound.wav"
+    CLAY_SOUND_DEMO_ADAPTIVE="${CMAKE_CURRENT_SOURCE_DIR}/../demo/songs/adaptive.song.json"
+)
+
 target_link_libraries(tst_clay_sound_song_player PRIVATE
     ClaySoundEngine
     Qt6::Core
