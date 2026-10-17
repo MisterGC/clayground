@@ -295,6 +295,15 @@ void SynthInstrument::setBus(const QString &name)
     emit busChanged();
 }
 
+void SynthInstrument::setMaxVoices(int n)
+{
+    n = std::max(0, n);
+    if (maxVoices_ == n) return;
+    maxVoices_ = n;
+    if (oscInst_) oscInst_->setMaxVoices(n);
+    emit maxVoicesChanged();
+}
+
 int SynthInstrument::activeVoices() const
 {
     if (oscInstId_ < 0) return 0;

@@ -173,6 +173,44 @@ void SampleInstrument::setBus(const QString &name)
     emit busChanged();
 }
 
+QString SampleInstrument::interpolation() const
+{
+    using I = cs::SampleVoice::Interpolation;
+    switch (patch_.interpolation) {
+    case I::Nearest:  return QStringLiteral("nearest");
+    case I::Gaussian: return QStringLiteral("gaussian");
+    case I::Linear:   break;
+    }
+    return QStringLiteral("linear");
+}
+
+void SampleInstrument::setInterpolation(const QString &name)
+{
+    using I = cs::SampleVoice::Interpolation;
+    I mode;
+    if (name == QLatin1String("nearest"))       mode = I::Nearest;
+    else if (name == QLatin1String("linear"))   mode = I::Linear;
+    else if (name == QLatin1String("gaussian")) mode = I::Gaussian;
+    else {
+        qWarning() << "SampleInstrument: unknown interpolation" << name
+                   << "- use nearest, linear or gaussian";
+        return;
+    }
+    if (patch_.interpolation == mode) return;
+    patch_.interpolation = mode;
+    applyPatchToCore();
+    emit interpolationChanged();
+}
+
+void SampleInstrument::setMaxVoices(int n)
+{
+    n = std::max(0, n);
+    if (maxVoices_ == n) return;
+    maxVoices_ = n;
+    if (core_) core_->setMaxVoices(n);
+    emit maxVoicesChanged();
+}
+
 int SampleInstrument::activeVoices() const
 {
     if (coreId_ < 0) return 0;
@@ -367,6 +405,7 @@ void SampleInstrument::stopAll()
             core_->setGain(static_cast<float>(volume_));
             core_->setPan(static_cast<float>(pan_));
             core_->setBus(bus_);
+            core_->setMaxVoices(maxVoices_);
             if (buffer_) {
                 core_->setSource(buffer_);
                 core_->setRootMidiNote(rootMidiNote_);

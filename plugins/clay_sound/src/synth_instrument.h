@@ -51,6 +51,7 @@ class SynthInstrument : public QObject
     Q_PROPERTY(qreal   volume      READ volume      WRITE setVolume      NOTIFY volumeChanged)
     Q_PROPERTY(qreal   pan        READ pan        WRITE setPan        NOTIFY panChanged)
     Q_PROPERTY(QString bus        READ bus        WRITE setBus        NOTIFY busChanged)
+    Q_PROPERTY(int     maxVoices  READ maxVoices  WRITE setMaxVoices  NOTIFY maxVoicesChanged)
 
     Q_PROPERTY(int activeVoices READ activeVoices NOTIFY activeVoicesChanged)
 
@@ -110,6 +111,11 @@ public:
     // The bus the voices mix into: "sfx" (default), "music" or "voice".
     QString bus() const;
     void    setBus(const QString &name);
+
+    // At most this many voices ring at once; a note beyond it cuts the
+    // oldest. 0 (default) is no cap.
+    int  maxVoices() const { return maxVoices_; }
+    void setMaxVoices(int n);
 
     int activeVoices() const;
 
@@ -173,6 +179,7 @@ signals:
     void volumeChanged();
     void panChanged();
     void busChanged();
+    void maxVoicesChanged();
     void activeVoicesChanged();
 
 private slots:
@@ -204,6 +211,7 @@ private:
     qreal volume_ = 0.8;
     qreal pan_ = 0.0;
     clay::sound::Bus bus_ = clay::sound::Bus::Sfx;
+    int maxVoices_ = 0;
     int   lastActive_ = 0;
 };
 
