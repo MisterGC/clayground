@@ -169,9 +169,17 @@ void Engine::renderStereo(float* out, int frames)
     }
 
     for (int b = 0; b < kBusCount; ++b) {
-        if (!busUsed[b]) continue;
+        const bool fx = echo_[b].enabled() || reverb_[b].enabled();
+        if (!busUsed[b]) {
+            if (!fx) continue;
+            // No voice this pass, but an echo or a reverb still rings.
+            if (busMix_[b].size() < n) busMix_[b].resize(n);
+            std::fill_n(busMix_[b].begin(), n, 0.0f);
+        }
+        std::vector<float>& mix = busMix_[b];
+        echo_[b].process(mix.data(), frames, sampleRate_);
+        reverb_[b].process(mix.data(), frames, sampleRate_);
         const float bg = busGain_[b].load(std::memory_order_relaxed);
-        const std::vector<float>& mix = busMix_[b];
         for (size_t i = 0; i < n; ++i) out[i] += mix[i] * bg;
     }
 

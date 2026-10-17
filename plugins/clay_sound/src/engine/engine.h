@@ -6,12 +6,15 @@
 //
 // The mix is stereo: every voice renders mono, is panned into the
 // stereo buffer of its instrument's bus, and the buses are summed into
-// the output, each scaled by its volume. Live playback and offline
-// renders run this one mix; a mono render is its downmix.
+// the output, each scaled by its volume. A bus runs its echo and its
+// reverb (bus_effects.h) over its mix before the volume, both off by
+// default. Live playback and offline renders run this one mix; a mono
+// render is its downmix.
 
 #pragma once
 
 #include "bus.h"
+#include "bus_effects.h"
 #include "scheduler.h"
 #include <atomic>
 #include <cstddef>
@@ -66,7 +69,9 @@ public:
     // currentFrame by `frames`. Each voice's contribution is scaled by
     // its instrument's `gain()`, its note's gain stage and the pan
     // gains of instrument pan + note pan, mixed into the instrument's
-    // bus, and every bus is scaled by its gain into `out`.
+    // bus; every bus runs its echo, then its reverb, and is scaled by
+    // its gain into `out`. A bus with an effect on renders even while
+    // none of its voices ring, so the tail plays out.
     void renderStereo(float* out, int frames);
 
     // Render `frames` mono samples into `out`: the stereo mix folded
@@ -78,6 +83,11 @@ public:
     // pass; safe to update while the audio thread renders.
     void  setBusGain(Bus bus, float g);
     float busGain(Bus bus) const;
+
+    // The echo and the reverb of a bus. Their setters are safe to call
+    // while the audio thread renders; process() is the engine's.
+    Echo&   echo(Bus bus)   { return echo_[static_cast<int>(bus)]; }
+    Reverb& reverb(Bus bus) { return reverb_[static_cast<int>(bus)]; }
 
     // A gain stage is a volume a set of notes shares, whatever
     // instrument plays them (a SongPlayer's volume). A note names one
@@ -113,6 +123,8 @@ private:
     std::vector<float> stereo_;         // renderOffline's stereo mix before the fold
     std::vector<float> busMix_[kBusCount]; // interleaved stereo per bus
     std::atomic<float> busGain_[kBusCount] = {1.0f, 1.0f, 1.0f};
+    Echo   echo_[kBusCount];
+    Reverb reverb_[kBusCount];
     // unique_ptr so the atomics stay put when the vector grows.
     std::vector<std::unique_ptr<std::atomic<float>>> gainStages_;
 };

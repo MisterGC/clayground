@@ -15,6 +15,7 @@ include(clayplugin)
 # every instrument host below.
 set(ENGINE_SRC
     src/engine/bus.h
+    src/engine/bus_effects.cpp src/engine/bus_effects.h
     src/engine/note_event.h
     src/engine/voice.h
     src/engine/instrument.h

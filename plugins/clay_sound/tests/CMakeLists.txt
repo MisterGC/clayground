@@ -10,6 +10,8 @@ add_executable(tst_clay_sound_engine
     ../src/engine/scheduler.h
     ../src/engine/engine.cpp
     ../src/engine/engine.h
+    ../src/engine/bus_effects.cpp
+    ../src/engine/bus_effects.h
     ../src/engine/voice.h
     ../src/engine/instrument.h
     ../src/engine/note_event.h
@@ -98,6 +100,8 @@ add_executable(tst_clay_sound_song_player
     ../src/engine/scheduler.h
     ../src/engine/engine.cpp
     ../src/engine/engine.h
+    ../src/engine/bus_effects.cpp
+    ../src/engine/bus_effects.h
 )
 
 set_target_properties(tst_clay_sound_song_player PROPERTIES AUTOMOC ON)
@@ -132,6 +136,8 @@ add_executable(tst_clay_sound_synth_bake
     ../src/engine/scheduler.h
     ../src/engine/engine.cpp
     ../src/engine/engine.h
+    ../src/engine/bus_effects.cpp
+    ../src/engine/bus_effects.h
     ../src/engine/voice.h
     ../src/engine/instrument.h
     ../src/engine/note_event.h
@@ -184,6 +190,8 @@ add_executable(tst_clay_sound_synth_filter
     ../src/engine/scheduler.h
     ../src/engine/engine.cpp
     ../src/engine/engine.h
+    ../src/engine/bus_effects.cpp
+    ../src/engine/bus_effects.h
     ../src/engine/voice.h
     ../src/engine/instrument.h
     ../src/engine/note_event.h
@@ -235,6 +243,8 @@ add_executable(tst_clay_sound_mix
     ../src/engine/scheduler.h
     ../src/engine/engine.cpp
     ../src/engine/engine.h
+    ../src/engine/bus_effects.cpp
+    ../src/engine/bus_effects.h
     ../src/engine/voice.h
     ../src/engine/instrument.h
     ../src/engine/note_event.h
@@ -286,6 +296,8 @@ add_executable(tst_clay_sound_voices
     ../src/engine/scheduler.h
     ../src/engine/engine.cpp
     ../src/engine/engine.h
+    ../src/engine/bus_effects.cpp
+    ../src/engine/bus_effects.h
     ../src/engine/voice.h
     ../src/engine/instrument.h
     ../src/engine/note_event.h
