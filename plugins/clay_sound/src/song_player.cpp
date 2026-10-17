@@ -3,6 +3,8 @@
 #include "song_player.h"
 
 #include "audio_output.h"
+#include "sample_instrument.h"
+#include "synth_instrument.h"
 #include "song/song_parser.h"
 #include "source_url.h"
 
@@ -108,9 +110,26 @@ void SongPlayer::seek(qreal beats)
     // Find next scheduled event at or after this beat.
     auto it = std::lower_bound(
         schedule_.begin(), schedule_.end(), beats,
-        [](const ScheduledEvent &e, double b) { return e.beat < b; });
+        [](const clay::sound::SongNote &e, double b) { return e.beat < b; });
     nextIdx_ = static_cast<int>(it - schedule_.begin());
     emit positionChanged();
+}
+
+QVector<float> SongPlayer::renderOffline(qreal seconds) const
+{
+    if (!loaded_) return {};
+    // Every instrument the player can resolve, as the engine plays it.
+    clay::sound::SongInstruments specs;
+    for (auto it = nameToInstrument_.begin(); it != nameToInstrument_.end(); ++it) {
+        if (auto *synth = qobject_cast<SynthInstrument *>(it.value()))
+            specs.insert(it.key(), synth->spec());
+        else if (auto *sampler = qobject_cast<SampleInstrument *>(it.value()))
+            specs.insert(it.key(), sampler->spec());
+    }
+    const auto samples = clay::sound::renderSong(
+        model_, specs, seconds, static_cast<float>(volume_), loop_,
+        clay::sound::AudioOutput::instance().sampleRate(), /*stereo=*/false);
+    return QVector<float>(samples.begin(), samples.end());
 }
 
 void SongPlayer::tick()
@@ -127,7 +146,7 @@ void SongPlayer::tick()
     const double newPos = position_ + static_cast<double>(dtMs) * beatsPerMs;
 
     while (nextIdx_ < schedule_.size() && schedule_[nextIdx_].beat < newPos) {
-        const ScheduledEvent &ev = schedule_[nextIdx_];
+        const clay::sound::SongNote &ev = schedule_[nextIdx_];
         QObject *inst = resolveInstrument(model_.tracks.value(ev.track).instrument);
         if (inst) {
             const double durSeconds = ev.durBeats * 60.0 / bpm;
@@ -243,7 +262,7 @@ bool SongPlayer::applyParsedBytes(const QByteArray &bytes, const QString &watchP
         if (position_ > totalBeats_) position_ = totalBeats_;
         auto it = std::lower_bound(
             schedule_.begin(), schedule_.end(), position_,
-            [](const ScheduledEvent &e, double b) { return e.beat < b; });
+            [](const clay::sound::SongNote &e, double b) { return e.beat < b; });
         nextIdx_ = static_cast<int>(it - schedule_.begin());
     }
 
@@ -318,48 +337,8 @@ void SongPlayer::updateWatchedFile(const QString &path)
 
 void SongPlayer::rebuildSchedule()
 {
-    schedule_.clear();
-    totalBeats_ = 0.0;
+    schedule_ = clay::sound::songSchedule(model_, &totalBeats_);
     nextIdx_ = 0;
-
-    // Compute pattern lengths (rounded up to next full beat).
-    QHash<QString, double> patternLength;
-    for (auto it = model_.patterns.begin(); it != model_.patterns.end(); ++it) {
-        double endBeat = 0.0;
-        for (auto tit = it->trackEvents.begin(); tit != it->trackEvents.end(); ++tit) {
-            for (const auto &n : tit.value())
-                endBeat = std::max(endBeat, n.t + n.dur);
-        }
-        patternLength.insert(it.key(), std::ceil(endBeat));
-    }
-
-    double cursor = 0.0;
-    for (const auto &sec : std::as_const(model_.sections)) {
-        if (!model_.patterns.contains(sec.patternName)) continue;
-        const auto pattern = model_.patterns.value(sec.patternName);
-        const double len = patternLength.value(sec.patternName, 1.0);
-        for (int rep = 0; rep < sec.repeat; ++rep) {
-            for (auto tit = pattern.trackEvents.begin(); tit != pattern.trackEvents.end(); ++tit) {
-                const QString &track = tit.key();
-                for (const auto &n : tit.value()) {
-                    ScheduledEvent se;
-                    se.beat     = cursor + n.t;
-                    se.durBeats = n.dur;
-                    se.vel      = n.vel;
-                    se.midi     = n.midi;
-                    se.track    = track;
-                    schedule_.append(se);
-                }
-            }
-            cursor += len;
-        }
-    }
-
-    std::sort(schedule_.begin(), schedule_.end(),
-              [](const ScheduledEvent &a, const ScheduledEvent &b) {
-                  return a.beat < b.beat;
-              });
-    totalBeats_ = cursor;
 }
 
 void SongPlayer::rebuildInstrumentMap()

@@ -25,6 +25,7 @@
 #define CLAY_SOUND_SONG_PLAYER_H
 
 #include "song/song_model.h"
+#include "song/song_render.h"
 
 #include <QElapsedTimer>
 #include <QFileSystemWatcher>
@@ -85,6 +86,14 @@ public:
     Q_INVOKABLE void stop();
     Q_INVOKABLE void seek(qreal beats);
 
+    // `seconds` of the song from its start (<= 0: its length) on a
+    // scratch engine, with the instruments' current patches and the
+    // player's volume and loop: mono samples at the engine rate. Notes
+    // start on their exact frame (song/song_render.h); the live sink,
+    // the playhead and the buses are not touched. Only SynthInstrument
+    // and SampleInstrument play here; other instruments stay silent.
+    Q_INVOKABLE QVector<float> renderOffline(qreal seconds = 0.0) const;
+
 signals:
     void sourceChanged();
     void instrumentsChanged();
@@ -104,15 +113,6 @@ private slots:
     void onWatchedFileChanged(const QString &path);
 
 private:
-    struct ScheduledEvent
-    {
-        double  beat = 0.0;
-        double  durBeats = 0.0;
-        double  vel = 0.8;
-        int     midi = 60;
-        QString track;
-    };
-
     void reload();      // full load: drops schedule, resets position
     void hotReload();   // re-parse; keep position, rebuild schedule
     void rebuildSchedule();
@@ -136,7 +136,7 @@ private:
     QHash<QString, QObject *> nameToInstrument_;
 
     clay::sound::SongModel model_;
-    QVector<ScheduledEvent> schedule_;
+    QVector<clay::sound::SongNote> schedule_;
     double            totalBeats_ = 0.0;
     int               nextIdx_ = 0;
 

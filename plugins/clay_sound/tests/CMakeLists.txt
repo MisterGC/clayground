@@ -2,7 +2,7 @@
 #
 # Tests for clay_sound engine (Stage 0 spine)
 
-find_package(Qt6 REQUIRED COMPONENTS Test Multimedia)
+find_package(Qt6 REQUIRED COMPONENTS Test Multimedia Network)
 
 add_executable(tst_clay_sound_engine
     tst_engine.cpp
@@ -75,6 +75,11 @@ add_executable(tst_clay_sound_song_player
     ../src/audio_devices.h
     ../src/audio_output.cpp
     ../src/audio_output.h
+    # renderOffline() reads the instruments' specs.
+    ../src/synth_instrument.cpp
+    ../src/synth_instrument.h
+    ../src/sample_instrument.cpp
+    ../src/sample_instrument.h
 )
 
 set_target_properties(tst_clay_sound_song_player PROPERTIES AUTOMOC ON)
@@ -86,6 +91,7 @@ target_include_directories(tst_clay_sound_song_player PRIVATE
 target_link_libraries(tst_clay_sound_song_player PRIVATE
     ClaySoundEngine
     Qt6::Core
+    Qt6::Network
     Qt6::Qml
     Qt6::Test
     Qt6::Multimedia
@@ -190,7 +196,6 @@ target_include_directories(tst_clay_sound_mix PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
-find_package(Qt6 REQUIRED COMPONENTS Network)
 target_link_libraries(tst_clay_sound_mix PRIVATE
     ClaySoundEngine
     Qt6::Core

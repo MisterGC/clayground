@@ -6,6 +6,7 @@
 
 #include "audio_output.h"
 #include "song_player.h"
+#include "synth_instrument.h"
 
 #include <QtTest/QtTest>
 #include <QFile>
@@ -40,6 +41,7 @@ private slots:
     void hotReloadKeepsPositionAndSwapsFutureEvents();
     void hotReloadWithBadSyntaxKeepsPreviousModel();
     void volumeIsTheGainStageItsNotesPlayThrough();
+    void renderOfflinePlacesNotesOnTheirFrame();
 
 private:
     QString writeSong(QTemporaryDir &dir, const QByteArray &content);
@@ -320,6 +322,54 @@ void TestSongPlayer::volumeIsTheGainStageItsNotesPlayThrough()
     QVERIFY(waitUntil([&] { return doneSpy2.count() > 0; }, 3000));
     QVERIFY(!fake2.calls.isEmpty());
     QVERIFY(fake2.calls[0].gainStage != stage);
+}
+
+// renderOffline() starts every note on its exact frame, scales it by
+// the volume and repeats the song while it loops; a track whose
+// instrument is not bound stays silent.
+void TestSongPlayer::renderOfflinePlacesNotesOnTheirFrame()
+{
+    QTemporaryDir dir;
+    const QString path = writeSong(dir, R"({
+        "tempo": 120,
+        "tracks": { "l": { "instrument": "lead" }, "x": { "instrument": "nobody" } },
+        "patterns": { "A": { "l": [ { "t": 1, "note": 69, "dur": 0.5, "vel": 1 } ],
+                             "x": [ { "t": 0, "note": 40, "dur": 1 } ] } },
+        "sections": [ { "pattern": "A" } ]
+    })");
+    SynthInstrument lead;
+    lead.setObjectName("lead");
+    lead.setWaveform("square");
+    lead.setAttack(0.0);
+    lead.setSustain(1.0);
+    lead.setRelease(0.01);
+    lead.setVolume(0.5);
+
+    SongPlayer p;
+    p.setInstruments(QVariantList{ QVariant::fromValue<QObject *>(&lead) });
+    p.setSource(QUrl::fromLocalFile(path));
+    QVERIFY(p.loaded());
+
+    // The song is 2 beats (1.5 rounded up) = 1 s; beat 1 is frame 22050.
+    const QVector<float> full = p.renderOffline();
+    QCOMPARE(full.size(), 44100);
+    for (int i = 0; i < 22050; ++i) QCOMPARE(full[i], 0.0f);
+    float peak = 0.0f;
+    for (int i = 22050; i < 22050 + 100; ++i) peak = std::max(peak, std::abs(full[i]));
+    QVERIFY(peak > 0.4f);
+
+    p.setVolume(0.5);
+    const QVector<float> half = p.renderOffline();
+    QCOMPARE(half.size(), full.size());
+    for (int i = 0; i < full.size(); ++i)
+        QVERIFY(std::abs(half[i] - 0.5f * full[i]) < 1e-6f);
+    p.setVolume(1.0);
+
+    // Looping, the second second plays the first one again.
+    p.setLoop(true);
+    const QVector<float> looped = p.renderOffline(2.0);
+    QCOMPARE(looped.size(), 88200);
+    for (int i = 0; i < 44100; ++i) QCOMPARE(looped[44100 + i], full[i]);
 }
 
 QTEST_MAIN(TestSongPlayer)
