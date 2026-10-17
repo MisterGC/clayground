@@ -108,12 +108,20 @@ bool AudioOutput::openSink(const QAudioDevice& device)
 {
     QAudioFormat fmt;
     fmt.setSampleRate(SAMPLE_RATE);
-    fmt.setChannelCount(1);
+    fmt.setChannelCount(2);
     fmt.setSampleFormat(QAudioFormat::Float);
+    // Only a device that says no to stereo and yes to mono gets mono: a
+    // backend that answers neither (or wrongly) keeps the stereo format
+    // and the open check below decides.
+    QAudioFormat mono = fmt;
+    mono.setChannelCount(1);
+    if (!device.isFormatSupported(fmt) && device.isFormatSupported(mono))
+        fmt = mono;
+    channels_ = fmt.channelCount();
 
     delete sink_;
     sink_ = new QAudioSink(device, fmt, this);
-    sink_->setBufferSize(SAMPLE_RATE * sizeof(float) / 5); // ~200ms
+    sink_->setBufferSize(SAMPLE_RATE * channels_ * sizeof(float) / 5); // ~200ms
     device_ = sink_->start();
 
     // A sink that failed to open still hands out a writable QIODevice, and
@@ -152,12 +160,15 @@ void AudioOutput::onPull()
     if (!sinkRunning_ || !sink_ || !device_) return;
 
     const int bytesFree = sink_->bytesFree();
-    int frames = bytesFree / static_cast<int>(sizeof(float));
+    int frames = bytesFree / static_cast<int>(channels_ * sizeof(float));
     if (frames <= 0) return;
     frames = std::min(frames, SAMPLE_RATE); // cap 1s
 
-    std::vector<float> buf(static_cast<size_t>(frames), 0.0f);
-    engine_.renderOffline(buf.data(), frames);
+    std::vector<float> buf(static_cast<size_t>(frames) * channels_, 0.0f);
+    if (channels_ == 2)
+        engine_.renderStereo(buf.data(), frames);
+    else
+        engine_.renderOffline(buf.data(), frames);
 
     // Per-instrument gain is applied inside the engine. Final master
     // clamp here protects the output from sums of multiple loud
@@ -165,7 +176,7 @@ void AudioOutput::onPull()
     for (auto& s : buf) s = std::clamp(s, -1.0f, 1.0f);
 
     const char* data = reinterpret_cast<const char*>(buf.data());
-    qint64 bytesToWrite = frames * static_cast<qint64>(sizeof(float));
+    qint64 bytesToWrite = static_cast<qint64>(buf.size()) * static_cast<qint64>(sizeof(float));
     qint64 written = 0;
     while (written < bytesToWrite) {
         qint64 c = device_->write(data + written, bytesToWrite - written);

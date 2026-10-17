@@ -24,6 +24,9 @@
 // tries every output device for that: a sink that failed to open still
 // accepts writes and drops them, so trusting the default device silenced
 // whole sessions on the web (#262).
+//
+// The sink is stereo. A device that reports it cannot take two channels
+// gets the engine's mono downmix instead, so it still plays everything.
 
 #ifndef CLAY_SOUND_AUDIO_OUTPUT_H
 #define CLAY_SOUND_AUDIO_OUTPUT_H
@@ -102,6 +105,7 @@ private:
     Engine      engine_{SAMPLE_RATE};
     QAudioSink* sink_     = nullptr;
     QIODevice*  device_   = nullptr;
+    int         channels_ = 2;      // of the open sink: 2, or 1 on a mono-only device
     QTimer      pullTimer_;
     bool        sinkRunning_ = false;
     QElapsedTimer sinceFailedOpen_;
