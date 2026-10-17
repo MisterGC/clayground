@@ -46,8 +46,11 @@ void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
     filterIc1_  = 0.0;
     filterIc2_  = 0.0;
     // Deterministic-per-voice noise seed. Derived from start frame so
-    // two noise notes at different times produce different sequences.
-    noiseSeed_ = 12345u + static_cast<uint32_t>(ev.timeFrames & 0xffffffff);
+    // two noise notes at different times produce different sequences,
+    // unless the patch names a seed of its own.
+    noiseSeed_ = patch_.noiseSeed != 0
+        ? patch_.noiseSeed
+        : 12345u + static_cast<uint32_t>(ev.timeFrames & 0xffffffff);
 }
 
 void OscillatorVoice::onNoteOff(int64_t atFrame)

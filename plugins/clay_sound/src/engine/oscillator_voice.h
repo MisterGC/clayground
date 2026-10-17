@@ -60,6 +60,13 @@ public:
         double filterSustain   = 1.0;
         double filterRelease   = 0.0;
         double filterEnvAmount = 0.0;
+
+        // Noise only: the seed of the noise sequence. 0, the default,
+        // seeds it from the note's start frame, so two notes at
+        // different times hiss differently; any other value gives the
+        // same sequence wherever the note starts (an effect recipe's
+        // seeded noise layer, live and offline alike).
+        uint32_t noiseSeed = 0;
     };
 
     void setPatch(const Patch& p) { patch_ = p; }
