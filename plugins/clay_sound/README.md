@@ -115,9 +115,13 @@ SampleInstrument {
     source: "kick.wav"
     rootNote: 60
     volume: 0.9
+    interpolation: "gaussian"  // nearest | linear (default) | gaussian (soft, SNES-like)
+    maxVoices: 4               // a fifth note cuts the oldest; 0 (default) = no cap
 }
 drum.triggerOneShot(0.8)
 ```
+
+`maxVoices` exists on `SynthInstrument` too.
 
 ### SongPlayer
 

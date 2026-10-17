@@ -328,6 +328,11 @@
     \c "music" or \c "voice". Its volume is set on \l SoundMixer. Any
     other name is refused with a warning and the bus stays as it was.
 
+    \qmlproperty int SynthInstrument::maxVoices
+    At most this many voices ring at once. A note that would exceed it cuts
+    the oldest voice of this instrument, without a release. The default 0
+    is no cap.
+
     \qmlproperty int SynthInstrument::activeVoices
     Read-only. Number of voices currently rendering.
 
@@ -386,6 +391,20 @@
 
     \qmlproperty string SampleInstrument::bus
     The mixer bus: \c "sfx" (the default), \c "music" or \c "voice".
+
+    \qmlproperty string SampleInstrument::interpolation
+    How a note pitched away from \l rootNote reads between two source
+    samples: \c "nearest" (the closest sample: hard and aliased, 8-bit
+    grit), \c "linear" (the default, as before the modes existed) or
+    \c "gaussian" (four samples weighted by a Gaussian, like the SNES:
+    soft, the highs rolled off - a tone at a quarter of the sample rate
+    plays at 0.63 of its level). Applies to notes triggered after the
+    change. Any other name is refused with a warning.
+
+    \qmlproperty int SampleInstrument::maxVoices
+    At most this many voices ring at once; a note beyond it cuts the
+    oldest. The default 0 is no cap. As for
+    \l {SynthInstrument::maxVoices}{SynthInstrument.maxVoices}.
 
     \qmlproperty bool SampleInstrument::loaded
     \qmlproperty int  SampleInstrument::activeVoices
