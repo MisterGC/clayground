@@ -1,0 +1,115 @@
+// (c) Clayground Contributors - MIT License, see "LICENSE" file
+//
+// SfxRecipe — pure data of an effect recipe (*.sfx.json): a stack of
+// layers, each one voice with a source, an envelope, a pitch curve, a
+// filter curve, a start offset, a gain and a pan, all in physical units
+// (Hz, ms, semitones, dB), plus a variation spec: a random range per
+// layer parameter, a seed and a round-robin pool size.
+//
+// Built by SfxParser, turned into notes by sfx_render.h.
+
+#ifndef CLAY_SOUND_SFX_RECIPE_H
+#define CLAY_SOUND_SFX_RECIPE_H
+
+#include "engine/oscillator_voice.h"
+#include "engine/sample_voice.h"
+
+#include <QString>
+#include <QVector>
+
+#include <array>
+#include <cstdint>
+
+namespace clay::sound {
+
+// Every number a layer has. The order is the file's documentation order
+// and nothing else: each parameter draws its variation from its own
+// hash of the seed, so adding one never moves another's values.
+enum class SfxParam : int {
+    Freq, Detune, Gain, Pan, Offset, Length,
+    Attack, Decay, Sustain, Release,
+    PitchStart, PitchEnd, PitchTime,
+    Cutoff, Resonance, FilterAttack, FilterDecay, FilterSustain, FilterRelease, FilterAmount,
+    PulseWidth, LfoRate, LfoDepth,
+    Count
+};
+
+inline constexpr int kSfxParamCount = static_cast<int>(SfxParam::Count);
+
+struct SfxParamInfo
+{
+    const char *path;   // as written in the file and in "vary"
+    double min;
+    double max;
+    double def;
+};
+
+// Indexed by SfxParam.
+inline constexpr std::array<SfxParamInfo, kSfxParamCount> kSfxParams = {{
+    {"freq",            1.0,      20000.0, 440.0},   // Hz
+    {"detune",        -48.0,         48.0,   0.0},   // semitones
+    {"gain",          -96.0,         12.0,   0.0},   // dB
+    {"pan",            -1.0,          1.0,   0.0},   // -1 left .. +1 right
+    {"offset",          0.0,      10000.0,   0.0},   // ms after play()
+    {"length",          0.0,      10000.0,   0.0},   // ms gate; release inside it
+    {"envelope.attack", 0.0,      10000.0,   0.0},   // ms
+    {"envelope.decay",  0.0,      10000.0,   0.0},   // ms
+    {"envelope.sustain",0.0,          1.0,   1.0},   // level
+    {"envelope.release",0.0,      10000.0,   0.0},   // ms
+    {"pitch.start",   -96.0,         96.0,   0.0},   // semitones
+    {"pitch.end",     -96.0,         96.0,   0.0},   // semitones
+    {"pitch.time",      0.0,      10000.0,   0.0},   // ms
+    {"filter.cutoff",  20.0,      20000.0, 1000.0},  // Hz
+    {"filter.resonance",0.0,          1.0,   0.0},
+    {"filter.attack",   0.0,      10000.0,   0.0},   // ms
+    {"filter.decay",    0.0,      10000.0,   0.0},   // ms
+    {"filter.sustain",  0.0,          1.0,   1.0},   // level
+    {"filter.release",  0.0,      10000.0,   0.0},   // ms
+    {"filter.amount", -10.0,         10.0,   0.0},   // octaves at the envelope's peak
+    {"pulseWidth",      0.05,         0.95,  0.5},
+    {"lfo.rate",        0.0,        100.0,   0.0},   // Hz
+    {"lfo.depth",       0.0,         48.0,   0.0},   // semitones (pitch) or 0..1 (volume)
+}};
+
+inline const SfxParamInfo &sfxParamInfo(SfxParam p) { return kSfxParams[static_cast<int>(p)]; }
+
+enum class SfxSource { Sine, Square, Triangle, Sawtooth, Noise, Sample };
+
+struct SfxRange
+{
+    bool   on = false;
+    double lo = 0.0;    // added to the parameter's value
+    double hi = 0.0;
+};
+
+struct SfxLayer
+{
+    QString   name;                 // free label
+    QString   role;                 // "", transient, body or tail
+    SfxSource source = SfxSource::Sine;
+
+    // Sample layers: the WAV, relative to the recipe file.
+    QString   sample;
+    SampleVoice::Interpolation interpolation = SampleVoice::Interpolation::Linear;
+
+    OscillatorVoice::FilterType filterType = OscillatorVoice::FilterType::Off;
+    int lfoTarget = 0;              // as OscillatorVoice::Patch: 0 off, 1 pitch, 2 volume
+
+    std::array<double, kSfxParamCount>   value{};
+    std::array<SfxRange, kSfxParamCount> vary{};
+
+    double  get(SfxParam p) const { return value[static_cast<int>(p)]; }
+    double &at(SfxParam p)        { return value[static_cast<int>(p)]; }
+};
+
+struct SfxRecipe
+{
+    QString  name;
+    uint32_t seed = 0;              // base of every variation seed
+    int      pool = 0;              // play() cycles this many variations; 0 = a new one each time
+    QVector<SfxLayer> layers;
+};
+
+} // namespace clay::sound
+
+#endif // CLAY_SOUND_SFX_RECIPE_H

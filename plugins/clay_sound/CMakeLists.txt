@@ -27,7 +27,10 @@ set(ENGINE_SRC
     src/engine/sample_voice.cpp src/engine/sample_voice.h
     src/engine/sampler_instrument.cpp src/engine/sampler_instrument.h
     src/song/song_model.h
-    src/song/song_parser.cpp src/song/song_parser.h)
+    src/song/song_parser.cpp src/song/song_parser.h
+    src/sfx/sfx_recipe.h
+    src/sfx/sfx_parser.cpp src/sfx/sfx_parser.h
+    src/sfx/sfx_render.cpp src/sfx/sfx_render.h)
 
 set(CPP_SRC
     src/voice_waveform.h
