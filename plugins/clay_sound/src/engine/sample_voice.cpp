@@ -5,9 +5,43 @@
 #include "pcm_buffer.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 
 namespace clay::sound {
+
+namespace {
+
+// The SNES DSP reads a 512-entry table of four Gaussian taps per phase.
+// This computes such a table instead of copying it: at phase 0 the SNES
+// weighs the centre sample 0.64 and each neighbour 0.18, which is a
+// Gaussian of variance 0.4 (exp(-1 / (2 * 0.4)) = 0.29 = 0.18 / 0.64).
+// Each phase's taps are normalised to sum 1, so a constant signal keeps
+// its level; the SNES table sums slightly below 1 instead.
+constexpr int kGaussPhases = 256;
+using GaussTaps = std::array<double, 4>;
+
+const std::array<GaussTaps, kGaussPhases>& gaussianTaps()
+{
+    static const std::array<GaussTaps, kGaussPhases> table = [] {
+        constexpr double kVariance = 0.4;
+        std::array<GaussTaps, kGaussPhases> t{};
+        for (int p = 0; p < kGaussPhases; ++p) {
+            const double frac = static_cast<double>(p) / kGaussPhases;
+            double sum = 0.0;
+            for (int k = 0; k < 4; ++k) {
+                const double d = static_cast<double>(k - 1) - frac;
+                t[p][k] = std::exp(-d * d / (2.0 * kVariance));
+                sum += t[p][k];
+            }
+            for (double& w : t[p]) w /= sum;
+        }
+        return t;
+    }();
+    return table;
+}
+
+} // namespace
 
 void SampleVoice::setSource(std::shared_ptr<const PcmBuffer> source, int rootMidiNote)
 {
@@ -74,11 +108,25 @@ double SampleVoice::sampleAtPos(double pos) const
     }
 
     const size_t i0 = static_cast<size_t>(pos);
-    const size_t i1 = i0 + 1;
     if (i0 >= n) return 0.0;
     const double frac = pos - static_cast<double>(i0);
+    // Taps outside the buffer read silence.
+    auto at = [&s, n](size_t i) -> double { return i < n ? s[i] : 0.0; };
+
+    switch (patch_.interpolation) {
+    case Interpolation::Nearest:
+        return frac < 0.5 ? s[i0] : at(i0 + 1);
+    case Interpolation::Gaussian: {
+        const auto& w = gaussianTaps()[static_cast<size_t>(frac * kGaussPhases)];
+        // i0 - 1 wraps to SIZE_MAX at the buffer's start, which at()
+        // reads as silence.
+        return w[0] * at(i0 - 1) + w[1] * s[i0] + w[2] * at(i0 + 1) + w[3] * at(i0 + 2);
+    }
+    case Interpolation::Linear:
+        break;
+    }
     const double a = s[i0];
-    const double b = (i1 < n) ? s[i1] : 0.0;
+    const double b = at(i0 + 1);
     return a + (b - a) * frac;
 }
 
