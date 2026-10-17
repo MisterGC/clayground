@@ -14,6 +14,7 @@ include(clayplugin)
 # Platform-agnostic C++ engine (Stage 0 spine). No QML types; used by
 # every instrument host below.
 set(ENGINE_SRC
+    src/engine/bus.h
     src/engine/note_event.h
     src/engine/voice.h
     src/engine/instrument.h
