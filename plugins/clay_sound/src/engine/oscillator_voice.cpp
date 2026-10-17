@@ -12,6 +12,29 @@ namespace clay::sound {
 // file stays portable across compilers.
 static constexpr double kPi = 3.14159265358979323846;
 
+// ADSR level at `t` seconds into a note gated for `duration` seconds.
+// The release runs inside the gate: it starts `release` seconds before
+// the note ends, from the sustain level.
+static double adsr(double t, double duration,
+                   double attack, double decay, double sustain, double release)
+{
+    if (t < 0.0) return 0.0;
+    const double releaseStart = duration - release;
+    if (t < attack)
+        return (attack > 0.0) ? (t / attack) : 1.0;
+    if (t < attack + decay) {
+        const double p = (decay > 0.0) ? (t - attack) / decay : 1.0;
+        return 1.0 - (1.0 - sustain) * p;
+    }
+    if (t < releaseStart)
+        return sustain;
+    if (t < duration) {
+        const double p = (release > 0.0) ? (t - releaseStart) / release : 1.0;
+        return sustain * (1.0 - p);
+    }
+    return 0.0;
+}
+
 void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
 {
     sampleRate_ = sampleRate;
@@ -44,25 +67,8 @@ double OscillatorVoice::renderSample(int64_t frame)
     const double duration = static_cast<double>(endFrame_ - startFrame_) / sampleRate_;
 
     // --- Envelope -----------------------------------------------------
-    double env = 0.0;
-    if (t >= 0.0) {
-        const double releaseStart = duration - patch_.release;
-        if (t < patch_.attack) {
-            env = (patch_.attack > 0.0) ? (t / patch_.attack) : 1.0;
-        } else if (t < patch_.attack + patch_.decay) {
-            const double p = (patch_.decay > 0.0)
-                                 ? (t - patch_.attack) / patch_.decay
-                                 : 1.0;
-            env = 1.0 - (1.0 - patch_.sustain) * p;
-        } else if (t < releaseStart) {
-            env = patch_.sustain;
-        } else if (t < duration) {
-            const double p = (patch_.release > 0.0)
-                                 ? (t - releaseStart) / patch_.release
-                                 : 1.0;
-            env = patch_.sustain * (1.0 - p);
-        }
-    }
+    double env = adsr(t, duration, patch_.attack, patch_.decay,
+                      patch_.sustain, patch_.release);
 
     // Volume LFO shaping of envelope.
     if (patch_.lfoTarget == 2 && patch_.lfoRate > 0.0) {
