@@ -333,3 +333,57 @@ set_tests_properties(clay_sound_voices PROPERTIES
     LABELS "clay_sound;unit"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+# ----------------------------------------------------------------------
+# The bus echo and reverb: delay, decay, FIR and tail, measured on
+# offline renders, and set from QML.
+# ----------------------------------------------------------------------
+
+add_executable(tst_clay_sound_effects
+    tst_sound_effects.cpp
+    ../src/audio_devices.cpp
+    ../src/audio_devices.h
+    ../src/audio_output.cpp
+    ../src/audio_output.h
+    ../src/bus_effect_objects.cpp
+    ../src/bus_effect_objects.h
+    ../src/sound_mixer.cpp
+    ../src/sound_mixer.h
+    ../src/synth_instrument.cpp
+    ../src/synth_instrument.h
+    ../src/engine/bus.h
+    ../src/engine/bus_effects.cpp
+    ../src/engine/bus_effects.h
+    ../src/engine/scheduler.cpp
+    ../src/engine/scheduler.h
+    ../src/engine/engine.cpp
+    ../src/engine/engine.h
+    ../src/engine/voice.h
+    ../src/engine/instrument.h
+    ../src/engine/note_event.h
+    ../src/engine/oscillator_voice.cpp
+    ../src/engine/oscillator_voice.h
+    ../src/engine/oscillator_instrument.cpp
+    ../src/engine/oscillator_instrument.h
+    ../src/engine/pcm_buffer.cpp
+    ../src/engine/pcm_buffer.h
+)
+
+set_target_properties(tst_clay_sound_effects PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_clay_sound_effects PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_link_libraries(tst_clay_sound_effects PRIVATE
+    Qt6::Core
+    Qt6::Qml
+    Qt6::Test
+    Qt6::Multimedia
+)
+
+add_test(NAME clay_sound_effects COMMAND tst_clay_sound_effects)
+set_tests_properties(clay_sound_effects PROPERTIES
+    LABELS "clay_sound;unit"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
