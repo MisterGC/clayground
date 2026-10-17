@@ -21,9 +21,9 @@ qreal SoundMixer::volume(cs::Bus bus)
 bool SoundMixer::setVolume(cs::Bus bus, qreal v)
 {
     const float g = static_cast<float>(std::clamp(v, 0.0, 1.0));
-    auto &eng = cs::AudioOutput::instance().engine();
-    if (eng.busGain(bus) == g) return false;
-    eng.setBusGain(bus, g);
+    auto &out = cs::AudioOutput::instance();
+    if (out.engine().busGain(bus) == g) return false;
+    out.setBusGain(bus, g);
     return true;
 }
 

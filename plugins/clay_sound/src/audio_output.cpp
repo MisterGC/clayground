@@ -57,6 +57,13 @@ QString AudioOutput::busName(Bus bus)
     return QStringLiteral("sfx");
 }
 
+void AudioOutput::setBusGain(Bus bus, float g)
+{
+    const float before = engine_.busGain(bus);
+    engine_.setBusGain(bus, g);
+    if (engine_.busGain(bus) != before) emit busGainChanged(bus);
+}
+
 int AudioOutput::registerInstrument(std::unique_ptr<IInstrument> inst)
 {
     return engine_.addInstrument(std::move(inst));

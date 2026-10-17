@@ -99,6 +99,11 @@ public:
     // triggers play immediately. Idempotent.
     Q_INVOKABLE void start();
 
+    // Set a bus volume, clamped to [0, 1], and emit busGainChanged when
+    // it moved. The way QML changes a bus (SoundMixer), so a player that
+    // does not play on the engine (Music) can follow the music bus.
+    void setBusGain(Bus bus, float g);
+
     // Close the sink and stop the pull timer. Active scheduled notes
     // are not cancelled; calling start() again resumes mixing.
     Q_INVOKABLE void stop();
@@ -108,6 +113,9 @@ signals:
     // adapters to update QML-visible derived state (activeVoices,
     // playbackFinished) without each owning its own timer.
     void afterPull();
+
+    // A bus volume changed through setBusGain().
+    void busGainChanged(clay::sound::Bus bus);
 
 private:
     AudioOutput();
