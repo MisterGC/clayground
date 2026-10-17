@@ -12,7 +12,22 @@
     \li \l SynthInstrument - Real-time oscillator voice with ADSR/pitch env/LFO and a resonant filter
     \li \l SampleInstrument - PCM sample playback with loop points and root note
     \li \l SongPlayer - Plays a \c .song.json pattern file against instruments
+    \li \l SoundMixer - The volume of each bus: sound effects, music, voices
     \endlist
+
+    \section1 Stereo, pan and buses
+
+    The engine mixes in stereo. Every instrument has a \c pan, from -1 (left)
+    to +1 (right). The centre, 0 and the default, plays the same samples in
+    both channels that the engine played in mono before; panning only turns
+    the far channel down, to silence at either edge.
+
+    Every instrument also names the \c bus its voices mix into: \c "sfx"
+    (the default), \c "music" or \c "voice". \l SoundMixer holds one volume
+    per bus, which scales everything on that bus on top of each instrument's
+    own volume, so a game's settings screen sets three numbers instead of
+    touching every instrument. \l {SongPlayer::volume}{SongPlayer.volume}
+    scales every note a song plays, whatever instrument plays it.
 
     \section1 Platform Support
 
@@ -114,6 +129,11 @@
 
     \qmlproperty real Sound::volume
     Volume level from 0.0 (silent) to 1.0 (full). Default: 1.0
+
+    \qmlproperty real Sound::pan
+    \qmlproperty string Sound::bus
+    Stereo position and mixer bus, as for \l {SampleInstrument::pan}
+    {SampleInstrument}.
 
     \qmlproperty bool Sound::lazyLoading
     If true, audio loads on first play() call. If false (default), loads immediately.
@@ -295,6 +315,17 @@
     \qmlproperty real SynthInstrument::volume
     Post-mix volume, 0..1.
 
+    \qmlproperty real SynthInstrument::pan
+    Stereo position, -1 (left) .. +1 (right). The default 0 plays centred,
+    the same samples in both channels. Panning turns the far channel down:
+    at 0.5 the left plays at half level, the right at full. Moving it moves
+    notes already ringing.
+
+    \qmlproperty string SynthInstrument::bus
+    The mixer bus the voices play through: \c "sfx" (the default),
+    \c "music" or \c "voice". Its volume is set on \l SoundMixer. Any
+    other name is refused with a warning and the bus stays as it was.
+
     \qmlproperty int SynthInstrument::activeVoices
     Read-only. Number of voices currently rendering.
 
@@ -345,6 +376,15 @@
     ADSR (attack/release only for now) applied on top of sample playback.
 
     \qmlproperty real SampleInstrument::volume
+    Post-mix volume, 0..1.
+
+    \qmlproperty real SampleInstrument::pan
+    Stereo position, -1 (left) .. +1 (right); 0, the default, is centred.
+    The same law as \l {SynthInstrument::pan}{SynthInstrument.pan}.
+
+    \qmlproperty string SampleInstrument::bus
+    The mixer bus: \c "sfx" (the default), \c "music" or \c "voice".
+
     \qmlproperty bool SampleInstrument::loaded
     \qmlproperty int  SampleInstrument::activeVoices
     \qmlproperty string SampleInstrument::errorString
@@ -400,6 +440,16 @@
     \qmlproperty bool SongPlayer::loop
     When true, playback wraps to 0 at end instead of stopping.
 
+    \qmlproperty real SongPlayer::volume
+    Volume of the whole song, 0..1, default 1. It scales every note the
+    player triggers, on any of its instruments, on top of the instrument's
+    own volume and its bus volume, and it keeps scaling notes while they
+    ring, so animating it fades the song smoothly. Two players sharing
+    instruments keep separate volumes. A QML object in \l instruments
+    that forwards \c triggerNote() to an instrument passes the volume on;
+    an instrument that does not play on the Clayground.Sound engine does
+    not get it.
+
     \qmlproperty string SongPlayer::error
     Last parse/IO error, empty when OK.
 
@@ -424,4 +474,35 @@
     reload, the previous model is preserved and playback keeps going.
 
     \sa SynthInstrument, SampleInstrument
+*/
+
+/*!
+    \qmltype SoundMixer
+    \inqmlmodule Clayground.Sound
+    \brief The volume of each mixer bus: sound effects, music and voices.
+
+    A singleton. Every instrument mixes into one of three buses, chosen by
+    its \c bus property; the bus volume scales all of it. The volumes
+    belong to the process-wide engine, so every QML engine in the process
+    sees the same values.
+
+    \qml
+    import Clayground.Sound
+
+    Slider { onMoved: SoundMixer.musicVolume = value }
+    SynthInstrument { bus: "music" }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty real SoundMixer::sfxVolume
+    Volume of the \c "sfx" bus, 0..1, default 1. Values outside are clamped.
+
+    \qmlproperty real SoundMixer::musicVolume
+    Volume of the \c "music" bus, 0..1, default 1.
+
+    \qmlproperty real SoundMixer::voiceVolume
+    Volume of the \c "voice" bus, 0..1, default 1.
+
+    \sa SynthInstrument, SampleInstrument, SongPlayer
 */

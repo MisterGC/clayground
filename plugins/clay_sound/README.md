@@ -96,6 +96,8 @@ SynthInstrument {
     // Cutoff envelope: +3 octaves at its peak, decaying back to 400 Hz
     filterEnvAmount: 3; filterDecay: 0.2; filterSustain: 0
     volume: 0.8
+    pan: -0.3               // -1 left .. +1 right; 0 = centred
+    bus: "music"            // sfx (default) | music | voice
 }
 // Fire a note
 lead.triggerNote(69, 0.9, 0.25)
@@ -158,6 +160,28 @@ Song file format (v1):
 
 Notes can be MIDI numbers or scientific pitch strings (`C4`, `F#3`, `Bb5`).
 Defaults: `dur=0.5` beats, `vel=0.8`.
+
+`volume` (0..1, default 1) scales every note the player triggers, on
+whichever instrument, also while the notes ring: animate it to fade a song.
+
+### Stereo, pan and buses
+
+The engine mixes in stereo. Every instrument (`SynthInstrument`,
+`SampleInstrument`, `Sound`) has a `pan` from -1 (left) to +1 (right) and a
+`bus`: `"sfx"` (default), `"music"` or `"voice"`. Centred, the default, plays
+the same samples in both channels that the mono engine played; panning turns
+the far channel down (at `pan: 0.5` the left plays at half level). The
+`SoundMixer` singleton holds one volume per bus, on top of each instrument's
+own:
+
+```qml
+SoundMixer.musicVolume = 0.4     // every instrument with bus: "music"
+SoundMixer.sfxVolume = 1.0
+SoundMixer.voiceVolume = 0.8
+```
+
+`Music` (the `QMediaPlayer`-based type) does not play on the engine and has no
+bus.
 
 ## Platform Support
 
