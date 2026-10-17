@@ -122,6 +122,16 @@ void Engine::renderStereo(float* out, int frames)
         auto voice = inst->createVoice(f.ev, f.id, sampleRate_);
         if (!voice) continue;
         voice->onNoteOn(f.ev, sampleRate_);
+        // voices_ is in note-on order, so the first of this instrument's
+        // voices is its oldest; cut those until the new one fits.
+        if (const int cap = inst->maxVoices(); cap > 0) {
+            const size_t have = activeVoices(instId);
+            size_t excess = have >= static_cast<size_t>(cap) ? have - cap + 1 : 0;
+            for (auto it = voices_.begin(); excess > 0 && it != voices_.end();) {
+                if (it->instrumentId == instId) { it = voices_.erase(it); --excess; }
+                else ++it;
+            }
+        }
         voices_.push_back({instId, std::move(voice), f.ev.pan, f.ev.gainStage});
     }
 

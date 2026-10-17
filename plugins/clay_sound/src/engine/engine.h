@@ -58,6 +58,9 @@ public:
     // Drop all active voices immediately (hard cut).
     void resetVoices();
 
+    // A note whose instrument already rings maxVoices() voices cuts the
+    // oldest of them when it starts (a hard cut, no release).
+
     // Render `frames` stereo frames into `out` (interleaved L, R; length
     // 2 * frames). `out` is overwritten, not accumulated. Advances
     // currentFrame by `frames`. Each voice's contribution is scaled by
