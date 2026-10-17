@@ -14,6 +14,7 @@
 #define SYNTH_INSTRUMENT_H
 
 #include "engine/bus.h"
+#include "engine/instrument_spec.h"
 #include "engine/oscillator_voice.h"
 
 #include <QObject>
@@ -129,6 +130,10 @@ public:
     Q_INVOKABLE bool triggerNote(int midiNote,
                                  qreal velocity = 1.0,
                                  qreal durationSeconds = 0.2);
+
+    // The patch, volume, pan, bus and voice cap as the engine plays
+    // them: what a song's offline render needs of this instrument.
+    clay::sound::InstrumentSpec spec() const;
 
     // Offline render of `durationSeconds` seconds of audio from the
     // current engine state. Produces a mono float buffer at the engine

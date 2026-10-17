@@ -9,6 +9,7 @@
 #define SAMPLE_INSTRUMENT_H
 
 #include "engine/bus.h"
+#include "engine/instrument_spec.h"
 #include "engine/sample_voice.h"
 
 #include <QByteArray>
@@ -113,6 +114,11 @@ public:
 
     // Stop all currently playing voices at their next render step.
     Q_INVOKABLE void stopAll();
+
+    // The sample, root note, patch, volume, pan, bus and voice cap as
+    // the engine plays them: what a song's offline render needs of this
+    // instrument. No sample until the source has loaded.
+    clay::sound::InstrumentSpec spec() const;
 
     // Offline mono render of the engine state for `durationSeconds`.
     Q_INVOKABLE QVector<float> renderOffline(qreal durationSeconds);

@@ -20,6 +20,7 @@ set(ENGINE_SRC
     src/engine/note_event.h
     src/engine/voice.h
     src/engine/instrument.h
+    src/engine/instrument_spec.cpp src/engine/instrument_spec.h
     src/engine/scheduler.cpp src/engine/scheduler.h
     src/engine/engine.cpp src/engine/engine.h
     src/engine/oscillator_voice.cpp src/engine/oscillator_voice.h

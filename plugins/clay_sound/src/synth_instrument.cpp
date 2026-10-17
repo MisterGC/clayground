@@ -4,6 +4,7 @@
 
 #include "audio_output.h"
 #include "engine/engine.h"
+#include "engine/instrument_spec.h"
 #include "engine/note_event.h"
 #include "engine/oscillator_instrument.h"
 #include "engine/pcm_buffer.h"
@@ -331,23 +332,26 @@ bool SynthInstrument::trigger(qreal freqHz, qreal velocity, qreal durationSecond
     output.start(); // idempotent; opens the sink on first triggered note
 
     auto& eng = output.engine();
-    cs::NoteEvent ev;
-    ev.timeFrames     = eng.currentFrame();  // fire on the next render pass
-    ev.durationFrames = static_cast<int64_t>(std::llround(durationSeconds * SAMPLE_RATE));
-    ev.freqHz         = freqHz;
-    ev.velocity       = static_cast<float>(std::clamp(velocity, 0.0, 1.0));
-    ev.instrumentId   = oscInstId_;
-    ev.gainStage      = output.triggerGainStage();
-
-    const cs::EventId id = eng.schedule(ev);
-    oscInst_->pushPatch(id, patch_);
-    return true;
+    // Fire on the next render pass.
+    return cs::scheduleNote(eng, oscInstId_, *oscInst_, spec(), freqHz, velocity,
+                            durationSeconds, eng.currentFrame(), output.triggerGainStage());
 }
 
 bool SynthInstrument::triggerNote(int midiNote, qreal velocity, qreal durationSeconds)
 {
-    const qreal freq = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
-    return trigger(freq, velocity, durationSeconds);
+    return trigger(cs::midiToHz(midiNote), velocity, durationSeconds);
+}
+
+cs::InstrumentSpec SynthInstrument::spec() const
+{
+    cs::InstrumentSpec s;
+    s.kind = cs::InstrumentSpec::Kind::Synth;
+    s.synth = patch_;
+    s.gain = static_cast<float>(volume_);
+    s.pan = static_cast<float>(pan_);
+    s.bus = bus_;
+    s.maxVoices = maxVoices_;
+    return s;
 }
 
 QVector<float> SynthInstrument::renderOffline(qreal durationSeconds)
