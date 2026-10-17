@@ -9,7 +9,7 @@
     \list
     \li \l Sound - One-shot / overlapping sound effects (pre-authored WAV)
     \li \l Music - Background music (play/pause/stop/loop/seek)
-    \li \l SynthInstrument - Real-time oscillator voice with ADSR/pitch env/LFO
+    \li \l SynthInstrument - Real-time oscillator voice with ADSR/pitch env/LFO and a resonant filter
     \li \l SampleInstrument - PCM sample playback with loop points and root note
     \li \l SongPlayer - Plays a \c .song.json pattern file against instruments
     \endlist
@@ -232,7 +232,7 @@
 /*!
     \qmltype SynthInstrument
     \inqmlmodule Clayground.Sound
-    \brief Real-time oscillator voice with ADSR, pitch envelope, and LFO.
+    \brief Real-time oscillator voice with ADSR, pitch envelope, LFO and a resonant filter.
 
     SynthInstrument owns an internal audio engine and one oscillator instrument.
     Call \l triggerNote() to fire a note; tweak the patch via properties. It
@@ -243,6 +243,11 @@
 
     \qmlproperty string SynthInstrument::waveform
     One of \c "sine", \c "square", \c "triangle", \c "sawtooth", \c "noise".
+
+    \qmlproperty real SynthInstrument::pulseWidth
+    For \c "square" only: the fraction of each period the wave is high,
+    0.05..0.95. The default 0.5 is the plain square; 0.25 or 0.125 give the
+    thinner, nasal pulses of chip sound.
 
     \qmlproperty real SynthInstrument::attack
     \qmlproperty real SynthInstrument::decay
@@ -261,6 +266,31 @@
     \qmlproperty real SynthInstrument::lfoDepth
     \qmlproperty string SynthInstrument::lfoTarget
     LFO in Hz/semitones targeting \c "pitch", \c "volume", or \c "none".
+
+    \qmlproperty string SynthInstrument::filterType
+    The filter after the oscillator: \c "none" (the default, bypassed),
+    \c "lowpass", \c "highpass" or \c "bandpass". It is a two-pole
+    state-variable filter, 12 dB per octave; the band-pass passes the cutoff
+    at unity gain.
+
+    \qmlproperty real SynthInstrument::cutoff
+    Cutoff frequency in Hz, 20..20000, default 1000. Ignored while
+    \l filterType is \c "none".
+
+    \qmlproperty real SynthInstrument::resonance
+    Peak at the cutoff, 0..1: 0 (the default) is flat (Q 0.707), 1 is Q 10,
+    about +20 dB.
+
+    \qmlproperty real SynthInstrument::filterAttack
+    \qmlproperty real SynthInstrument::filterDecay
+    \qmlproperty real SynthInstrument::filterSustain
+    \qmlproperty real SynthInstrument::filterRelease
+    \qmlproperty real SynthInstrument::filterEnvAmount
+    Cutoff envelope: an ADSR of its own (seconds; sustain 0..1, default 1)
+    that moves \l cutoff up by \c filterEnvAmount octaves at its peak, or
+    down if the amount is negative. The default amount 0 keeps the cutoff
+    fixed. A pluck: \c "lowpass", \c cutoff 400, \c filterEnvAmount 3,
+    \c filterDecay 0.2, \c filterSustain 0.
 
     \qmlproperty real SynthInstrument::volume
     Post-mix volume, 0..1.

@@ -81,14 +81,20 @@ onGameOver: bgMusic.stop()
 
 ### SynthInstrument
 
-Real-time oscillator voice with ADSR, pitch envelope, LFO. Trigger notes
-by MIDI number or Hz. Also bakes to WAV.
+Real-time oscillator voice with ADSR, pitch envelope, LFO, a pulse width
+for `square` and a resonant filter with its own cutoff envelope. Trigger
+notes by MIDI number or Hz. Also bakes to WAV.
 
 ```qml
 SynthInstrument {
     id: lead
     waveform: "square"      // sine | square | triangle | sawtooth | noise
+    pulseWidth: 0.25        // square only, 0.05..0.95; 0.5 = plain square
     attack: 0.005; decay: 0.08; sustain: 0.5; release: 0.15
+    // Filter, off by default: none | lowpass | highpass | bandpass
+    filterType: "lowpass"; cutoff: 400; resonance: 0.3
+    // Cutoff envelope: +3 octaves at its peak, decaying back to 400 Hz
+    filterEnvAmount: 3; filterDecay: 0.2; filterSustain: 0
     volume: 0.8
 }
 // Fire a note
