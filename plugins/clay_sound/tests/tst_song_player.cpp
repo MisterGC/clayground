@@ -4,6 +4,7 @@
 // instrument and verify correct triggerNote() calls in the correct
 // order.
 
+#include "audio_output.h"
 #include "song_player.h"
 
 #include <QtTest/QtTest>
@@ -16,12 +17,14 @@ class FakeInstrument : public QObject
 {
     Q_OBJECT
 public:
-    struct Call { int midi; qreal vel; qreal durSec; };
+    // gainStage: the one the player named around this call.
+    struct Call { int midi; qreal vel; qreal durSec; int gainStage; };
     QVector<Call> calls;
 
     Q_INVOKABLE void triggerNote(int midiNote, qreal velocity, qreal durationSeconds)
     {
-        calls.push_back({ midiNote, velocity, durationSeconds });
+        calls.push_back({ midiNote, velocity, durationSeconds,
+                          clay::sound::AudioOutput::instance().triggerGainStage() });
     }
 };
 
@@ -36,6 +39,7 @@ private slots:
     void parseErrorKeepsUnloaded();
     void hotReloadKeepsPositionAndSwapsFutureEvents();
     void hotReloadWithBadSyntaxKeepsPreviousModel();
+    void volumeIsTheGainStageItsNotesPlayThrough();
 
 private:
     QString writeSong(QTemporaryDir &dir, const QByteArray &content);
@@ -260,6 +264,62 @@ void TestSongPlayer::hotReloadWithBadSyntaxKeepsPreviousModel()
     QVERIFY(waitUntil([&] { return errSpy.count() >= 1; }, 3000));
     QVERIFY(p.loaded());
     QCOMPARE(p.totalBeats(), prevTotal);
+}
+
+void TestSongPlayer::volumeIsTheGainStageItsNotesPlayThrough()
+{
+    QTemporaryDir dir;
+    const QString path = writeSong(dir, R"({
+        "tempo": 240,
+        "tracks": { "l": { "instrument": "inst" } },
+        "patterns": { "A": { "l": [ { "t": 0, "note": 60, "dur": 0.25 },
+                                    { "t": 0.5, "note": 62, "dur": 0.25 } ] } },
+        "sections": [ { "pattern": "A" } ]
+    })");
+    FakeInstrument fake;
+    fake.setObjectName("inst");
+
+    SongPlayer p;
+    QCOMPARE(p.volume(), 1.0);
+    QSignalSpy volSpy(&p, &SongPlayer::volumeChanged);
+    p.setVolume(1.5);
+    QCOMPARE(p.volume(), 1.0);          // clamped, so unchanged
+    QCOMPARE(volSpy.count(), 0);
+    p.setVolume(0.3);
+    QCOMPARE(volSpy.count(), 1);
+
+    p.setInstruments(QVariantList{ QVariant::fromValue<QObject *>(&fake) });
+    p.setSource(QUrl::fromLocalFile(path));
+    QSignalSpy doneSpy(&p, &SongPlayer::finished);
+    p.play();
+    QVERIFY(waitUntil([&] { return doneSpy.count() > 0; }, 3000));
+
+    QCOMPARE(fake.calls.size(), 2);
+    const int stage = fake.calls[0].gainStage;
+    QVERIFY(stage >= 0);
+    QCOMPARE(fake.calls[1].gainStage, stage);
+    // Velocity is the song's, the volume is the stage's.
+    QVERIFY(qAbs(fake.calls[0].vel - 0.8) < 1e-6);
+    auto &eng = clay::sound::AudioOutput::instance().engine();
+    QCOMPARE(eng.gainStage(stage), 0.3f);
+    // Outside the player's calls no stage is named.
+    QCOMPARE(clay::sound::AudioOutput::instance().triggerGainStage(), -1);
+
+    // A later volume reaches the same stage, so ringing notes follow it.
+    p.setVolume(0.6);
+    QCOMPARE(eng.gainStage(stage), 0.6f);
+
+    // Two players never share a stage.
+    SongPlayer other;
+    FakeInstrument fake2;
+    fake2.setObjectName("inst");
+    other.setInstruments(QVariantList{ QVariant::fromValue<QObject *>(&fake2) });
+    other.setSource(QUrl::fromLocalFile(path));
+    QSignalSpy doneSpy2(&other, &SongPlayer::finished);
+    other.play();
+    QVERIFY(waitUntil([&] { return doneSpy2.count() > 0; }, 3000));
+    QVERIFY(!fake2.calls.isEmpty());
+    QVERIFY(fake2.calls[0].gainStage != stage);
 }
 
 QTEST_MAIN(TestSongPlayer)
