@@ -113,15 +113,11 @@ int SfxPlayer::variationSeed(int index) const
 QVector<float> SfxPlayer::renderOffline(int seed, qreal velocity) const
 {
     if (!loaded_) return {};
-    const auto samples = cs::renderSfx(recipe_, samples_, static_cast<uint32_t>(seed),
-                                       static_cast<float>(std::clamp(velocity, 0.0, 1.0)),
-                                       static_cast<float>(volume_), static_cast<float>(pan_),
-                                       cs::AudioOutput::instance().sampleRate(), /*stereo=*/false);
-    QVector<float> out;
-    out.reserve(static_cast<qsizetype>(samples.size()));
-    // The same master clamp as SynthInstrument::renderOffline.
-    for (float s : samples) out.append(std::clamp(s, -1.0f, 1.0f));
-    return out;
+    const auto samples = cs::renderRecipe(recipe_, samples_, static_cast<uint32_t>(seed),
+                                          static_cast<float>(std::clamp(velocity, 0.0, 1.0)),
+                                          static_cast<float>(volume_), static_cast<float>(pan_),
+                                          cs::AudioOutput::instance().sampleRate(), /*stereo=*/false);
+    return QVector<float>(samples.begin(), samples.end());
 }
 
 // --- loading -------------------------------------------------------------

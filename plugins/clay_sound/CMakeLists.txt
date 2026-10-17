@@ -33,7 +33,9 @@ set(ENGINE_SRC
     src/song/song_render.cpp src/song/song_render.h
     src/sfx/sfx_recipe.h
     src/sfx/sfx_parser.cpp src/sfx/sfx_parser.h
-    src/sfx/sfx_render.cpp src/sfx/sfx_render.h)
+    src/sfx/sfx_render.cpp src/sfx/sfx_render.h
+    src/offline/sound_files.cpp src/offline/sound_files.h
+    src/clay_sound_engine.h)
 
 set(CPP_SRC
     src/voice_waveform.h

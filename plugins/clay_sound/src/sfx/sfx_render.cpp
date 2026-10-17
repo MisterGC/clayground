@@ -204,14 +204,15 @@ int64_t SfxVoices::play(Engine &engine, const std::vector<SfxNote> &notes, int64
 
 std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
                              uint32_t seed, float velocity, float gain, float pan,
-                             int sampleRate, bool stereo)
+                             int sampleRate, bool stereo, int64_t frames)
 {
     Engine scratch(sampleRate);
     SfxVoices voices;
     voices.attach(scratch, recipe, samples);
     voices.setGain(gain);
     voices.setPan(pan);
-    const int64_t frames = voices.play(scratch, realizeSfx(recipe, seed), 0, velocity);
+    const int64_t end = voices.play(scratch, realizeSfx(recipe, seed), 0, velocity);
+    if (frames < 0) frames = end;
 
     std::vector<float> out(static_cast<size_t>(frames) * (stereo ? 2 : 1));
     // In passes of the size the live sink pulls, though the samples do
@@ -222,6 +223,17 @@ std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
         if (stereo) scratch.renderStereo(out.data() + 2 * at, n);
         else        scratch.renderOffline(out.data() + at, n);
     }
+    return out;
+}
+
+std::vector<float> renderRecipe(const SfxRecipe &recipe, const SfxSamples &samples,
+                                uint32_t seed, float velocity, float gain, float pan,
+                                int sampleRate, bool stereo, double seconds)
+{
+    const int64_t frames = seconds > 0.0 ? std::llround(seconds * sampleRate) : -1;
+    std::vector<float> out = renderSfx(recipe, samples, seed, velocity, gain, pan,
+                                       sampleRate, stereo, frames);
+    for (float &s : out) s = std::clamp(s, -1.0f, 1.0f);
     return out;
 }
 

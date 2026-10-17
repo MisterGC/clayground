@@ -90,11 +90,19 @@ private:
 };
 
 // What SfxVoices::play() of `seed` at `velocity` sends into its bus,
-// rendered on a scratch engine from frame 0 until the last layer ends:
-// interleaved stereo, or the (L + R) / 2 downmix when !stereo.
+// rendered on a scratch engine from frame 0 until the last layer ends,
+// or for `frames` frames when that is >= 0: interleaved stereo, or the
+// (L + R) / 2 downmix when !stereo.
 std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
                              uint32_t seed, float velocity, float gain, float pan,
-                             int sampleRate, bool stereo);
+                             int sampleRate, bool stereo, int64_t frames = -1);
+
+// renderSfx() clamped to [-1, 1] like the live sink, `seconds` long
+// (<= 0: until the last layer ends). SfxPlayer::renderOffline() and a
+// program without QML render a recipe through this.
+std::vector<float> renderRecipe(const SfxRecipe &recipe, const SfxSamples &samples,
+                                uint32_t seed, float velocity, float gain, float pan,
+                                int sampleRate, bool stereo, double seconds = 0.0);
 
 } // namespace clay::sound
 
