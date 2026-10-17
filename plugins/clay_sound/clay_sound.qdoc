@@ -432,6 +432,23 @@
     instrument. Watches the source file for changes and \e{hot-reloads}
     without resetting the playhead.
 
+    A version 2 song file defines its own instruments and the structure
+    adaptive music needs: segments with exit cues, layers an intensity
+    fades in, transitions synced to beat, bar, exit or end, and stingers.
+    It plays on those instruments (\l instruments is not read) and
+    follows \l state, \l intensity and \l playStinger(). Its notes are
+    scheduled 0.25 s ahead of the engine on their exact frames, the path
+    \l renderOffline() takes, so live and offline render the same
+    samples; a control reaches the music that much later.
+
+    \qml
+    SongPlayer {
+        source: "songs/adaptive.song.json"
+        state: game.fighting ? "combat" : "explore"
+        intensity: game.danger
+    }
+    \endqml
+
     See the \l {Clayground.Sound Module} overview or the plugin README
     for the JSON format.
 
@@ -451,13 +468,14 @@
     Read-only. True while actively advancing.
 
     \qmlproperty real SongPlayer::position
-    Current position in beats.
+    Current position in beats; for a v2 song, beats into \l segment.
 
     \qmlproperty real SongPlayer::tempo
     Tempo in BPM, taken from the song file.
 
     \qmlproperty real SongPlayer::totalBeats
-    Total length in beats (sum of section lengths \(\times\) repeats).
+    Total length in beats (sum of section lengths \(\times\) repeats);
+    for a v2 song, the length of \l segment.
 
     \qmlproperty bool SongPlayer::loop
     When true, playback wraps to 0 at end instead of stopping.
@@ -475,6 +493,23 @@
     \qmlproperty string SongPlayer::error
     Last parse/IO error, empty when OK.
 
+    \qmlproperty int SongPlayer::version
+    Read-only. The file version of the loaded song, 1 or 2.
+
+    \qmlproperty string SongPlayer::state
+    Version 2: the segment the music should play. Changing it moves the
+    music there on the sync point of the first transition in the file
+    that matches, or on the next bar. Set before \l play(), the segment
+    the song starts in.
+
+    \qmlproperty real SongPlayer::intensity
+    Version 2: 0..1, default 0. Each layer of the song sounds from its
+    low to its high intensity, its level moving over the layer's fade;
+    a note plays at the level its start falls on.
+
+    \qmlproperty string SongPlayer::segment
+    Read-only. Version 2: the segment playing now.
+
     \section1 Methods
 
     \qmlmethod void SongPlayer::play()
@@ -482,7 +517,12 @@
     \qmlmethod void SongPlayer::stop()
     \qmlmethod void SongPlayer::seek(real beats)
 
-    \qmlmethod list<real> SongPlayer::renderOffline(real seconds)
+    \qmlmethod bool SongPlayer::playStinger(string name)
+    Version 2: plays the stinger \a name on top of the music, on its
+    sync point. Returns false for an unknown stinger or while nothing
+    plays.
+
+    \qmlmethod list<real> SongPlayer::renderOffline(real seconds, list cues)
     \a seconds of the song from its start (0 or less: its length,
     \l totalBeats at \l tempo) as mono samples (the (L + R) / 2 downmix,
     clamped to -1..1) at 44.1 kHz, with the bound instruments' current
@@ -493,6 +533,13 @@
     play here; the bus volume, echo and reverb are not part of it. A C++
     program without QML renders the same samples through \c renderSong()
     of \c Clayground::SoundEngine.
+
+    A version 2 song renders on its own instruments, from the player's
+    \l state and \l intensity (0 seconds: one pass of that segment),
+    and \a cues steer it as a game would:
+    \c{[{ at: 2, state: "combat" }, { at: 3, intensity: 1 }, { at: 4, stinger: "pickup" }]},
+    \c at in seconds. Played live, a control reaches the song 0.25 s
+    after it is set; cues at those song times render what was heard.
 
     \section1 Signals
 

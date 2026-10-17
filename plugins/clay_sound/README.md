@@ -173,6 +173,80 @@ instruments' current patches, the player's `volume` and `loop`: mono
 samples at 44.1 kHz, every note on its exact frame (live, a note starts on
 the 10 ms tick it falls into). `seconds` 0 renders the song's length.
 
+#### Song v2: the instruments in the file, music that follows the game
+
+A file with `"version": 2` is complete on its own - it defines the
+instruments its tracks play - and has the structure adaptive game music
+needs. `demo/songs/adaptive.song.json` uses all of it:
+
+```json
+{
+  "version": 2, "tempo": 120, "beatsPerBar": 4,
+  "instruments": {
+    "lead": { "source": "triangle", "envelope": { "attack": 10, "release": 120 }, "gain": -10 },
+    "bass": { "source": "sawtooth", "filter": { "type": "lowpass", "cutoff": 700 }, "gain": -12 },
+    "kick": { "source": "sample", "sample": "kick.wav", "root": "C2", "bus": "music" }
+  },
+  "tracks":   { "melody": { "instrument": "lead" }, "bass": { "instrument": "bass" } },
+  "patterns": { "Explore": { ... }, "Combat": { ... }, "Pickup": { ... } },
+  "segments": {
+    "explore": { "sections": [ { "pattern": "Explore" } ] },
+    "combat":  { "sections": [ { "pattern": "Combat", "repeat": 2 } ], "exits": [4] }
+  },
+  "start": "explore",
+  "layers": { "drive": { "tracks": ["arp", "hat"], "intensity": [0.25, 0.75], "fade": 4 } },
+  "transitions": [
+    { "from": "explore", "to": "combat", "sync": "bar" },
+    { "from": "combat", "to": "explore", "sync": "exit", "stinger": "pickup" }
+  ],
+  "stingers": { "pickup": { "pattern": "Pickup", "sync": "beat" } }
+}
+```
+
+- **Instruments** take an effect recipe layer's fields and units (`source`,
+  `envelope` in ms, `pitch`, `filter`, `pulseWidth`, `lfo`, `gain` in dB up
+  to 0, `pan`) plus `bus` (default `music`) and `maxVoices`. A sample
+  instrument names its `sample` (a WAV relative to the song file), its
+  `root` note, `interpolation` and `loop` (`true` or `{ "start", "end" }`
+  as fractions). Every track plays a defined instrument; `instruments` on
+  the player is not read.
+- **Segments** are the parts the music moves between. A segment plays its
+  sections, then `next` (itself by default). A v2 pattern lasts whole bars.
+  Without `segments` the sections are one segment, `main`, after which the
+  song ends, or starts again with `loop`.
+- **Exits** are beats into a segment where a transition synced to `exit`
+  may leave it.
+- **Layers** are tracks that sound only as loud as the intensity lets them:
+  silent at or below the first number, full at or above the second (one
+  number: full from there). A change of intensity moves a layer's level
+  over `fade` beats; each note plays at the level its start falls on.
+- **Transitions** say how the music moves from one segment to another
+  (`from` / `to` left out: any), synced to the next `beat`, `bar`, `exit`
+  or the segment's `end`, optionally with a stinger where the new segment
+  starts. The first that matches wins; without one, the next bar.
+- **Stingers** play a pattern once on top of the music, on their sync.
+
+```qml
+SongPlayer {
+    id: music
+    source: "songs/adaptive.song.json"
+    state: game.fighting ? "combat" : "explore"   // moves on its transition's sync
+    intensity: game.danger                        // 0..1, fades the layers
+}
+// music.playStinger("pickup")
+```
+
+`segment` is the segment playing now, `position` the beats into it and
+`totalBeats` its length. Set before `play()`, `state` and `intensity` are
+where the song starts. A v2 song's notes are scheduled 0.25 s
+(`kScheduleAheadFrames`) ahead of the engine on their exact frames, so a
+control reaches the music that much later and its playhead moves while the
+sink renders. `renderOffline(seconds, cues)` takes the same path: from the
+player's state and intensity, steered by cues such as
+`[{ at: 2, state: "combat" }, { at: 3, intensity: 1 }, { at: 4, stinger: "pickup" }]`
+(`at` in seconds), it renders the samples live playback renders for the
+same controls at the same song frames. A v1 song plays as before.
+
 ### SfxPlayer and effect recipes
 
 An effect recipe (`*.sfx.json`) describes a sound effect as a stack of
@@ -347,9 +421,10 @@ cs::writeWav("song.wav", music, 1, cs::kSampleRate, cs::WavFormat::Pcm16);
 | Call | Does |
 |---|---|
 | `loadRecipe(path, &file, &error)` | parses a `*.sfx.json` and decodes its sample layers, each relative to the recipe |
-| `loadSong(path, &model, &error)` | parses a v1 `.song.json` |
+| `loadSong(path, &model, &error)` | parses a `.song.json`; a v2 song's sample instruments get their WAVs decoded, each relative to the song |
 | `renderRecipe(recipe, samples, seed, velocity, gain, pan, rate, stereo, seconds)` | the samples `SfxPlayer.renderOffline(seed)` returns at that `volume` and `pan`; `seconds` 0 = until the last layer ends |
 | `renderSong(model, instruments, seconds, volume, loop, rate, stereo)` | the samples `SongPlayer.renderOffline(seconds)` returns; `seconds` 0 = the song's length |
+| `renderSong(model, performance, seconds, volume, loop, rate, stereo)` | a v2 song on its own instruments, from `performance.start` at `performance.intensity`, each of `performance.cues` (state, intensity or stinger) at its song frame: what live playback renders for the same controls; `seconds` 0 = one pass of the start segment |
 | `writeWav(path, samples, channels, rate, format, &error)` | 32-bit float (default, the samples exactly) or 16-bit wav; stereo samples interleaved |
 
 A v1 song names its instruments but does not define them, so the program
@@ -358,7 +433,9 @@ gives each name an `InstrumentSpec`: the patch of a `SynthInstrument`
 of a `SampleInstrument`, with `gain` (the QML `volume`), `pan`, `bus` and
 `maxVoices`. The same seed or the same song and instruments render the same
 samples as the QML players on the same machine - `tst_clay_sound_outside`
-compares the two sample for sample. As in the QML offline renders, the bus
+compares the two sample for sample. A v2 song defines its instruments, so it
+needs no `SongInstruments`; `SongSequencer` hands out its notes on frames
+for a program that schedules them itself. As in the QML offline renders, the bus
 volume, echo and reverb are not applied.
 
 ## Platform Support
