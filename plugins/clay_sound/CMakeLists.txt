@@ -36,6 +36,7 @@ set(CPP_SRC
     src/softsynth.cpp src/softsynth.h
     src/synth_instrument.cpp src/synth_instrument.h
     src/sample_instrument.cpp src/sample_instrument.h
+    src/source_url.cpp src/source_url.h
     src/song_player.cpp src/song_player.h
     src/sound_mixer.cpp src/sound_mixer.h
     src/bus_effect_objects.cpp src/bus_effect_objects.h

@@ -4,6 +4,7 @@
 
 #include "audio_output.h"
 #include "song/song_parser.h"
+#include "source_url.h"
 
 #include <QDebug>
 #include <QFile>
@@ -11,8 +12,6 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
-#include <QQmlContext>
-#include <QQmlEngine>
 #include <QVariant>
 
 #include <algorithm>
@@ -21,32 +20,6 @@
 namespace {
 
 constexpr int kTickMs = 10;
-
-QUrl resolveUrl(QObject *ctx, const QUrl &url)
-{
-    if (url.isEmpty() || url.isLocalFile() || url.scheme() == QLatin1String("file"))
-        return url;
-    if (auto *qctx = ctx ? QQmlEngine::contextForObject(ctx) : nullptr)
-        return qctx->resolvedUrl(url);
-    return url;
-}
-
-bool isLocalScheme(const QUrl &url)
-{
-    if (url.isEmpty()) return true;
-    if (url.isLocalFile()) return true;
-    const auto s = url.scheme();
-    return s.isEmpty()
-        || s == QLatin1String("file")
-        || s == QLatin1String("qrc");
-}
-
-QString urlToLocalPath(const QUrl &url)
-{
-    if (url.isLocalFile()) return url.toLocalFile();
-    if (url.scheme() == QLatin1String("qrc")) return QStringLiteral(":") + url.path();
-    return url.toString();
-}
 
 } // namespace
 
@@ -196,7 +169,7 @@ void SongPlayer::reload()
     const double prevTempo = model_.tempo;
     model_ = {};
 
-    const QUrl url = resolveUrl(this, source_);
+    const QUrl url = clay::sound::resolveSourceUrl(this, source_);
     if (url.isEmpty()) {
         setError(QString());
         updateWatchedFile({});
@@ -207,8 +180,8 @@ void SongPlayer::reload()
         return;
     }
 
-    if (isLocalScheme(url)) {
-        const QString path = urlToLocalPath(url);
+    if (clay::sound::isLocalSourceUrl(url)) {
+        const QString path = clay::sound::sourceUrlToLocalPath(url);
         QFile f(path);
         if (!f.open(QIODevice::ReadOnly)) {
             setError(QStringLiteral("cannot open %1").arg(path));
@@ -233,11 +206,11 @@ void SongPlayer::hotReload()
     // previous model intact so playback survives typos mid-edit.
     cancelInFlightReply();
 
-    const QUrl url = resolveUrl(this, source_);
+    const QUrl url = clay::sound::resolveSourceUrl(this, source_);
     if (url.isEmpty()) return;
 
-    if (isLocalScheme(url)) {
-        const QString path = urlToLocalPath(url);
+    if (clay::sound::isLocalSourceUrl(url)) {
+        const QString path = clay::sound::sourceUrlToLocalPath(url);
         QFile f(path);
         if (!f.open(QIODevice::ReadOnly)) {
             setError(QStringLiteral("cannot open %1").arg(path));

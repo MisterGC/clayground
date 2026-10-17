@@ -88,6 +88,8 @@ add_executable(tst_clay_sound_song_player
     tst_song_player.cpp
     ../src/song_player.cpp
     ../src/song_player.h
+    ../src/source_url.cpp
+    ../src/source_url.h
     ../src/song/song_model.h
     ../src/song/song_parser.cpp
     ../src/song/song_parser.h
