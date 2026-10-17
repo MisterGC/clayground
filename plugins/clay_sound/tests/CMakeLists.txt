@@ -220,6 +220,8 @@ set_tests_properties(clay_sound_synth_filter PROPERTIES
 
 add_executable(tst_clay_sound_mix
     tst_sound_mix.cpp
+    ../src/music.cpp
+    ../src/music.h
     ../src/audio_devices.cpp
     ../src/audio_devices.h
     ../src/audio_output.cpp
@@ -250,8 +252,10 @@ target_include_directories(tst_clay_sound_mix PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../src
 )
 
+find_package(Qt6 REQUIRED COMPONENTS Network)
 target_link_libraries(tst_clay_sound_mix PRIVATE
     Qt6::Core
+    Qt6::Network
     Qt6::Qml
     Qt6::Test
     Qt6::Multimedia

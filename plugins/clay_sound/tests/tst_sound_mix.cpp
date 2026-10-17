@@ -11,10 +11,12 @@
 #include "engine/instrument.h"
 #include "engine/note_event.h"
 #include "engine/oscillator_instrument.h"
+#include "music.h"
 #include "sound_mixer.h"
 #include "synth_instrument.h"
 
 #include <QtTest/QtTest>
+#include <QAudioOutput>
 #include <QSignalSpy>
 #include <cmath>
 #include <complex>
@@ -107,6 +109,7 @@ private slots:
     void gainStageScalesItsNotesOnly();
     void gainStageFadesARingingNote();
     void sameNoteRendersSameSamples();
+    void musicFollowsTheMusicBus();
     void cleanup();
 };
 
@@ -343,6 +346,33 @@ void SoundMixTest::sameNoteRendersSameSamples()
     s.trigger(330.0, kVel, kSeconds);
     const auto b = renderStereo(sharedEngine(), kSeconds);
     QCOMPARE(a, b);
+}
+
+void SoundMixTest::musicFollowsTheMusicBus()
+{
+    // Music plays on QMediaPlayer, not on the engine; what it hands its
+    // QAudioOutput is its own volume times the music bus volume.
+    Music music;
+    auto *out = music.findChild<QAudioOutput *>();
+    QVERIFY(out);
+    music.setVolume(0.5);
+    QCOMPARE(out->volume(), 0.5f);       // bus at its default 1: unchanged
+
+    SoundMixer m;
+    m.setMusicVolume(0.4);
+    QVERIFY(std::abs(out->volume() - 0.2f) < 1e-6f);
+    QCOMPARE(music.volume(), 0.5);       // the property stays the game's
+    music.setVolume(1.0);
+    QVERIFY(std::abs(out->volume() - 0.4f) < 1e-6f);
+
+    // The other buses leave it alone.
+    m.setSfxVolume(0.1);
+    m.setVoiceVolume(0.1);
+    QVERIFY(std::abs(out->volume() - 0.4f) < 1e-6f);
+
+    // A Music made while the bus is already down starts down.
+    Music later;
+    QVERIFY(std::abs(later.findChild<QAudioOutput *>()->volume() - 0.4f) < 1e-6f);
 }
 
 QTEST_MAIN(SoundMixTest)
