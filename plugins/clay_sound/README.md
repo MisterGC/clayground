@@ -3,7 +3,7 @@
 Hybrid synth + sampler + tracker audio plugin for Clayground. One coherent
 engine, two wrappers for pre-existing assets (`Sound`, `Music`), and a
 small instrument/sequencer layer on top (`SynthInstrument`,
-`SampleInstrument`, `SongPlayer`, `ChipMood`/`MoodPlayer`). Offline render
+`SampleInstrument`, `SongPlayer`, `SfxPlayer`, `ChipMood`/`MoodPlayer`). Offline render
 is first-class and deterministic.
 
 See `docs/docs/manual/dojo.md` for how to hot-reload song files without
@@ -168,6 +168,97 @@ Defaults: `dur=0.5` beats, `vel=0.8`.
 `volume` (0..1, default 1) scales every note the player triggers, on
 whichever instrument, also while the notes ring: animate it to fade a song.
 
+### SfxPlayer and effect recipes
+
+An effect recipe (`*.sfx.json`) describes a sound effect as a stack of
+layers - each one voice with a source, an envelope, a pitch curve, a filter
+curve, a start offset, a gain and a pan - in physical units: Hz, ms,
+semitones, dB. A variation spec makes every play a little different:
+
+```qml
+SfxPlayer {
+    id: detent
+    source: "sfx/wheel-detent.sfx.json"
+}
+var seed = detent.play()               // the next variation; returns its seed
+detent.play(0.6)                       // the same at velocity 0.6 (all layers)
+detent.playSeed(seed)                  // that variation again
+var mono = detent.renderOffline(seed)  // what play() of that seed sounded like
+```
+
+The wheel detent of `demo/sfx/` (lock_picker's, four layers):
+
+```json
+{
+  "version": 1,
+  "name": "wheel-detent",
+  "variation": { "seed": 1, "pool": 6 },
+  "layers": [
+    { "name": "tick", "role": "transient", "source": "noise",
+      "length": 6, "gain": -10.46,
+      "envelope": { "attack": 0.5, "decay": 9, "sustain": 0, "release": 4 } },
+    { "name": "body", "role": "body", "source": "triangle",
+      "freq": 783.99, "length": 40, "gain": -10.03,
+      "envelope": { "attack": 0.5, "decay": 55, "sustain": 0, "release": 20 },
+      "pitch": { "start": 12, "end": 0, "time": 12 },
+      "vary": { "detune": [-1, 1] } },
+    { "name": "glint", "role": "tail", "source": "sine",
+      "freq": 2793.83, "length": 50, "gain": -21.94,
+      "envelope": { "attack": 0.5, "decay": 70, "sustain": 0, "release": 30 },
+      "vary": { "detune": [-1, 1] } },
+    { "name": "weight", "role": "body", "source": "sine",
+      "freq": 123.47, "length": 45, "gain": -13,
+      "envelope": { "attack": 1, "decay": 55, "sustain": 0, "release": 20 },
+      "pitch": { "start": 7, "end": 0, "time": 20 } }
+  ]
+}
+```
+
+Top level: `version` (1), `name`, `variation`, `layers` (required, at least
+one). A layer:
+
+| Field | Unit | Default | Meaning |
+|-------|------|---------|---------|
+| `source` | - | required | `sine`, `square`, `triangle`, `sawtooth`, `noise` or `sample` |
+| `name`, `role` | - | - | a label; `role` is `transient`, `body` or `tail` |
+| `freq` | Hz, 1..20000 | 440 | pitch of an oscillator layer |
+| `detune` | semitones, -48..48 | 0 | shifts `freq`, or a sample's pitch |
+| `gain` | dB, -96..12 | 0 | level of the layer |
+| `pan` | -1..1 | 0 | added to the player's `pan` |
+| `offset` | ms, 0..10000 | 0 | start after `play()` |
+| `length` | ms, 0..10000 | required (oscillators) | the gate; the release runs inside it. A sample without one plays to its end |
+| `envelope` | `attack`, `decay`, `release` in ms; `sustain` 0..1 | 0, 0, 0; 1 | ADSR; a sample layer takes `attack` and `release` only |
+| `pitch` | `start`, `end` in semitones; `time` in ms | 0 | a linear sweep from `start` to `end` over `time` |
+| `filter` | `type`; `cutoff` Hz; `resonance` 0..1; `attack`, `decay`, `release` ms; `sustain` 0..1; `amount` octaves | -, 1000, 0, 0, 0, 0, 1, 0 | `lowpass`, `highpass` or `bandpass`, with a cutoff envelope that moves the cutoff by `amount` octaves at its peak |
+| `pulseWidth` | 0.05..0.95 | 0.5 | `square` only |
+| `lfo` | `target`; `rate` Hz; `depth` semitones (pitch) or 0..1 (volume) | -, 0, 0 | `pitch` or `volume` |
+| `sample`, `interpolation` | path; `nearest`, `linear`, `gaussian` | -, `linear` | the WAV of a `sample` layer, relative to the recipe file |
+| `vary` | `{"<field>": [min, max]}` | - | per play, `min..max` is added to the field |
+
+`vary` names a numeric field by its path: `detune`, `gain`, `envelope.decay`,
+`filter.cutoff`, `pitch.start`, ... Every value a range can reach must be a
+valid value of that field. The parser rejects an unknown field by name and
+path (`layers[1].envelope: unknown field 'decya'`), and so does a hot reload,
+which keeps playing the last good recipe.
+
+Variation: `variation.seed` (default 0) is the base of every variation seed,
+and `variation.pool` cycles `play()` through that many variations; without a
+pool every `play()` is a new one. The `n`-th `play()` uses
+`variationSeed(n)`, and a seed always draws the same values: each varied
+field takes `min + (max - min) * u`, with `u` in [0, 1) hashed from the
+seed, the layer and the field with integer arithmetic. Noise layers get a
+seeded noise sequence the same way.
+
+`play()` and `renderOffline()` schedule the same notes through the same
+code, so `renderOffline(seed)` returns the samples `play()` of that seed
+sends into its bus - at the player's `volume` and `pan`, as the mono
+`(L + R) / 2` downmix, from the first layer's start to the last layer's end.
+What the bus adds afterwards (its volume, echo and reverb) is not part of
+it. `volume`, `pan` and `bus` work as on the instruments.
+
+`SfxPlayer` watches its recipe file and hot-reloads it; add `sfx/` (or
+`*.sfx.json`) to the sandbox's `.dojoignore`.
+
 ### Stereo, pan and buses
 
 The engine mixes in stereo. Every instrument (`SynthInstrument`,
@@ -261,6 +352,6 @@ argued in `.github/workflows/main.yml`.
 - **WASM**: Web Audio API requires user gesture to start AudioContext
 - **WASM**: Remote URLs must be CORS-enabled
 - **Desktop**: Uses `QAudioSink` for all in-engine types, `QMediaPlayer` for `Music`
-- **Hot-reload**: `SongPlayer` watches its source file; drop a `.dojoignore`
-  (`songs/` or `*.song.json`) next to your `Sandbox.qml` to prevent the
-  dojo from reloading the whole scene on song edits
+- **Hot-reload**: `SongPlayer` and `SfxPlayer` watch their source file; drop
+  a `.dojoignore` (`songs/`, `sfx/` or `*.song.json`) next to your
+  `Sandbox.qml` to prevent the dojo from reloading the whole scene on edits

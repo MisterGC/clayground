@@ -12,6 +12,7 @@
     \li \l SynthInstrument - Real-time oscillator voice with ADSR/pitch env/LFO and a resonant filter
     \li \l SampleInstrument - PCM sample playback with loop points and root note
     \li \l SongPlayer - Plays a \c .song.json pattern file against instruments
+    \li \l SfxPlayer - Plays a \c .sfx.json effect recipe, with variation, live or rendered offline
     \li \l SoundMixer - The volume, echo and reverb of each bus: sound effects, music, voices
     \endlist
 
@@ -495,6 +496,102 @@
     reload, the previous model is preserved and playback keeps going.
 
     \sa SynthInstrument, SampleInstrument
+*/
+
+/*!
+    \qmltype SfxPlayer
+    \inqmlmodule Clayground.Sound
+    \brief Plays an effect recipe (\c .sfx.json) with variation, and renders
+    it offline the same way.
+
+    A recipe is a stack of layers - each one voice with a source
+    (oscillator, noise or a WAV sample), an envelope, a pitch curve, a
+    filter curve, a start offset, a gain and a pan, in Hz, ms, semitones
+    and dB - plus a variation spec: a random range per layer field, a
+    seed and a round-robin pool size. The plugin README documents the
+    format; the parser rejects an unknown field by its name and path.
+
+    \code
+    SfxPlayer {
+        id: detent
+        source: "sfx/wheel-detent.sfx.json"
+    }
+    // in a handler:
+    var seed = detent.play()
+    var samples = detent.renderOffline(seed)   // what that play() sounded like
+    \endcode
+
+    Every \l play() draws the next variation; a seed always draws the same
+    values. \l play() and \l renderOffline() schedule the same notes through
+    one code path, so a pre-rendered file of a seed and the live sound of it
+    are the same samples. Watches the recipe file and \e{hot-reloads} it; a
+    broken save keeps the last good recipe.
+
+    \section1 Properties
+
+    \qmlproperty url SfxPlayer::source
+    Path to a \c .sfx.json recipe. Sample files in it are relative to it.
+
+    \qmlproperty bool SfxPlayer::loaded
+    True once the recipe parsed and its samples loaded.
+
+    \qmlproperty string SfxPlayer::error
+    Last parse or load error, empty when OK. Starts with the path of the
+    failing field, e.g. \c{layers[1].envelope: unknown field 'decya'}.
+
+    \qmlproperty string SfxPlayer::name
+    The recipe's \c name.
+
+    \qmlproperty int SfxPlayer::layers
+    The number of layers in the recipe.
+
+    \qmlproperty int SfxPlayer::pool
+    The recipe's \c{variation.pool}: \l play() cycles through this many
+    variations; 0 makes every play a new one.
+
+    \qmlproperty int SfxPlayer::lastSeed
+    The seed of the last \l play() or \l playSeed(), -1 before the first.
+
+    \qmlproperty real SfxPlayer::volume
+    Volume of every layer, 0..1, default 1.
+
+    \qmlproperty real SfxPlayer::pan
+    -1 (left) .. +1 (right), added to each layer's own pan. Default 0.
+
+    \qmlproperty string SfxPlayer::bus
+    The bus the layers mix into: \c "sfx" (default), \c "music" or
+    \c "voice".
+
+    \section1 Methods
+
+    \qmlmethod int SfxPlayer::play(real velocity)
+    Plays the next variation and returns its seed, or -1 when nothing is
+    loaded. \a velocity (0..1, default 1) scales every layer.
+
+    \qmlmethod bool SfxPlayer::playSeed(int seed, real velocity)
+    Plays the variation of \a seed. Returns false when nothing is loaded.
+
+    \qmlmethod int SfxPlayer::variationSeed(int index)
+    The seed the \a{index}-th \l play() since the recipe loaded uses.
+
+    \qmlmethod list<real> SfxPlayer::renderOffline(int seed, real velocity)
+    What \l playSeed() of \a seed at \a velocity sends into its bus, as mono
+    samples (the (L + R) / 2 downmix, clamped to -1..1) at 44.1 kHz, from
+    the first layer's start to the last layer's end, at the player's
+    \l volume and \l pan. Renders on an engine of its own and does not
+    touch the live sound. The bus volume, echo and reverb are not part of
+    it.
+
+    \section1 Signals
+
+    \qmlsignal SfxPlayer::hotReloaded()
+    Emitted after the recipe file changed on disk and was loaded again.
+
+    \qmlsignal SfxPlayer::parseError(string message)
+    Emitted when the recipe or one of its samples fails to load. On a hot
+    reload the previous recipe keeps playing.
+
+    \sa SynthInstrument, SampleInstrument, SongPlayer
 */
 
 /*!
