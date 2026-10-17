@@ -180,8 +180,8 @@ SoundMixer.sfxVolume = 1.0
 SoundMixer.voiceVolume = 0.8
 ```
 
-`Music` (the `QMediaPlayer`-based type) does not play on the engine and has no
-bus.
+`Music` (the `QMediaPlayer`-based type) does not play on the engine, but it
+follows the music bus: it plays at its `volume` times `SoundMixer.musicVolume`.
 
 ## Platform Support
 

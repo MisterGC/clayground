@@ -188,7 +188,9 @@
     The audio file URL to load (local or remote).
 
     \qmlproperty real Music::volume
-    Volume level from 0.0 (silent) to 1.0 (full). Default: 1.0
+    Volume level from 0.0 (silent) to 1.0 (full). Default: 1.0. The track
+    plays at this volume times \l {SoundMixer::musicVolume}
+    {SoundMixer.musicVolume}; the property itself keeps the value set.
 
     \qmlproperty bool Music::lazyLoading
     If true, audio loads on first play() call. If false (default), loads immediately.
