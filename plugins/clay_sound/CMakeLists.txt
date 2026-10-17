@@ -12,7 +12,8 @@ endif()
 include(clayplugin)
 
 # Platform-agnostic C++ engine (Stage 0 spine). No QML types; used by
-# every instrument host below.
+# every instrument host below, and linked by programs outside clayground
+# as Clayground::SoundEngine (#429).
 set(ENGINE_SRC
     src/engine/bus.h
     src/engine/bus_effects.cpp src/engine/bus_effects.h
@@ -47,8 +48,17 @@ set(CPP_SRC
     src/sound.cpp src/sound.h
     src/music.cpp src/music.h
     src/chiptracker.cpp src/chiptracker.h
-    src/chipmood.cpp src/chipmood.h
-    ${ENGINE_SRC})
+    src/chipmood.cpp src/chipmood.h)
+
+# Qt Core only (the song and recipe parsers read JSON): no QML, no
+# Multimedia, no audio device. Static and position independent, so the
+# shared plugin on desktop links it as well as a static WASM/iOS build.
+add_library(ClaySoundEngine STATIC ${ENGINE_SRC})
+add_library(Clayground::SoundEngine ALIAS ClaySoundEngine)
+target_include_directories(ClaySoundEngine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(ClaySoundEngine PUBLIC Qt6::Core)
+target_compile_features(ClaySoundEngine PUBLIC cxx_std_17)
+set_target_properties(ClaySoundEngine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(EXTRA_LIBS Qt::Multimedia Qt::Network)
 if(NOT EMSCRIPTEN)
@@ -59,7 +69,7 @@ clay_plugin(Sound
     VERSION 1.0
     SOURCES ${CPP_SRC}
     QML_FILES MoodPlayer.qml
-    LINK_LIBS Qt::Core Qt::Quick Qt::Qml ${EXTRA_LIBS}
+    LINK_LIBS Qt::Core Qt::Quick Qt::Qml ${EXTRA_LIBS} ClaySoundEngine
 )
 
 target_include_directories(ClaySound PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)

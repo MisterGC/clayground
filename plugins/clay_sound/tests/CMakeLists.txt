@@ -6,25 +6,6 @@ find_package(Qt6 REQUIRED COMPONENTS Test Multimedia)
 
 add_executable(tst_clay_sound_engine
     tst_engine.cpp
-    ../src/engine/scheduler.cpp
-    ../src/engine/scheduler.h
-    ../src/engine/engine.cpp
-    ../src/engine/engine.h
-    ../src/engine/bus_effects.cpp
-    ../src/engine/bus_effects.h
-    ../src/engine/voice.h
-    ../src/engine/instrument.h
-    ../src/engine/note_event.h
-    ../src/engine/oscillator_voice.cpp
-    ../src/engine/oscillator_voice.h
-    ../src/engine/oscillator_instrument.cpp
-    ../src/engine/oscillator_instrument.h
-    ../src/engine/pcm_buffer.cpp
-    ../src/engine/pcm_buffer.h
-    ../src/engine/sample_voice.cpp
-    ../src/engine/sample_voice.h
-    ../src/engine/sampler_instrument.cpp
-    ../src/engine/sampler_instrument.h
     ../src/audio_devices.cpp
     ../src/audio_devices.h
     ../src/audio_output.cpp
@@ -46,6 +27,7 @@ target_compile_definitions(tst_clay_sound_engine PRIVATE
 )
 
 target_link_libraries(tst_clay_sound_engine PRIVATE
+    ClaySoundEngine
     Qt6::Core
     Qt6::Test
     Qt6::Qml
@@ -61,9 +43,6 @@ set_tests_properties(clay_sound_engine PROPERTIES LABELS "clay_sound;unit")
 
 add_executable(tst_clay_sound_song_parser
     tst_song_parser.cpp
-    ../src/song/song_model.h
-    ../src/song/song_parser.cpp
-    ../src/song/song_parser.h
 )
 
 set_target_properties(tst_clay_sound_song_parser PROPERTIES AUTOMOC ON)
@@ -73,6 +52,7 @@ target_include_directories(tst_clay_sound_song_parser PRIVATE
 )
 
 target_link_libraries(tst_clay_sound_song_parser PRIVATE
+    ClaySoundEngine
     Qt6::Core
     Qt6::Test
 )
@@ -90,20 +70,11 @@ add_executable(tst_clay_sound_song_player
     ../src/song_player.h
     ../src/source_url.cpp
     ../src/source_url.h
-    ../src/song/song_model.h
-    ../src/song/song_parser.cpp
-    ../src/song/song_parser.h
     # SongPlayer's volume is a gain stage of AudioOutput's engine.
     ../src/audio_devices.cpp
     ../src/audio_devices.h
     ../src/audio_output.cpp
     ../src/audio_output.h
-    ../src/engine/scheduler.cpp
-    ../src/engine/scheduler.h
-    ../src/engine/engine.cpp
-    ../src/engine/engine.h
-    ../src/engine/bus_effects.cpp
-    ../src/engine/bus_effects.h
 )
 
 set_target_properties(tst_clay_sound_song_player PROPERTIES AUTOMOC ON)
@@ -113,6 +84,7 @@ target_include_directories(tst_clay_sound_song_player PRIVATE
 )
 
 target_link_libraries(tst_clay_sound_song_player PRIVATE
+    ClaySoundEngine
     Qt6::Core
     Qt6::Qml
     Qt6::Test
@@ -134,25 +106,6 @@ add_executable(tst_clay_sound_synth_bake
     ../src/audio_output.h
     ../src/synth_instrument.cpp
     ../src/synth_instrument.h
-    ../src/engine/scheduler.cpp
-    ../src/engine/scheduler.h
-    ../src/engine/engine.cpp
-    ../src/engine/engine.h
-    ../src/engine/bus_effects.cpp
-    ../src/engine/bus_effects.h
-    ../src/engine/voice.h
-    ../src/engine/instrument.h
-    ../src/engine/note_event.h
-    ../src/engine/oscillator_voice.cpp
-    ../src/engine/oscillator_voice.h
-    ../src/engine/oscillator_instrument.cpp
-    ../src/engine/oscillator_instrument.h
-    ../src/engine/pcm_buffer.cpp
-    ../src/engine/pcm_buffer.h
-    ../src/engine/sample_voice.cpp
-    ../src/engine/sample_voice.h
-    ../src/engine/sampler_instrument.cpp
-    ../src/engine/sampler_instrument.h
     ../src/sample_instrument.cpp
     ../src/sample_instrument.h
 )
@@ -164,6 +117,7 @@ target_include_directories(tst_clay_sound_synth_bake PRIVATE
 )
 
 target_link_libraries(tst_clay_sound_synth_bake PRIVATE
+    ClaySoundEngine
     Qt6::Core
     Qt6::Qml
     Qt6::Test
@@ -188,21 +142,6 @@ add_executable(tst_clay_sound_synth_filter
     ../src/audio_output.h
     ../src/synth_instrument.cpp
     ../src/synth_instrument.h
-    ../src/engine/scheduler.cpp
-    ../src/engine/scheduler.h
-    ../src/engine/engine.cpp
-    ../src/engine/engine.h
-    ../src/engine/bus_effects.cpp
-    ../src/engine/bus_effects.h
-    ../src/engine/voice.h
-    ../src/engine/instrument.h
-    ../src/engine/note_event.h
-    ../src/engine/oscillator_voice.cpp
-    ../src/engine/oscillator_voice.h
-    ../src/engine/oscillator_instrument.cpp
-    ../src/engine/oscillator_instrument.h
-    ../src/engine/pcm_buffer.cpp
-    ../src/engine/pcm_buffer.h
 )
 
 set_target_properties(tst_clay_sound_synth_filter PROPERTIES AUTOMOC ON)
@@ -212,6 +151,7 @@ target_include_directories(tst_clay_sound_synth_filter PRIVATE
 )
 
 target_link_libraries(tst_clay_sound_synth_filter PRIVATE
+    ClaySoundEngine
     Qt6::Core
     Qt6::Qml
     Qt6::Test
@@ -242,22 +182,6 @@ add_executable(tst_clay_sound_mix
     ../src/bus_effect_objects.h
     ../src/synth_instrument.cpp
     ../src/synth_instrument.h
-    ../src/engine/bus.h
-    ../src/engine/scheduler.cpp
-    ../src/engine/scheduler.h
-    ../src/engine/engine.cpp
-    ../src/engine/engine.h
-    ../src/engine/bus_effects.cpp
-    ../src/engine/bus_effects.h
-    ../src/engine/voice.h
-    ../src/engine/instrument.h
-    ../src/engine/note_event.h
-    ../src/engine/oscillator_voice.cpp
-    ../src/engine/oscillator_voice.h
-    ../src/engine/oscillator_instrument.cpp
-    ../src/engine/oscillator_instrument.h
-    ../src/engine/pcm_buffer.cpp
-    ../src/engine/pcm_buffer.h
 )
 
 set_target_properties(tst_clay_sound_mix PROPERTIES AUTOMOC ON)
@@ -268,6 +192,7 @@ target_include_directories(tst_clay_sound_mix PRIVATE
 
 find_package(Qt6 REQUIRED COMPONENTS Network)
 target_link_libraries(tst_clay_sound_mix PRIVATE
+    ClaySoundEngine
     Qt6::Core
     Qt6::Network
     Qt6::Qml
@@ -295,26 +220,6 @@ add_executable(tst_clay_sound_voices
     ../src/sample_instrument.h
     ../src/synth_instrument.cpp
     ../src/synth_instrument.h
-    ../src/engine/bus.h
-    ../src/engine/scheduler.cpp
-    ../src/engine/scheduler.h
-    ../src/engine/engine.cpp
-    ../src/engine/engine.h
-    ../src/engine/bus_effects.cpp
-    ../src/engine/bus_effects.h
-    ../src/engine/voice.h
-    ../src/engine/instrument.h
-    ../src/engine/note_event.h
-    ../src/engine/oscillator_voice.cpp
-    ../src/engine/oscillator_voice.h
-    ../src/engine/oscillator_instrument.cpp
-    ../src/engine/oscillator_instrument.h
-    ../src/engine/pcm_buffer.cpp
-    ../src/engine/pcm_buffer.h
-    ../src/engine/sample_voice.cpp
-    ../src/engine/sample_voice.h
-    ../src/engine/sampler_instrument.cpp
-    ../src/engine/sampler_instrument.h
 )
 
 set_target_properties(tst_clay_sound_voices PROPERTIES AUTOMOC ON)
@@ -324,6 +229,7 @@ target_include_directories(tst_clay_sound_voices PRIVATE
 )
 
 target_link_libraries(tst_clay_sound_voices PRIVATE
+    ClaySoundEngine
     Qt6::Core
     Qt6::Qml
     Qt6::Test
@@ -353,22 +259,6 @@ add_executable(tst_clay_sound_effects
     ../src/sound_mixer.h
     ../src/synth_instrument.cpp
     ../src/synth_instrument.h
-    ../src/engine/bus.h
-    ../src/engine/bus_effects.cpp
-    ../src/engine/bus_effects.h
-    ../src/engine/scheduler.cpp
-    ../src/engine/scheduler.h
-    ../src/engine/engine.cpp
-    ../src/engine/engine.h
-    ../src/engine/voice.h
-    ../src/engine/instrument.h
-    ../src/engine/note_event.h
-    ../src/engine/oscillator_voice.cpp
-    ../src/engine/oscillator_voice.h
-    ../src/engine/oscillator_instrument.cpp
-    ../src/engine/oscillator_instrument.h
-    ../src/engine/pcm_buffer.cpp
-    ../src/engine/pcm_buffer.h
 )
 
 set_target_properties(tst_clay_sound_effects PROPERTIES AUTOMOC ON)
@@ -378,6 +268,7 @@ target_include_directories(tst_clay_sound_effects PRIVATE
 )
 
 target_link_libraries(tst_clay_sound_effects PRIVATE
+    ClaySoundEngine
     Qt6::Core
     Qt6::Qml
     Qt6::Test
@@ -405,31 +296,6 @@ add_executable(tst_clay_sound_sfx
     ../src/source_url.h
     ../src/sfx_player.cpp
     ../src/sfx_player.h
-    ../src/sfx/sfx_recipe.h
-    ../src/sfx/sfx_parser.cpp
-    ../src/sfx/sfx_parser.h
-    ../src/sfx/sfx_render.cpp
-    ../src/sfx/sfx_render.h
-    ../src/engine/bus.h
-    ../src/engine/bus_effects.cpp
-    ../src/engine/bus_effects.h
-    ../src/engine/scheduler.cpp
-    ../src/engine/scheduler.h
-    ../src/engine/engine.cpp
-    ../src/engine/engine.h
-    ../src/engine/voice.h
-    ../src/engine/instrument.h
-    ../src/engine/note_event.h
-    ../src/engine/oscillator_voice.cpp
-    ../src/engine/oscillator_voice.h
-    ../src/engine/oscillator_instrument.cpp
-    ../src/engine/oscillator_instrument.h
-    ../src/engine/pcm_buffer.cpp
-    ../src/engine/pcm_buffer.h
-    ../src/engine/sample_voice.cpp
-    ../src/engine/sample_voice.h
-    ../src/engine/sampler_instrument.cpp
-    ../src/engine/sampler_instrument.h
 )
 
 set_target_properties(tst_clay_sound_sfx PROPERTIES AUTOMOC ON)
@@ -444,6 +310,7 @@ target_compile_definitions(tst_clay_sound_sfx PRIVATE
 )
 
 target_link_libraries(tst_clay_sound_sfx PRIVATE
+    ClaySoundEngine
     Qt6::Core
     Qt6::Network
     Qt6::Qml
