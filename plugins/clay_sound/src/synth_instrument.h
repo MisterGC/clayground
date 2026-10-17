@@ -38,6 +38,15 @@ class SynthInstrument : public QObject
     Q_PROPERTY(qreal   lfoRate     READ lfoRate     WRITE setLfoRate     NOTIFY lfoRateChanged)
     Q_PROPERTY(qreal   lfoDepth    READ lfoDepth    WRITE setLfoDepth    NOTIFY lfoDepthChanged)
     Q_PROPERTY(QString lfoTarget   READ lfoTarget   WRITE setLfoTarget   NOTIFY lfoTargetChanged)
+    Q_PROPERTY(qreal   pulseWidth  READ pulseWidth  WRITE setPulseWidth  NOTIFY pulseWidthChanged)
+    Q_PROPERTY(QString filterType  READ filterType  WRITE setFilterType  NOTIFY filterTypeChanged)
+    Q_PROPERTY(qreal   cutoff      READ cutoff      WRITE setCutoff      NOTIFY cutoffChanged)
+    Q_PROPERTY(qreal   resonance   READ resonance   WRITE setResonance   NOTIFY resonanceChanged)
+    Q_PROPERTY(qreal   filterAttack    READ filterAttack    WRITE setFilterAttack    NOTIFY filterAttackChanged)
+    Q_PROPERTY(qreal   filterDecay     READ filterDecay     WRITE setFilterDecay     NOTIFY filterDecayChanged)
+    Q_PROPERTY(qreal   filterSustain   READ filterSustain   WRITE setFilterSustain   NOTIFY filterSustainChanged)
+    Q_PROPERTY(qreal   filterRelease   READ filterRelease   WRITE setFilterRelease   NOTIFY filterReleaseChanged)
+    Q_PROPERTY(qreal   filterEnvAmount READ filterEnvAmount WRITE setFilterEnvAmount NOTIFY filterEnvAmountChanged)
     Q_PROPERTY(qreal   volume      READ volume      WRITE setVolume      NOTIFY volumeChanged)
 
     Q_PROPERTY(int activeVoices READ activeVoices NOTIFY activeVoicesChanged)
@@ -68,6 +77,25 @@ public:
     void  setLfoDepth(qreal v);
     QString lfoTarget() const { return lfoTargetName_; }
     void    setLfoTarget(const QString &t);
+
+    qreal pulseWidth() const { return patch_.pulseWidth; }
+    void  setPulseWidth(qreal v);
+    QString filterType() const { return filterTypeName_; }
+    void    setFilterType(const QString &t);
+    qreal cutoff() const    { return patch_.cutoff; }
+    void  setCutoff(qreal v);
+    qreal resonance() const { return patch_.resonance; }
+    void  setResonance(qreal v);
+    qreal filterAttack() const    { return patch_.filterAttack; }
+    void  setFilterAttack(qreal v);
+    qreal filterDecay() const     { return patch_.filterDecay; }
+    void  setFilterDecay(qreal v);
+    qreal filterSustain() const   { return patch_.filterSustain; }
+    void  setFilterSustain(qreal v);
+    qreal filterRelease() const   { return patch_.filterRelease; }
+    void  setFilterRelease(qreal v);
+    qreal filterEnvAmount() const { return patch_.filterEnvAmount; }
+    void  setFilterEnvAmount(qreal v);
 
     qreal volume() const { return volume_; }
     void  setVolume(qreal v);
@@ -122,6 +150,15 @@ signals:
     void lfoRateChanged();
     void lfoDepthChanged();
     void lfoTargetChanged();
+    void pulseWidthChanged();
+    void filterTypeChanged();
+    void cutoffChanged();
+    void resonanceChanged();
+    void filterAttackChanged();
+    void filterDecayChanged();
+    void filterSustainChanged();
+    void filterReleaseChanged();
+    void filterEnvAmountChanged();
     void volumeChanged();
     void activeVoicesChanged();
 
@@ -149,6 +186,7 @@ private:
     clay::sound::OscillatorVoice::Patch patch_{};
     QString waveformName_  = "sine";
     QString lfoTargetName_ = "none";
+    QString filterTypeName_ = "none";
 
     qreal volume_ = 0.8;
     int   lastActive_ = 0;

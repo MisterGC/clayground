@@ -38,6 +38,15 @@ static int mapLfoTarget(const QString &name)
     return 0;
 }
 
+static cs::OscillatorVoice::FilterType mapFilterType(const QString &name)
+{
+    using F = cs::OscillatorVoice::FilterType;
+    if (name == "lowpass")  return F::LowPass;
+    if (name == "highpass") return F::HighPass;
+    if (name == "bandpass") return F::BandPass;
+    return F::Off;
+}
+
 SynthInstrument::SynthInstrument(QObject *parent)
     : QObject(parent)
 {
@@ -170,6 +179,86 @@ void SynthInstrument::setLfoTarget(const QString &t)
     emit lfoTargetChanged();
 }
 
+void SynthInstrument::setPulseWidth(qreal v)
+{
+    v = std::clamp(v, 0.05, 0.95);
+    if (patch_.pulseWidth == v) return;
+    patch_.pulseWidth = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit pulseWidthChanged();
+}
+
+void SynthInstrument::setFilterType(const QString &t)
+{
+    if (t == filterTypeName_) return;
+    filterTypeName_ = t;
+    patch_.filterType = mapFilterType(t);
+    oscInst_->setDefaultPatch(patch_);
+    emit filterTypeChanged();
+}
+
+void SynthInstrument::setCutoff(qreal v)
+{
+    v = std::clamp(v, 20.0, 20000.0);
+    if (patch_.cutoff == v) return;
+    patch_.cutoff = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit cutoffChanged();
+}
+
+void SynthInstrument::setResonance(qreal v)
+{
+    v = std::clamp(v, 0.0, 1.0);
+    if (patch_.resonance == v) return;
+    patch_.resonance = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit resonanceChanged();
+}
+
+void SynthInstrument::setFilterAttack(qreal v)
+{
+    v = std::max(0.0, v);
+    if (patch_.filterAttack == v) return;
+    patch_.filterAttack = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterAttackChanged();
+}
+
+void SynthInstrument::setFilterDecay(qreal v)
+{
+    v = std::max(0.0, v);
+    if (patch_.filterDecay == v) return;
+    patch_.filterDecay = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterDecayChanged();
+}
+
+void SynthInstrument::setFilterSustain(qreal v)
+{
+    v = std::clamp(v, 0.0, 1.0);
+    if (patch_.filterSustain == v) return;
+    patch_.filterSustain = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterSustainChanged();
+}
+
+void SynthInstrument::setFilterRelease(qreal v)
+{
+    v = std::max(0.0, v);
+    if (patch_.filterRelease == v) return;
+    patch_.filterRelease = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterReleaseChanged();
+}
+
+void SynthInstrument::setFilterEnvAmount(qreal v)
+{
+    if (patch_.filterEnvAmount == v) return;
+    patch_.filterEnvAmount = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterEnvAmountChanged();
+}
+
 void SynthInstrument::setVolume(qreal v)
 {
     v = std::clamp(v, 0.0, 1.0);
@@ -299,6 +388,15 @@ QString SynthInstrument::bake(int midiNote, qreal durationSeconds, qreal velocit
     signature += QByteArray::number(patch_.lfoRate,    'g', 6) + '|';
     signature += QByteArray::number(patch_.lfoDepth,   'g', 6) + '|';
     signature += lfoTargetName_.toUtf8() + '|';
+    signature += QByteArray::number(patch_.pulseWidth,      'g', 6) + '|';
+    signature += filterTypeName_.toUtf8() + '|';
+    signature += QByteArray::number(patch_.cutoff,          'g', 6) + '|';
+    signature += QByteArray::number(patch_.resonance,       'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterAttack,    'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterDecay,     'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterSustain,   'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterRelease,   'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterEnvAmount, 'g', 6) + '|';
     signature += QByteArray::number(midiNote) + '|';
     signature += QByteArray::number(durationSeconds, 'g', 6) + '|';
     signature += QByteArray::number(velocity, 'g', 6);
