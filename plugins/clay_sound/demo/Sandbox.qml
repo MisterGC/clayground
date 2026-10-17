@@ -402,6 +402,83 @@ Rectangle {
                 }
             }
 
+            // Recipe Lab — SfxPlayer
+            Rectangle {
+                width: parent.width
+                height: recipeColumn.height + 30
+                color: root.surfaceColor
+                radius: 8
+
+                // lock_picker's wheel detent - four layers that were four
+                // SynthInstruments in its Sfx.qml - as one recipe file.
+                SfxPlayer {
+                    id: detent
+                    source: "sfx/wheel-detent.sfx.json"
+                    volume: volumeSlider.value
+                    onParseError: (msg) => statusText.text = "Recipe error: " + msg
+                    onHotReloaded: statusText.text = "Recipe hot-reloaded"
+                }
+                // A fast spin: steps closer than 40 ms play softer, as a
+                // real ratchet blurs when spun (lock_picker's rule).
+                Timer {
+                    id: spin
+                    property int left: 0
+                    interval: 35
+                    repeat: true
+                    onTriggered: {
+                        detent.play(0.6)
+                        if (--left <= 0) stop()
+                    }
+                }
+
+                Column {
+                    id: recipeColumn
+                    anchors.centerIn: parent
+                    spacing: 10
+                    width: parent.width - 30
+                    Text {
+                        text: "Recipe Lab — SfxPlayer"
+                        color: root.accentColor
+                        font.family: root.monoFont
+                        font.bold: true
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                    Text {
+                        text: "source: " + detent.source + "  (edit live; hot-reloads)"
+                        color: root.dimTextColor
+                        font.family: root.monoFont
+                        font.pixelSize: 11
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        wrapMode: Text.Wrap
+                        width: parent.width
+                        horizontalAlignment: Text.AlignHCenter
+                    }
+                    Row {
+                        anchors.horizontalCenter: parent.horizontalCenter
+                        spacing: 8
+                        Button { text: "Detent"
+                                 enabled: detent.loaded
+                                 onClicked: statusText.text = "detent, seed " + detent.play() }
+                        Button { text: "Spin (12x)"
+                                 enabled: detent.loaded
+                                 onClicked: { spin.left = 12; spin.start() } }
+                        Button { text: "Replay last"
+                                 enabled: detent.lastSeed >= 0
+                                 onClicked: detent.playSeed(detent.lastSeed) }
+                    }
+                    Text {
+                        text: detent.loaded
+                              ? detent.name + ": " + detent.layers + " layers, pool of "
+                                + detent.pool + ", last seed " + detent.lastSeed
+                              : "not loaded: " + detent.error
+                        color: detent.loaded ? root.dimTextColor : "#f87171"
+                        font.family: root.monoFont
+                        font.pixelSize: 11
+                        anchors.horizontalCenter: parent.horizontalCenter
+                    }
+                }
+            }
+
             // Bake Lab
             Rectangle {
                 width: parent.width
