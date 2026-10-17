@@ -328,3 +328,58 @@ set_tests_properties(clay_sound_sfx PROPERTIES
     LABELS "clay_sound;unit"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+# ----------------------------------------------------------------------
+# The engine outside QML (#429): a program built against
+# Clayground::SoundEngine alone renders the demo recipe and song to wav,
+# and the QML players' offline renders hold the same samples.
+# ----------------------------------------------------------------------
+
+add_subdirectory(outside)
+
+add_executable(tst_clay_sound_outside
+    tst_render_outside.cpp
+    ../src/audio_devices.cpp
+    ../src/audio_devices.h
+    ../src/audio_output.cpp
+    ../src/audio_output.h
+    ../src/source_url.cpp
+    ../src/source_url.h
+    ../src/sfx_player.cpp
+    ../src/sfx_player.h
+    ../src/song_player.cpp
+    ../src/song_player.h
+    ../src/synth_instrument.cpp
+    ../src/synth_instrument.h
+    ../src/sample_instrument.cpp
+    ../src/sample_instrument.h
+)
+
+set_target_properties(tst_clay_sound_outside PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_clay_sound_outside PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(tst_clay_sound_outside PRIVATE
+    CLAY_SOUND_DEMO_SFX="${CMAKE_CURRENT_SOURCE_DIR}/../demo/sfx/wheel-detent.sfx.json"
+    CLAY_SOUND_DEMO_SONG="${CMAKE_CURRENT_SOURCE_DIR}/../demo/songs/demo.song.json"
+    CLAY_SOUND_RENDER_DEMO="$<TARGET_FILE:clay_sound_render_demo>"
+)
+
+add_dependencies(tst_clay_sound_outside clay_sound_render_demo)
+
+target_link_libraries(tst_clay_sound_outside PRIVATE
+    ClaySoundEngine
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    Qt6::Multimedia
+)
+
+add_test(NAME clay_sound_outside COMMAND tst_clay_sound_outside)
+set_tests_properties(clay_sound_outside PROPERTIES
+    LABELS "clay_sound;unit"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
