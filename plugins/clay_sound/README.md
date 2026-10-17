@@ -168,6 +168,11 @@ Defaults: `dur=0.5` beats, `vel=0.8`.
 `volume` (0..1, default 1) scales every note the player triggers, on
 whichever instrument, also while the notes ring: animate it to fade a song.
 
+`renderOffline(seconds)` renders the song on an engine of its own with the
+instruments' current patches, the player's `volume` and `loop`: mono
+samples at 44.1 kHz, every note on its exact frame (live, a note starts on
+the 10 ms tick it falls into). `seconds` 0 renders the song's length.
+
 ### SfxPlayer and effect recipes
 
 An effect recipe (`*.sfx.json`) describes a sound effect as a stack of
@@ -307,6 +312,54 @@ ran its FIR at 32 kHz), so a SNES coefficient set filters at somewhat
 higher frequencies here. The echo runs before the reverb, and both before
 the bus volume. Turning an effect off drops its tail; on again, it starts
 from silence. The effects play the same way live and in an offline render.
+
+## The engine without QML
+
+A C++ program links the engine as `Clayground::SoundEngine` - a static
+library that needs Qt Core only, no QML, no Multimedia, no audio device -
+and includes `clay_sound_engine.h`. A project that builds clayground with
+`add_subdirectory(../clayground ...)`, as shapes-and-stone does, gets the
+target with it.
+
+```cmake
+target_link_libraries(my_renderer PRIVATE Clayground::SoundEngine)
+```
+
+```cpp
+#include "clay_sound_engine.h"
+namespace cs = clay::sound;
+
+cs::RecipeFile detent;                          // the recipe and its samples
+cs::loadRecipe("sfx/wheel-detent.sfx.json", &detent);
+auto fx = cs::renderRecipe(detent.recipe, detent.samples, seed,
+                           1.0f, 1.0f, 0.0f, cs::kSampleRate, false);
+cs::writeWav("detent.wav", fx, 1, cs::kSampleRate);
+
+cs::SongModel song;
+cs::loadSong("songs/demo.song.json", &song);
+cs::SongInstruments inst;                       // by the names the tracks bind
+inst["demoLead"].synth.waveform = cs::OscillatorVoice::Waveform::Triangle;
+inst["demoBass"].synth.waveform = cs::OscillatorVoice::Waveform::Sawtooth;
+auto music = cs::renderSong(song, inst, 0.0, 1.0f, false, cs::kSampleRate, false);
+cs::writeWav("song.wav", music, 1, cs::kSampleRate, cs::WavFormat::Pcm16);
+```
+
+| Call | Does |
+|---|---|
+| `loadRecipe(path, &file, &error)` | parses a `*.sfx.json` and decodes its sample layers, each relative to the recipe |
+| `loadSong(path, &model, &error)` | parses a v1 `.song.json` |
+| `renderRecipe(recipe, samples, seed, velocity, gain, pan, rate, stereo, seconds)` | the samples `SfxPlayer.renderOffline(seed)` returns at that `volume` and `pan`; `seconds` 0 = until the last layer ends |
+| `renderSong(model, instruments, seconds, volume, loop, rate, stereo)` | the samples `SongPlayer.renderOffline(seconds)` returns; `seconds` 0 = the song's length |
+| `writeWav(path, samples, channels, rate, format, &error)` | 32-bit float (default, the samples exactly) or 16-bit wav; stereo samples interleaved |
+
+A v1 song names its instruments but does not define them, so the program
+gives each name an `InstrumentSpec`: the patch of a `SynthInstrument`
+(`synth`, an `OscillatorVoice::Patch`) or the sample, root note and patch
+of a `SampleInstrument`, with `gain` (the QML `volume`), `pan`, `bus` and
+`maxVoices`. The same seed or the same song and instruments render the same
+samples as the QML players on the same machine - `tst_clay_sound_outside`
+compares the two sample for sample. As in the QML offline renders, the bus
+volume, echo and reverb are not applied.
 
 ## Platform Support
 

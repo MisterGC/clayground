@@ -482,6 +482,18 @@
     \qmlmethod void SongPlayer::stop()
     \qmlmethod void SongPlayer::seek(real beats)
 
+    \qmlmethod list<real> SongPlayer::renderOffline(real seconds)
+    \a seconds of the song from its start (0 or less: its length,
+    \l totalBeats at \l tempo) as mono samples (the (L + R) / 2 downmix,
+    clamped to -1..1) at 44.1 kHz, with the bound instruments' current
+    patches and the player's \l volume and \l loop. Every note starts on
+    its exact frame, where live playback starts it on the tick it falls
+    into. Renders on an engine of its own and does not touch the live
+    sound or the playhead. Only SynthInstrument and SampleInstrument
+    play here; the bus volume, echo and reverb are not part of it. A C++
+    program without QML renders the same samples through \c renderSong()
+    of \c Clayground::SoundEngine.
+
     \section1 Signals
 
     \qmlsignal SongPlayer::finished()
