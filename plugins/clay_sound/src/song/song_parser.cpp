@@ -267,6 +267,12 @@ static bool parseInstrument(const QJsonObject &o, const QString &path, SongInstr
     InstrumentSpec &spec = out->spec;
     spec.gain = 1.0f;
     spec.bus = Bus::Music;
+    // A field left out means what it means in a recipe layer: no attack,
+    // decay or release, full sustain (a sampler's patch starts there too).
+    spec.synth.attack  = sfxParamInfo(P::Attack).def / 1000.0;
+    spec.synth.decay   = sfxParamInfo(P::Decay).def / 1000.0;
+    spec.synth.sustain = sfxParamInfo(P::Sustain).def;
+    spec.synth.release = sfxParamInfo(P::Release).def / 1000.0;
 
     QString source;
     if (!o.contains("source")) return fail(errorOut, path, QStringLiteral("needs a 'source'"));

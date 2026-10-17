@@ -358,10 +358,14 @@ void TestSongParser::v2WithoutSegmentsPlaysOneSegment()
     QCOMPARE(r.model.segments.size(), 1);
     QVERIFY(r.model.segments.value("main").next.isEmpty());   // the song ends after it
     QCOMPARE(clay::sound::segmentBeats(r.model, "main"), 12.0);
-    // An instrument without numbers plays the default patch at unity.
+    // An instrument without numbers plays at unity with a recipe layer's
+    // defaults: no attack, decay or release, full sustain.
     const auto spec = r.model.instruments.value("i").spec;
     QCOMPARE(spec.gain, 1.0f);
-    QCOMPARE(spec.synth.attack, clay::sound::OscillatorVoice::Patch{}.attack);
+    QCOMPARE(spec.synth.attack, 0.0);
+    QCOMPARE(spec.synth.decay, 0.0);
+    QCOMPARE(spec.synth.sustain, 1.0);
+    QCOMPARE(spec.synth.release, 0.0);
 }
 
 void TestSongParser::v2KeysNeedVersion2()

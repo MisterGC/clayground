@@ -205,7 +205,9 @@ needs. `demo/songs/adaptive.song.json` uses all of it:
 
 - **Instruments** take an effect recipe layer's fields and units (`source`,
   `envelope` in ms, `pitch`, `filter`, `pulseWidth`, `lfo`, `gain` in dB up
-  to 0, `pan`) plus `bus` (default `music`) and `maxVoices`. A sample
+  to 0, `pan`) plus `bus` (default `music`) and `maxVoices`, with a recipe
+  layer's defaults for what is left out: no attack, decay or release, full
+  sustain, 0 dB, centred. A sample
   instrument names its `sample` (a WAV relative to the song file), its
   `root` note, `interpolation` and `loop` (`true` or `{ "start", "end" }`
   as fractions). Every track plays a defined instrument; `instruments` on

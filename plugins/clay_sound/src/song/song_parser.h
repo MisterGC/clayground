@@ -37,8 +37,9 @@
 //     "transitions": [ { "from": "explore", "to": "combat", "sync": "bar", "stinger": "alarm" } ],
 //     "stingers": { "alarm": { "pattern": "S", "sync": "beat" } }
 //   }
-// An instrument takes an effect recipe layer's fields and units (ms, dB,
-// Hz, semitones) plus "bus" (default music) and "maxVoices"; a sample
+// An instrument takes an effect recipe layer's fields, units (ms, dB,
+// Hz, semitones) and defaults (no attack, decay or release, full
+// sustain) plus "bus" (default music) and "maxVoices"; a sample
 // instrument takes "sample" (relative to the song file), "root",
 // "interpolation" and "loop". Every track plays a defined instrument.
 // A v2 pattern lasts whole bars. Without "segments" the sections (at
