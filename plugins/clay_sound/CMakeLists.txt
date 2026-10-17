@@ -41,6 +41,7 @@ set(CPP_SRC
     src/sample_instrument.cpp src/sample_instrument.h
     src/source_url.cpp src/source_url.h
     src/song_player.cpp src/song_player.h
+    src/sfx_player.cpp src/sfx_player.h
     src/sound_mixer.cpp src/sound_mixer.h
     src/bus_effect_objects.cpp src/bus_effect_objects.h
     src/sound.cpp src/sound.h
