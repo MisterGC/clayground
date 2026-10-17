@@ -12,7 +12,7 @@
     \li \l SynthInstrument - Real-time oscillator voice with ADSR/pitch env/LFO and a resonant filter
     \li \l SampleInstrument - PCM sample playback with loop points and root note
     \li \l SongPlayer - Plays a \c .song.json pattern file against instruments
-    \li \l SoundMixer - The volume of each bus: sound effects, music, voices
+    \li \l SoundMixer - The volume, echo and reverb of each bus: sound effects, music, voices
     \endlist
 
     \section1 Stereo, pan and buses
@@ -500,7 +500,7 @@
 /*!
     \qmltype SoundMixer
     \inqmlmodule Clayground.Sound
-    \brief The volume of each mixer bus: sound effects, music and voices.
+    \brief The volume, echo and reverb of each mixer bus: sound effects, music and voices.
 
     A singleton. Every instrument mixes into one of three buses, chosen by
     its \c bus property; the bus volume scales all of it. The volumes
@@ -525,5 +525,109 @@
     \qmlproperty real SoundMixer::voiceVolume
     Volume of the \c "voice" bus, 0..1, default 1.
 
-    \sa SynthInstrument, SampleInstrument, SongPlayer
+    \qmlproperty EchoEffect SoundMixer::sfxEcho
+    The echo of the \c "sfx" bus. Off by default.
+
+    \qmlproperty EchoEffect SoundMixer::musicEcho
+    The echo of the \c "music" bus. Off by default.
+
+    \qmlproperty EchoEffect SoundMixer::voiceEcho
+    The echo of the \c "voice" bus. Off by default.
+
+    \qmlproperty ReverbEffect SoundMixer::sfxReverb
+    The reverb of the \c "sfx" bus. Off by default.
+
+    \qmlproperty ReverbEffect SoundMixer::musicReverb
+    The reverb of the \c "music" bus. Off by default.
+
+    \qmlproperty ReverbEffect SoundMixer::voiceReverb
+    The reverb of the \c "voice" bus. Off by default.
+
+    \sa SynthInstrument, SampleInstrument, SongPlayer, EchoEffect, ReverbEffect
+*/
+
+/*!
+    \qmltype EchoEffect
+    \inqmlmodule Clayground.Sound
+    \brief The SNES-style echo of one bus: a delay, feedback and an 8-tap FIR filter.
+
+    Not created in QML; every bus has one, reached through \l SoundMixer
+    (\c sfxEcho, \c musicEcho, \c voiceEcho). The bus mix is written into
+    a delay line; the delayed signal runs through the FIR filter, whose
+    output is added to the bus at \l volume and fed back into the line at
+    \l feedback. A low-pass FIR darkens every repeat a little more than
+    the one before.
+
+    The echo runs before the bus's reverb and before its volume. Turning
+    it off drops its tail; turning it on again starts from silence. Its
+    values belong to the process-wide engine.
+
+    \qml
+    import Clayground.Sound
+
+    Component.onCompleted: {
+        SoundMixer.musicEcho.delay = 120
+        SoundMixer.musicEcho.feedback = 0.5
+        SoundMixer.musicEcho.fir = [0.25, 0.25, 0.25, 0.25]
+        SoundMixer.musicEcho.enabled = true
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty bool EchoEffect::enabled
+    Whether the echo runs. Default \c false: the bus sounds as without it.
+
+    \qmlproperty real EchoEffect::delay
+    Time from a sound to its first repeat in milliseconds, 1..1000,
+    default 120.
+
+    \qmlproperty real EchoEffect::feedback
+    Share of the filtered echo written back into the delay line, -1..1,
+    default 0.5. With the default taps every repeat is this times the
+    one before; a negative value flips the sign of every other repeat.
+
+    \qmlproperty real EchoEffect::volume
+    Level at which the filtered echo is added to the bus, 0..1, default 0.5.
+
+    \qmlproperty list<real> EchoEffect::fir
+    The eight FIR coefficients, -1..1 each, tap 0 the newest sample.
+    Default \c {[1, 0, 0, 0, 0, 0, 0, 0]}, which passes the delayed signal
+    unchanged. Fewer than eight values leave the remaining taps 0; more
+    are refused with a warning. The taps are consecutive samples at the
+    engine's rate. Taps that sum to more than 1 can make the repeats grow;
+    the delay line clips, so they cannot run away.
+
+    \sa SoundMixer, ReverbEffect
+*/
+
+/*!
+    \qmltype ReverbEffect
+    \inqmlmodule Clayground.Sound
+    \brief The small reverb of one bus.
+
+    Not created in QML; every bus has one, reached through \l SoundMixer
+    (\c sfxReverb, \c musicReverb, \c voiceReverb). A Schroeder reverb in
+    the Freeverb pattern: four damped feedback combs and two allpasses per
+    channel, fed the mono sum of the bus. The right channel's delays are a
+    little longer than the left's, so the tail is wide.
+
+    The reverb runs after the bus's echo and before its volume. Turning
+    it off drops its tail.
+
+    \section1 Properties
+
+    \qmlproperty bool ReverbEffect::enabled
+    Whether the reverb runs. Default \c false.
+
+    \qmlproperty real ReverbEffect::roomSize
+    Length of the tail, 0..1, default 0.5.
+
+    \qmlproperty real ReverbEffect::damping
+    How fast the high frequencies die in the tail, 0..1, default 0.5.
+
+    \qmlproperty real ReverbEffect::volume
+    Level of the reverberated signal added to the bus, 0..1, default 0.3.
+
+    \sa SoundMixer, EchoEffect
 */

@@ -187,6 +187,36 @@ SoundMixer.voiceVolume = 0.8
 `Music` (the `QMediaPlayer`-based type) does not play on the engine, but it
 follows the music bus: it plays at its `volume` times `SoundMixer.musicVolume`.
 
+### Echo and reverb per bus
+
+Every bus has an echo and a small reverb, both off by default; a bus with
+neither on sounds exactly as before. The echo is the SNES one: a delay line
+whose output runs through an 8-tap FIR filter, is added to the bus and is
+fed back into the line. A low-pass FIR makes every repeat darker than the
+one before - the warm SNES echo. The reverb is a small Schroeder reverb
+(four damped combs and two allpasses per channel).
+
+```qml
+SoundMixer.musicEcho.enabled = true
+SoundMixer.musicEcho.delay = 120          // ms, 1..1000
+SoundMixer.musicEcho.feedback = 0.5       // -1..1, each repeat this times the last
+SoundMixer.musicEcho.volume = 0.5         // 0..1, level of the echo on the bus
+SoundMixer.musicEcho.fir = [0.25, 0.25, 0.25, 0.25]   // 8 taps, missing ones 0
+
+SoundMixer.sfxReverb.enabled = true
+SoundMixer.sfxReverb.roomSize = 0.5       // 0..1, length of the tail
+SoundMixer.sfxReverb.damping = 0.5        // 0..1, how fast the highs die
+SoundMixer.sfxReverb.volume = 0.3         // 0..1
+```
+
+The default taps `[1, 0, 0, 0, 0, 0, 0, 0]` pass the delayed signal as is,
+so repeat *n* plays at `volume * feedback^(n-1)`, `n * delay` after the
+note. The taps are consecutive samples at the engine's 44.1 kHz (the SNES
+ran its FIR at 32 kHz), so a SNES coefficient set filters at somewhat
+higher frequencies here. The echo runs before the reverb, and both before
+the bus volume. Turning an effect off drops its tail; on again, it starts
+from silence. The effects play the same way live and in an offline render.
+
 ## Platform Support
 
 - **WASM**: full support — the same QAudioSink-driven engine as desktop,
