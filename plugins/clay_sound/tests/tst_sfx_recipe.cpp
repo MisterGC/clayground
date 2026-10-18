@@ -4,6 +4,7 @@
 // name, one seed renders the same samples every time and live playback
 // renders the samples renderOffline() does, a play transposed by n
 // semitones is the recipe with every layer's detune raised by n (#439),
+// stop() ends a playing recipe within its layers' release (#441),
 // and the values other seeds play with stay inside the declared ranges
 // - drawn and measured on the render (pitch by zero crossings, gain by
 // RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
@@ -100,6 +101,7 @@ private slots:
     void livePlaybackRendersWhatRenderOfflineReturns();
     void playerResolvesSamplesNextToTheRecipe();
     void detuneTransposesEveryLayer();
+    void stopEndsTheVoicesWithinTheirRelease();
     void hotReloadKeepsTheLastGoodRecipe();
 };
 
@@ -507,6 +509,81 @@ void SfxRecipeTest::detuneTransposesEveryLayer()
     QVERIFY(played);
     const auto down = offline(base.get(), 4, 1.0, -12.0);
     QCOMPARE(listen(down.size()), down);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+}
+
+// A held sine, a held square that starts later and a sample: the
+// longest release is the square's 50 ms.
+static const char *kHeldRecipe = R"({"variation": {"seed": 5}, "layers": [
+    {"source": "sine", "freq": 220, "length": 2000,
+     "envelope": {"attack": 5, "decay": 0, "sustain": 0.8, "release": 30}},
+    {"source": "square", "freq": 330, "length": 1500, "offset": 400,
+     "envelope": {"attack": 5, "decay": 0, "sustain": 0.6, "release": 50}},
+    {"source": "sample", "sample": "hit.wav", "envelope": {"release": 10}}]})";
+
+void SfxRecipeTest::stopEndsTheVoicesWithinTheirRelease()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QVERIFY(QFile::copy(CLAY_SOUND_DEMO_WAV, dir.filePath("hit.wav")));
+    QFile f(dir.filePath("held.sfx.json"));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(kHeldRecipe);
+    f.close();
+
+    QQmlEngine qml;
+    std::unique_ptr<QObject> empty(createPlayer(qml, QUrl()));
+    QVERIFY(empty);
+    QVERIFY(QMetaObject::invokeMethod(empty.get(), "stop"));   // nothing loaded: nothing to end
+
+    std::unique_ptr<QObject> player(createPlayer(qml, QUrl::fromLocalFile(f.fileName())));
+    QVERIFY(player);
+    QVERIFY2(player->property("loaded").toBool(), qPrintable(player->property("error").toString()));
+
+    auto &eng = cs::AudioOutput::instance().engine();
+    QCOMPARE(eng.activeVoices(), size_t(0));
+    auto listen = [&eng](double seconds) {
+        std::vector<float> live(static_cast<size_t>(std::llround(seconds * kRate)));
+        for (size_t at = 0; at < live.size(); at += 882) {
+            const int n = static_cast<int>(std::min<size_t>(882, live.size() - at));
+            eng.renderOffline(live.data() + at, n);
+        }
+        return live;
+    };
+    auto peak = [](const std::vector<float> &buf) {
+        float m = 0.0f;
+        for (float s : buf) m = std::max(m, std::abs(s));
+        return m;
+    };
+
+    int seed = -1;
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "play", Q_RETURN_ARG(int, seed)));
+    QVERIFY(seed >= 0);
+    QVERIFY(rms(listen(0.1), 0, 4410) > 0.05);
+    QCOMPARE(eng.activeVoices(), size_t(2));   // the sine and the sample; the square is pending
+    QCOMPARE(eng.pendingEvents(), size_t(1));
+
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "stop"));
+    QCOMPARE(eng.pendingEvents(), size_t(0));
+    // A release, not a cut: the first milliseconds still sound.
+    const auto release = listen(0.05);
+    QVERIFY(rms(release, 0, 220) > 0.05);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+    // Once the longest release has passed, the player is silent: the
+    // square that was to start at 400 ms never does.
+    QCOMPARE(peak(listen(1.0)), 0.0f);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+
+    // A new play() sounds again, the samples renderOffline() returns.
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "play", Q_RETURN_ARG(int, seed)));
+    QVector<float> offline;
+    QMetaObject::invokeMethod(player.get(), "renderOffline", Q_RETURN_ARG(QVector<float>, offline),
+                              Q_ARG(int, seed), Q_ARG(qreal, 1.0));
+    QCOMPARE(offline.size(), qsizetype(std::llround(2.0 * kRate)));
+    auto live = listen(2.0);
+    for (auto &s : live) s = std::clamp(s, -1.0f, 1.0f);
+    QCOMPARE(QVector<float>(live.begin(), live.end()), offline);
+    QVERIFY(rms(live, 0, live.size()) > 0.05);
     QCOMPARE(eng.activeVoices(), size_t(0));
 }
 
