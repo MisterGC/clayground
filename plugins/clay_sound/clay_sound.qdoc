@@ -623,18 +623,24 @@
 
     \section1 Methods
 
-    \qmlmethod int SfxPlayer::play(real velocity)
+    \qmlmethod int SfxPlayer::play(real velocity, real detune)
     Plays the next variation and returns its seed, or -1 when nothing is
-    loaded. \a velocity (0..1, default 1) scales every layer.
+    loaded. \a velocity (0..1, default 1) scales every layer. \a detune
+    (semitones, default 0) transposes every layer, oscillator and sample:
+    the play sounds as the recipe would with every layer's \c detune
+    raised by it, so one recipe plays a scale.
 
-    \qmlmethod bool SfxPlayer::playSeed(int seed, real velocity)
-    Plays the variation of \a seed. Returns false when nothing is loaded.
+    \qmlmethod bool SfxPlayer::playSeed(int seed, real velocity, real detune)
+    Plays the variation of \a seed, at \a velocity and transposed by
+    \a detune semitones as in \l play(). Returns false when nothing is
+    loaded.
 
     \qmlmethod int SfxPlayer::variationSeed(int index)
     The seed the \a{index}-th \l play() since the recipe loaded uses.
 
-    \qmlmethod list<real> SfxPlayer::renderOffline(int seed, real velocity)
-    What \l playSeed() of \a seed at \a velocity sends into its bus, as mono
+    \qmlmethod list<real> SfxPlayer::renderOffline(int seed, real velocity, real detune)
+    What \l playSeed() of \a seed at \a velocity and \a detune (semitones,
+    default 0) sends into its bus, as mono
     samples (the (L + R) / 2 downmix, clamped to -1..1) at 44.1 kHz, from
     the first layer's start to the last layer's end, at the player's
     \l volume and \l pan. Renders on an engine of its own and does not
