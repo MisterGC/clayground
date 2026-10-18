@@ -2,10 +2,11 @@
 //
 // Effect recipes (#428): the parser rejects an unknown field by its
 // name, one seed renders the same samples every time and live playback
-// renders the samples renderOffline() does, and the values other seeds
-// play with stay inside the declared ranges - drawn and measured on the
-// render (pitch by zero crossings, gain by RMS, pan by the channel
-// ratio, offset by the onset). Sample equality is only asserted between
+// renders the samples renderOffline() does, a play transposed by n
+// semitones is the recipe with every layer's detune raised by n (#439),
+// and the values other seeds play with stay inside the declared ranges
+// - drawn and measured on the render (pitch by zero crossings, gain by
+// RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
 // renders on the same machine.
 
 #include "audio_output.h"
@@ -98,6 +99,7 @@ private slots:
     void sampleLayerPlaysTheWav();
     void livePlaybackRendersWhatRenderOfflineReturns();
     void playerResolvesSamplesNextToTheRecipe();
+    void detuneTransposesEveryLayer();
     void hotReloadKeepsTheLastGoodRecipe();
 };
 
@@ -425,6 +427,87 @@ void SfxRecipeTest::playerResolvesSamplesNextToTheRecipe()
     QVERIFY(!player->property("loaded").toBool());
     QVERIFY2(player->property("error").toString().startsWith("layers[1].sample: cannot open"),
              qPrintable(player->property("error").toString()));
+}
+
+// One sine, one noise and one sample layer, each with a detune of its
+// own and a varied one; %1 is added to every layer's detune.
+static QByteArray detuneRecipe(int up)
+{
+    return QStringLiteral(R"({"variation": {"seed": 7}, "layers": [
+        {"source": "sine", "freq": 330, "length": 40, "detune": %1,
+         "vary": {"detune": [-1, 1]}},
+        {"source": "noise", "length": 20, "detune": %2},
+        {"source": "sample", "sample": "hit.wav", "detune": %3,
+         "vary": {"detune": [-0.5, 0.5]}}]})")
+        .arg(3 + up).arg(-2 + up).arg(-5 + up).toUtf8();
+}
+
+void SfxRecipeTest::detuneTransposesEveryLayer()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QVERIFY(QFile::copy(CLAY_SOUND_DEMO_WAV, dir.filePath("hit.wav")));
+    auto write = [&dir](const QString &name, const QByteArray &json) {
+        QFile f(dir.filePath(name));
+        if (!f.open(QIODevice::WriteOnly)) return false;
+        f.write(json);
+        return true;
+    };
+    QVERIFY(write("base.sfx.json", detuneRecipe(0)));
+    QVERIFY(write("up12.sfx.json", detuneRecipe(12)));
+
+    QQmlEngine qml;
+    std::unique_ptr<QObject> base(createPlayer(qml, QUrl::fromLocalFile(dir.filePath("base.sfx.json"))));
+    std::unique_ptr<QObject> up(createPlayer(qml, QUrl::fromLocalFile(dir.filePath("up12.sfx.json"))));
+    QVERIFY(base && up);
+    QVERIFY2(base->property("loaded").toBool(), qPrintable(base->property("error").toString()));
+    QVERIFY2(up->property("loaded").toBool(), qPrintable(up->property("error").toString()));
+
+    auto offline = [](QObject *p, int seed, qreal velocity, qreal detune) {
+        QVector<float> out;
+        QMetaObject::invokeMethod(p, "renderOffline", Q_RETURN_ARG(QVector<float>, out),
+                                  Q_ARG(int, seed), Q_ARG(qreal, velocity), Q_ARG(qreal, detune));
+        return out;
+    };
+    for (int seed : {1, 2, 99}) {
+        const auto shifted = offline(base.get(), seed, 1.0, 12.0);
+        QVERIFY(!shifted.isEmpty());
+        QCOMPARE(shifted, offline(up.get(), seed, 1.0, 0.0));
+        QVERIFY(shifted != offline(base.get(), seed, 1.0, 0.0));
+
+        // Without a detune nothing changes.
+        QVector<float> plain;
+        QMetaObject::invokeMethod(base.get(), "renderOffline", Q_RETURN_ARG(QVector<float>, plain),
+                                  Q_ARG(int, seed), Q_ARG(qreal, 1.0));
+        QCOMPARE(plain, offline(base.get(), seed, 1.0, 0.0));
+    }
+
+    // Live: play() and playSeed() with a detune render what renderOffline()
+    // with it returns.
+    auto &eng = cs::AudioOutput::instance().engine();
+    auto listen = [&eng](qsizetype frames) {
+        std::vector<float> live(static_cast<size_t>(frames));
+        for (size_t at = 0; at < live.size(); at += 882) {
+            const int n = static_cast<int>(std::min<size_t>(882, live.size() - at));
+            eng.renderOffline(live.data() + at, n);
+        }
+        for (auto &s : live) s = std::clamp(s, -1.0f, 1.0f);
+        return QVector<float>(live.begin(), live.end());
+    };
+    int seed = -1;
+    QVERIFY(QMetaObject::invokeMethod(base.get(), "play", Q_RETURN_ARG(int, seed),
+                                      Q_ARG(qreal, 0.8), Q_ARG(qreal, 7.0)));
+    const auto expected = offline(base.get(), seed, 0.8, 7.0);
+    QCOMPARE(listen(expected.size()), expected);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+
+    bool played = false;
+    QVERIFY(QMetaObject::invokeMethod(base.get(), "playSeed", Q_RETURN_ARG(bool, played),
+                                      Q_ARG(int, 4), Q_ARG(qreal, 1.0), Q_ARG(qreal, -12.0)));
+    QVERIFY(played);
+    const auto down = offline(base.get(), 4, 1.0, -12.0);
+    QCOMPARE(listen(down.size()), down);
+    QCOMPARE(eng.activeVoices(), size_t(0));
 }
 
 void SfxRecipeTest::hotReloadKeepsTheLastGoodRecipe()
