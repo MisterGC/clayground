@@ -82,21 +82,22 @@ void SfxPlayer::setBus(const QString &name)
 
 // --- playing -------------------------------------------------------------
 
-int SfxPlayer::play(qreal velocity)
+int SfxPlayer::play(qreal velocity, qreal detune)
 {
     if (!loaded_) return -1;
     const int seed = variationSeed(plays_++);
-    playSeed(seed, velocity);
+    playSeed(seed, velocity, detune);
     return seed;
 }
 
-bool SfxPlayer::playSeed(int seed, qreal velocity)
+bool SfxPlayer::playSeed(int seed, qreal velocity, qreal detune)
 {
     if (!loaded_) return false;
     auto &output = cs::AudioOutput::instance();
     output.start(); // idempotent; opens the sink on the first played effect
     auto &eng = output.engine();
-    voices_.play(eng, cs::realizeSfx(recipe_, static_cast<uint32_t>(seed)), eng.currentFrame(),
+    voices_.play(eng, cs::realizeSfx(recipe_, static_cast<uint32_t>(seed), detune),
+                 eng.currentFrame(),
                  static_cast<float>(std::clamp(velocity, 0.0, 1.0)), output.triggerGainStage());
     if (lastSeed_ != seed) {
         lastSeed_ = seed;
@@ -110,13 +111,14 @@ int SfxPlayer::variationSeed(int index) const
     return static_cast<int>(cs::sfxVariationSeed(recipe_, std::max(0, index)));
 }
 
-QVector<float> SfxPlayer::renderOffline(int seed, qreal velocity) const
+QVector<float> SfxPlayer::renderOffline(int seed, qreal velocity, qreal detune) const
 {
     if (!loaded_) return {};
     const auto samples = cs::renderRecipe(recipe_, samples_, static_cast<uint32_t>(seed),
                                           static_cast<float>(std::clamp(velocity, 0.0, 1.0)),
                                           static_cast<float>(volume_), static_cast<float>(pan_),
-                                          cs::AudioOutput::instance().sampleRate(), /*stereo=*/false);
+                                          cs::AudioOutput::instance().sampleRate(), /*stereo=*/false,
+                                          /*seconds=*/0.0, detune);
     return QVector<float>(samples.begin(), samples.end());
 }
 

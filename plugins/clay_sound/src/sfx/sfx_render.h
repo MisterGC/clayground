@@ -2,11 +2,13 @@
 //
 // The one way an effect recipe becomes sound, live and offline alike:
 //
-//   1. realizeSfx(recipe, seed) draws the variation: every parameter
-//      with a "vary" range gets base + a value in [min, max), from a
-//      hash of (seed, layer, parameter) alone. The same seed gives the
-//      same values on every platform; another parameter's range never
-//      moves them.
+//   1. realizeSfx(recipe, seed, detune) draws the variation: every
+//      parameter with a "vary" range gets base + a value in [min, max),
+//      from a hash of (seed, layer, parameter) alone. The same seed gives
+//      the same values on every platform; another parameter's range never
+//      moves them. `detune` (semitones) raises every layer's base detune
+//      before that, so a play transposed by 12 is the recipe with every
+//      layer's detune raised by 12.
 //   2. SfxVoices holds the instruments a recipe plays on in one engine
 //      (one oscillator instrument, one sampler per sample layer) and
 //      schedules the realized layers there, each at its offset.
@@ -53,7 +55,7 @@ struct SfxNote
 // pool when the recipe has one. In 0..2^31-1, so QML holds it as an int.
 uint32_t sfxVariationSeed(const SfxRecipe &recipe, int index);
 
-std::vector<SfxNote> realizeSfx(const SfxRecipe &recipe, uint32_t seed);
+std::vector<SfxNote> realizeSfx(const SfxRecipe &recipe, uint32_t seed, double detune = 0.0);
 
 // The decoded WAV of each sample layer, indexed like recipe.layers;
 // null for the other layers.
@@ -89,20 +91,22 @@ private:
     SfxRecipe recipe_;
 };
 
-// What SfxVoices::play() of `seed` at `velocity` sends into its bus,
-// rendered on a scratch engine from frame 0 until the last layer ends,
-// or for `frames` frames when that is >= 0: interleaved stereo, or the
-// (L + R) / 2 downmix when !stereo.
+// What SfxVoices::play() of `seed` at `velocity`, transposed by `detune`
+// semitones, sends into its bus, rendered on a scratch engine from frame
+// 0 until the last layer ends, or for `frames` frames when that is >= 0:
+// interleaved stereo, or the (L + R) / 2 downmix when !stereo.
 std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
                              uint32_t seed, float velocity, float gain, float pan,
-                             int sampleRate, bool stereo, int64_t frames = -1);
+                             int sampleRate, bool stereo, int64_t frames = -1,
+                             double detune = 0.0);
 
 // renderSfx() clamped to [-1, 1] like the live sink, `seconds` long
 // (<= 0: until the last layer ends). SfxPlayer::renderOffline() and a
 // program without QML render a recipe through this.
 std::vector<float> renderRecipe(const SfxRecipe &recipe, const SfxSamples &samples,
                                 uint32_t seed, float velocity, float gain, float pan,
-                                int sampleRate, bool stereo, double seconds = 0.0);
+                                int sampleRate, bool stereo, double seconds = 0.0,
+                                double detune = 0.0);
 
 } // namespace clay::sound
 

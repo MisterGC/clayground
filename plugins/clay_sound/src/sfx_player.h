@@ -9,6 +9,7 @@
 //       source: "sfx/wheel-detent.sfx.json"
 //   }
 //   detent.play()            // the next variation of the pool
+//   detent.play(1, 7)        // the same, a fifth up
 //   detent.renderOffline(s)  // what play() sounded like with seed s
 //
 // play() steps through the recipe's variations: the i-th play() uses
@@ -81,17 +82,19 @@ public:
     void    setBus(const QString &name);
 
     // Play the next variation; returns its seed, -1 when nothing is
-    // loaded. `velocity` (0..1) scales every layer.
-    Q_INVOKABLE int  play(qreal velocity = 1.0);
+    // loaded. `velocity` (0..1) scales every layer, `detune` (semitones)
+    // transposes every layer, oscillator and sample alike.
+    Q_INVOKABLE int  play(qreal velocity = 1.0, qreal detune = 0.0);
     // Play the variation of `seed`. Returns false when nothing is loaded.
-    Q_INVOKABLE bool playSeed(int seed, qreal velocity = 1.0);
+    Q_INVOKABLE bool playSeed(int seed, qreal velocity = 1.0, qreal detune = 0.0);
     // The seed of the `index`-th play() since the recipe loaded.
     Q_INVOKABLE int  variationSeed(int index) const;
-    // What play of `seed` at `velocity` sends into its bus, as mono
-    // samples ((L + R) / 2, clamped to -1..1) at 44.1 kHz from the
-    // first layer's start to the last layer's end. Does not touch the
-    // shared engine.
-    Q_INVOKABLE QVector<float> renderOffline(int seed, qreal velocity = 1.0) const;
+    // What play of `seed` at `velocity` and `detune` sends into its bus,
+    // as mono samples ((L + R) / 2, clamped to -1..1) at 44.1 kHz from
+    // the first layer's start to the last layer's end. Does not touch
+    // the shared engine.
+    Q_INVOKABLE QVector<float> renderOffline(int seed, qreal velocity = 1.0,
+                                             qreal detune = 0.0) const;
 
 signals:
     void sourceChanged();

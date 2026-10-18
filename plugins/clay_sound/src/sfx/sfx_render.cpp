@@ -57,7 +57,7 @@ uint32_t sfxVariationSeed(const SfxRecipe &recipe, int index)
     return mix(recipe.seed, static_cast<uint32_t>(i)) & 0x7fffffffu;
 }
 
-std::vector<SfxNote> realizeSfx(const SfxRecipe &recipe, uint32_t seed)
+std::vector<SfxNote> realizeSfx(const SfxRecipe &recipe, uint32_t seed, double detune)
 {
     std::vector<SfxNote> notes;
     notes.reserve(static_cast<size_t>(recipe.layers.size()));
@@ -67,6 +67,9 @@ std::vector<SfxNote> realizeSfx(const SfxRecipe &recipe, uint32_t seed)
         SfxNote n;
         n.layer = li;
         n.value = layer.value;
+        // Before the vary range, so the sum is the one a recipe with this
+        // detune written into the layer gives, to the last bit.
+        n.value[static_cast<int>(P::Detune)] += detune;
         for (int p = 0; p < kSfxParamCount; ++p) {
             const SfxRange &r = layer.vary[p];
             if (!r.on) continue;
@@ -204,14 +207,14 @@ int64_t SfxVoices::play(Engine &engine, const std::vector<SfxNote> &notes, int64
 
 std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
                              uint32_t seed, float velocity, float gain, float pan,
-                             int sampleRate, bool stereo, int64_t frames)
+                             int sampleRate, bool stereo, int64_t frames, double detune)
 {
     Engine scratch(sampleRate);
     SfxVoices voices;
     voices.attach(scratch, recipe, samples);
     voices.setGain(gain);
     voices.setPan(pan);
-    const int64_t end = voices.play(scratch, realizeSfx(recipe, seed), 0, velocity);
+    const int64_t end = voices.play(scratch, realizeSfx(recipe, seed, detune), 0, velocity);
     if (frames < 0) frames = end;
 
     std::vector<float> out(static_cast<size_t>(frames) * (stereo ? 2 : 1));
@@ -228,11 +231,11 @@ std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
 
 std::vector<float> renderRecipe(const SfxRecipe &recipe, const SfxSamples &samples,
                                 uint32_t seed, float velocity, float gain, float pan,
-                                int sampleRate, bool stereo, double seconds)
+                                int sampleRate, bool stereo, double seconds, double detune)
 {
     const int64_t frames = seconds > 0.0 ? std::llround(seconds * sampleRate) : -1;
     std::vector<float> out = renderSfx(recipe, samples, seed, velocity, gain, pan,
-                                       sampleRate, stereo, frames);
+                                       sampleRate, stereo, frames, detune);
     for (float &s : out) s = std::clamp(s, -1.0f, 1.0f);
     return out;
 }
