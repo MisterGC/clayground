@@ -3,6 +3,7 @@
 #include "music.h"
 
 #include "audio_devices.h"
+#include "audio_output.h"
 
 #include <QAudioOutput>
 #include <QDebug>
@@ -60,7 +61,11 @@ Music::Music(QObject *parent)
     clay::sound::primeAudioDevices();
 
     audioOut_ = new QAudioOutput(this);
-    audioOut_->setVolume(volume_);
+    applyVolume();
+    connect(&clay::sound::AudioOutput::instance(), &clay::sound::AudioOutput::busGainChanged,
+            this, [this](clay::sound::Bus bus) {
+                if (bus == clay::sound::Bus::Music) applyVolume();
+            });
 
     player_ = new QMediaPlayer(this);
     player_->setAudioOutput(audioOut_);
@@ -148,8 +153,16 @@ void Music::setVolume(qreal v)
 {
     if (volume_ == v) return;
     volume_ = v;
-    if (audioOut_) audioOut_->setVolume(v);
+    applyVolume();
     emit volumeChanged();
+}
+
+void Music::applyVolume()
+{
+    if (!audioOut_) return;
+    const float bus = clay::sound::AudioOutput::instance().engine()
+                          .busGain(clay::sound::Bus::Music);
+    audioOut_->setVolume(static_cast<float>(volume_) * bus);
 }
 
 void Music::setLazyLoading(bool v)

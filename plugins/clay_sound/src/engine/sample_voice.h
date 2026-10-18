@@ -1,8 +1,9 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 //
 // SampleVoice — IVoice reading from a shared PcmBuffer. Pitch shift is
-// via playback-rate (linear-interp between source samples). Supports an
-// optional loop segment and a lightweight envelope overlay.
+// via playback-rate; between source samples the voice interpolates
+// nearest, linear (the default) or Gaussian. Supports an optional loop
+// segment and a lightweight envelope overlay.
 
 #pragma once
 
@@ -17,8 +18,16 @@ struct PcmBuffer;
 class SampleVoice : public IVoice
 {
 public:
+    // How a position between two source samples is read.
+    //   Nearest  — the closest sample: hard, aliased, 8-bit-console grit.
+    //   Linear   — straight line between the two neighbours.
+    //   Gaussian — four taps weighted by a Gaussian, like the SNES DSP:
+    //              soft and slightly muffled, the highs rolled off.
+    enum class Interpolation { Nearest, Linear, Gaussian };
+
     struct Patch
     {
+        Interpolation interpolation = Interpolation::Linear;
         bool   looping      = false;
         double loopStartFrac = 0.0;  // 0..1 of buffer length
         double loopEndFrac   = 1.0;

@@ -24,6 +24,9 @@
 // tries every output device for that: a sink that failed to open still
 // accepts writes and drops them, so trusting the default device silenced
 // whole sessions on the web (#262).
+//
+// The sink is stereo. A device that reports it cannot take two channels
+// gets the engine's mono downmix instead, so it still plays everything.
 
 #ifndef CLAY_SOUND_AUDIO_OUTPUT_H
 #define CLAY_SOUND_AUDIO_OUTPUT_H
@@ -33,6 +36,7 @@
 #include <QAudioDevice>
 #include <QElapsedTimer>
 #include <QObject>
+#include <QString>
 #include <QTimer>
 
 #include <memory>
@@ -64,6 +68,29 @@ public:
     Engine& engine() { return engine_; }
     const Engine& engine() const { return engine_; }
 
+    // The gain stage (Engine::addGainStage) that notes triggered right
+    // now play through, -1 for none. SongPlayer sets it around each
+    // triggerNote() it sends and the instruments stamp it on the note,
+    // so a song's volume reaches its notes whatever plays them - also
+    // through a QML object that wraps an instrument. GUI thread only.
+    int triggerGainStage() const { return triggerGainStage_; }
+    class TriggerGainStage
+    {
+    public:
+        explicit TriggerGainStage(int id) : prev_(instance().triggerGainStage_)
+        { instance().triggerGainStage_ = id; }
+        ~TriggerGainStage() { instance().triggerGainStage_ = prev_; }
+        TriggerGainStage(const TriggerGainStage&) = delete;
+        TriggerGainStage& operator=(const TriggerGainStage&) = delete;
+    private:
+        int prev_;
+    };
+
+    // The QML names of the buses: "sfx", "music", "voice". busFromName
+    // returns false and leaves `bus` alone for any other name.
+    static bool busFromName(const QString& name, Bus& bus);
+    static QString busName(Bus bus);
+
     int sampleRate() const { return engine_.sampleRate(); }
     bool isRunning() const { return sinkRunning_; }
 
@@ -71,6 +98,11 @@ public:
     // user-gesture handler in QML (e.g. a Play button) so subsequent
     // triggers play immediately. Idempotent.
     Q_INVOKABLE void start();
+
+    // Set a bus volume, clamped to [0, 1], and emit busGainChanged when
+    // it moved. The way QML changes a bus (SoundMixer), so a player that
+    // does not play on the engine (Music) can follow the music bus.
+    void setBusGain(Bus bus, float g);
 
     // Close the sink and stop the pull timer. Active scheduled notes
     // are not cancelled; calling start() again resumes mixing.
@@ -81,6 +113,9 @@ signals:
     // adapters to update QML-visible derived state (activeVoices,
     // playbackFinished) without each owning its own timer.
     void afterPull();
+
+    // A bus volume changed through setBusGain().
+    void busGainChanged(clay::sound::Bus bus);
 
 private:
     AudioOutput();
@@ -102,6 +137,8 @@ private:
     Engine      engine_{SAMPLE_RATE};
     QAudioSink* sink_     = nullptr;
     QIODevice*  device_   = nullptr;
+    int         channels_ = 2;      // of the open sink: 2, or 1 on a mono-only device
+    int         triggerGainStage_ = -1;
     QTimer      pullTimer_;
     bool        sinkRunning_ = false;
     QElapsedTimer sinceFailedOpen_;

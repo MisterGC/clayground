@@ -13,6 +13,8 @@
 #ifndef SYNTH_INSTRUMENT_H
 #define SYNTH_INSTRUMENT_H
 
+#include "engine/bus.h"
+#include "engine/instrument_spec.h"
 #include "engine/oscillator_voice.h"
 
 #include <QObject>
@@ -38,7 +40,19 @@ class SynthInstrument : public QObject
     Q_PROPERTY(qreal   lfoRate     READ lfoRate     WRITE setLfoRate     NOTIFY lfoRateChanged)
     Q_PROPERTY(qreal   lfoDepth    READ lfoDepth    WRITE setLfoDepth    NOTIFY lfoDepthChanged)
     Q_PROPERTY(QString lfoTarget   READ lfoTarget   WRITE setLfoTarget   NOTIFY lfoTargetChanged)
+    Q_PROPERTY(qreal   pulseWidth  READ pulseWidth  WRITE setPulseWidth  NOTIFY pulseWidthChanged)
+    Q_PROPERTY(QString filterType  READ filterType  WRITE setFilterType  NOTIFY filterTypeChanged)
+    Q_PROPERTY(qreal   cutoff      READ cutoff      WRITE setCutoff      NOTIFY cutoffChanged)
+    Q_PROPERTY(qreal   resonance   READ resonance   WRITE setResonance   NOTIFY resonanceChanged)
+    Q_PROPERTY(qreal   filterAttack    READ filterAttack    WRITE setFilterAttack    NOTIFY filterAttackChanged)
+    Q_PROPERTY(qreal   filterDecay     READ filterDecay     WRITE setFilterDecay     NOTIFY filterDecayChanged)
+    Q_PROPERTY(qreal   filterSustain   READ filterSustain   WRITE setFilterSustain   NOTIFY filterSustainChanged)
+    Q_PROPERTY(qreal   filterRelease   READ filterRelease   WRITE setFilterRelease   NOTIFY filterReleaseChanged)
+    Q_PROPERTY(qreal   filterEnvAmount READ filterEnvAmount WRITE setFilterEnvAmount NOTIFY filterEnvAmountChanged)
     Q_PROPERTY(qreal   volume      READ volume      WRITE setVolume      NOTIFY volumeChanged)
+    Q_PROPERTY(qreal   pan        READ pan        WRITE setPan        NOTIFY panChanged)
+    Q_PROPERTY(QString bus        READ bus        WRITE setBus        NOTIFY busChanged)
+    Q_PROPERTY(int     maxVoices  READ maxVoices  WRITE setMaxVoices  NOTIFY maxVoicesChanged)
 
     Q_PROPERTY(int activeVoices READ activeVoices NOTIFY activeVoicesChanged)
 
@@ -69,8 +83,40 @@ public:
     QString lfoTarget() const { return lfoTargetName_; }
     void    setLfoTarget(const QString &t);
 
+    qreal pulseWidth() const { return patch_.pulseWidth; }
+    void  setPulseWidth(qreal v);
+    QString filterType() const { return filterTypeName_; }
+    void    setFilterType(const QString &t);
+    qreal cutoff() const    { return patch_.cutoff; }
+    void  setCutoff(qreal v);
+    qreal resonance() const { return patch_.resonance; }
+    void  setResonance(qreal v);
+    qreal filterAttack() const    { return patch_.filterAttack; }
+    void  setFilterAttack(qreal v);
+    qreal filterDecay() const     { return patch_.filterDecay; }
+    void  setFilterDecay(qreal v);
+    qreal filterSustain() const   { return patch_.filterSustain; }
+    void  setFilterSustain(qreal v);
+    qreal filterRelease() const   { return patch_.filterRelease; }
+    void  setFilterRelease(qreal v);
+    qreal filterEnvAmount() const { return patch_.filterEnvAmount; }
+    void  setFilterEnvAmount(qreal v);
+
     qreal volume() const { return volume_; }
     void  setVolume(qreal v);
+
+    // -1 left .. +1 right; 0 plays centred, the same in both channels.
+    qreal pan() const { return pan_; }
+    void  setPan(qreal v);
+
+    // The bus the voices mix into: "sfx" (default), "music" or "voice".
+    QString bus() const;
+    void    setBus(const QString &name);
+
+    // At most this many voices ring at once; a note beyond it cuts the
+    // oldest. 0 (default) is no cap.
+    int  maxVoices() const { return maxVoices_; }
+    void setMaxVoices(int n);
 
     int activeVoices() const;
 
@@ -84,6 +130,10 @@ public:
     Q_INVOKABLE bool triggerNote(int midiNote,
                                  qreal velocity = 1.0,
                                  qreal durationSeconds = 0.2);
+
+    // The patch, volume, pan, bus and voice cap as the engine plays
+    // them: what a song's offline render needs of this instrument.
+    clay::sound::InstrumentSpec spec() const;
 
     // Offline render of `durationSeconds` seconds of audio from the
     // current engine state. Produces a mono float buffer at the engine
@@ -122,7 +172,19 @@ signals:
     void lfoRateChanged();
     void lfoDepthChanged();
     void lfoTargetChanged();
+    void pulseWidthChanged();
+    void filterTypeChanged();
+    void cutoffChanged();
+    void resonanceChanged();
+    void filterAttackChanged();
+    void filterDecayChanged();
+    void filterSustainChanged();
+    void filterReleaseChanged();
+    void filterEnvAmountChanged();
     void volumeChanged();
+    void panChanged();
+    void busChanged();
+    void maxVoicesChanged();
     void activeVoicesChanged();
 
 private slots:
@@ -149,8 +211,12 @@ private:
     clay::sound::OscillatorVoice::Patch patch_{};
     QString waveformName_  = "sine";
     QString lfoTargetName_ = "none";
+    QString filterTypeName_ = "none";
 
     qreal volume_ = 0.8;
+    qreal pan_ = 0.0;
+    clay::sound::Bus bus_ = clay::sound::Bus::Sfx;
+    int maxVoices_ = 0;
     int   lastActive_ = 0;
 };
 

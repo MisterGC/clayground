@@ -12,6 +12,29 @@ namespace clay::sound {
 // file stays portable across compilers.
 static constexpr double kPi = 3.14159265358979323846;
 
+// ADSR level at `t` seconds into a note gated for `duration` seconds.
+// The release runs inside the gate: it starts `release` seconds before
+// the note ends, from the sustain level.
+static double adsr(double t, double duration,
+                   double attack, double decay, double sustain, double release)
+{
+    if (t < 0.0) return 0.0;
+    const double releaseStart = duration - release;
+    if (t < attack)
+        return (attack > 0.0) ? (t / attack) : 1.0;
+    if (t < attack + decay) {
+        const double p = (decay > 0.0) ? (t - attack) / decay : 1.0;
+        return 1.0 - (1.0 - sustain) * p;
+    }
+    if (t < releaseStart)
+        return sustain;
+    if (t < duration) {
+        const double p = (release > 0.0) ? (t - releaseStart) / release : 1.0;
+        return sustain * (1.0 - p);
+    }
+    return 0.0;
+}
+
 void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
 {
     sampleRate_ = sampleRate;
@@ -20,9 +43,14 @@ void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
     freqHz_     = ev.freqHz;
     gain_       = ev.velocity;
     phase_      = 0.0;
+    filterIc1_  = 0.0;
+    filterIc2_  = 0.0;
     // Deterministic-per-voice noise seed. Derived from start frame so
-    // two noise notes at different times produce different sequences.
-    noiseSeed_ = 12345u + static_cast<uint32_t>(ev.timeFrames & 0xffffffff);
+    // two noise notes at different times produce different sequences,
+    // unless the patch names a seed of its own.
+    noiseSeed_ = patch_.noiseSeed != 0
+        ? patch_.noiseSeed
+        : 12345u + static_cast<uint32_t>(ev.timeFrames & 0xffffffff);
 }
 
 void OscillatorVoice::onNoteOff(int64_t atFrame)
@@ -44,25 +72,8 @@ double OscillatorVoice::renderSample(int64_t frame)
     const double duration = static_cast<double>(endFrame_ - startFrame_) / sampleRate_;
 
     // --- Envelope -----------------------------------------------------
-    double env = 0.0;
-    if (t >= 0.0) {
-        const double releaseStart = duration - patch_.release;
-        if (t < patch_.attack) {
-            env = (patch_.attack > 0.0) ? (t / patch_.attack) : 1.0;
-        } else if (t < patch_.attack + patch_.decay) {
-            const double p = (patch_.decay > 0.0)
-                                 ? (t - patch_.attack) / patch_.decay
-                                 : 1.0;
-            env = 1.0 - (1.0 - patch_.sustain) * p;
-        } else if (t < releaseStart) {
-            env = patch_.sustain;
-        } else if (t < duration) {
-            const double p = (patch_.release > 0.0)
-                                 ? (t - releaseStart) / patch_.release
-                                 : 1.0;
-            env = patch_.sustain * (1.0 - p);
-        }
-    }
+    double env = adsr(t, duration, patch_.attack, patch_.decay,
+                      patch_.sustain, patch_.release);
 
     // Volume LFO shaping of envelope.
     if (patch_.lfoTarget == 2 && patch_.lfoRate > 0.0) {
@@ -78,12 +89,13 @@ double OscillatorVoice::renderSample(int64_t frame)
         break;
     case Waveform::Square: {
         const double edge = 0.02;
+        const double pw   = std::clamp(patch_.pulseWidth, 0.05, 0.95);
         if (phase_ < edge)
             wave = phase_ / edge;
-        else if (phase_ < 0.5 - edge)
+        else if (phase_ < pw - edge)
             wave = 1.0;
-        else if (phase_ < 0.5 + edge)
-            wave = 1.0 - 2.0 * (phase_ - (0.5 - edge)) / (2.0 * edge);
+        else if (phase_ < pw + edge)
+            wave = 1.0 - 2.0 * (phase_ - (pw - edge)) / (2.0 * edge);
         else if (phase_ < 1.0 - edge)
             wave = -1.0;
         else
@@ -123,7 +135,48 @@ double OscillatorVoice::renderSample(int64_t frame)
     phase_ += effFreq / static_cast<double>(sampleRate_);
     if (phase_ >= 1.0) phase_ -= 1.0;
 
+    if (patch_.filterType != FilterType::Off)
+        wave = filter(wave, t, duration);
+
     return wave * env * gain_;
+}
+
+double OscillatorVoice::filter(double in, double t, double duration)
+{
+    // Cutoff after its envelope, kept below Nyquist where tan() blows up.
+    double fc = patch_.cutoff;
+    if (patch_.filterEnvAmount != 0.0) {
+        const double fenv = adsr(t, duration, patch_.filterAttack,
+                                 patch_.filterDecay, patch_.filterSustain,
+                                 patch_.filterRelease);
+        fc *= std::pow(2.0, patch_.filterEnvAmount * fenv);
+    }
+    fc = std::clamp(fc, 20.0, 0.49 * sampleRate_);
+
+    // Resonance maps exponentially onto the damping k = 1/Q, so equal
+    // steps sound like equal steps: k = sqrt(2) (flat) down to 0.1.
+    const double res = std::clamp(patch_.resonance, 0.0, 1.0);
+    const double k   = std::sqrt(2.0) * std::pow(0.1 / std::sqrt(2.0), res);
+
+    // Trapezoidal state-variable filter (Simper): stable while the
+    // cutoff moves every sample, and one pass gives all three outputs.
+    const double g  = std::tan(kPi * fc / sampleRate_);
+    const double a1 = 1.0 / (1.0 + g * (g + k));
+    const double a2 = g * a1;
+    const double a3 = g * a2;
+    const double v3 = in - filterIc2_;
+    const double v1 = a1 * filterIc1_ + a2 * v3;
+    const double v2 = filterIc2_ + a2 * filterIc1_ + a3 * v3;
+    filterIc1_ = 2.0 * v1 - filterIc1_;
+    filterIc2_ = 2.0 * v2 - filterIc2_;
+
+    switch (patch_.filterType) {
+    case FilterType::LowPass:  return v2;
+    case FilterType::HighPass: return in - k * v1 - v2;
+    case FilterType::BandPass: return k * v1;   // unity gain at the cutoff
+    case FilterType::Off:      break;
+    }
+    return in;
 }
 
 void OscillatorVoice::render(float* buffer, int frames, int64_t bufferStartFrame)

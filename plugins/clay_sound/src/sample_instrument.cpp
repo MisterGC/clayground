@@ -4,7 +4,7 @@
 
 #include "audio_output.h"
 #include "engine/engine.h"
-#include "engine/note_event.h"
+#include "engine/instrument_spec.h"
 #include "engine/pcm_buffer.h"
 #include "engine/sampler_instrument.h"
 
@@ -146,6 +146,71 @@ void SampleInstrument::setVolume(qreal v)
     emit volumeChanged();
 }
 
+void SampleInstrument::setPan(qreal v)
+{
+    v = std::clamp(v, -1.0, 1.0);
+    if (pan_ == v) return;
+    pan_ = v;
+    if (core_) core_->setPan(static_cast<float>(v));
+    emit panChanged();
+}
+
+QString SampleInstrument::bus() const
+{
+    return cs::AudioOutput::busName(bus_);
+}
+
+void SampleInstrument::setBus(const QString &name)
+{
+    cs::Bus b = bus_;
+    if (!cs::AudioOutput::busFromName(name, b)) {
+        qWarning() << "SampleInstrument: unknown bus" << name << "- use sfx, music or voice";
+        return;
+    }
+    if (b == bus_) return;
+    bus_ = b;
+    if (core_) core_->setBus(b);
+    emit busChanged();
+}
+
+QString SampleInstrument::interpolation() const
+{
+    using I = cs::SampleVoice::Interpolation;
+    switch (patch_.interpolation) {
+    case I::Nearest:  return QStringLiteral("nearest");
+    case I::Gaussian: return QStringLiteral("gaussian");
+    case I::Linear:   break;
+    }
+    return QStringLiteral("linear");
+}
+
+void SampleInstrument::setInterpolation(const QString &name)
+{
+    using I = cs::SampleVoice::Interpolation;
+    I mode;
+    if (name == QLatin1String("nearest"))       mode = I::Nearest;
+    else if (name == QLatin1String("linear"))   mode = I::Linear;
+    else if (name == QLatin1String("gaussian")) mode = I::Gaussian;
+    else {
+        qWarning() << "SampleInstrument: unknown interpolation" << name
+                   << "- use nearest, linear or gaussian";
+        return;
+    }
+    if (patch_.interpolation == mode) return;
+    patch_.interpolation = mode;
+    applyPatchToCore();
+    emit interpolationChanged();
+}
+
+void SampleInstrument::setMaxVoices(int n)
+{
+    n = std::max(0, n);
+    if (maxVoices_ == n) return;
+    maxVoices_ = n;
+    if (core_) core_->setMaxVoices(n);
+    emit maxVoicesChanged();
+}
+
 int SampleInstrument::activeVoices() const
 {
     if (coreId_ < 0) return 0;
@@ -278,40 +343,28 @@ bool SampleInstrument::trigger(qreal freqHz, qreal velocity, qreal durationSecon
     auto& output = cs::AudioOutput::instance();
     output.start(); // idempotent; opens sink on first triggered note
 
-    // If durationSeconds is 0, derive from the sample length (adjusted
-    // for playback rate). For looping voices we still cap at 60s so
-    // the scheduler has an end frame; loops can be retriggered beyond.
-    double dur = durationSeconds;
-    if (dur <= 0.0) {
-        if (patch_.looping) {
-            dur = 60.0;
-        } else {
-            const double rootFreq = 440.0 * std::pow(2.0, (rootMidiNote_ - 69) / 12.0);
-            const double rate = (buffer_->sampleRate / static_cast<double>(SAMPLE_RATE))
-                                * (freqHz / (rootFreq > 0.0 ? rootFreq : 1.0));
-            const double frames = static_cast<double>(buffer_->frames())
-                                  / (rate > 0.0 ? rate : 1.0);
-            dur = frames / static_cast<double>(SAMPLE_RATE);
-        }
-    }
-
     auto& eng = output.engine();
-    cs::NoteEvent ev;
-    ev.timeFrames     = eng.currentFrame();
-    ev.durationFrames = static_cast<int64_t>(std::llround(dur * SAMPLE_RATE));
-    ev.freqHz         = freqHz;
-    ev.velocity       = static_cast<float>(std::clamp(velocity, 0.0, 1.0));
-    ev.instrumentId   = coreId_;
-
-    const cs::EventId id = eng.schedule(ev);
-    core_->pushPatch(id, patch_);
-    return true;
+    return cs::scheduleNote(eng, coreId_, *core_, spec(), freqHz, velocity,
+                            durationSeconds, eng.currentFrame(), output.triggerGainStage());
 }
 
 bool SampleInstrument::triggerNote(int midiNote, qreal velocity, qreal durationSeconds)
 {
-    const qreal freq = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
-    return trigger(freq, velocity, durationSeconds);
+    return trigger(cs::midiToHz(midiNote), velocity, durationSeconds);
+}
+
+cs::InstrumentSpec SampleInstrument::spec() const
+{
+    cs::InstrumentSpec s;
+    s.kind = cs::InstrumentSpec::Kind::Sampler;
+    s.sample = loaded_ ? buffer_ : nullptr;
+    s.rootMidiNote = rootMidiNote_;
+    s.sampler = patch_;
+    s.gain = static_cast<float>(volume_);
+    s.pan = static_cast<float>(pan_);
+    s.bus = bus_;
+    s.maxVoices = maxVoices_;
+    return s;
 }
 
 bool SampleInstrument::triggerOneShot(qreal velocity)
@@ -337,6 +390,9 @@ void SampleInstrument::stopAll()
         coreId_ = cs::AudioOutput::instance().registerInstrument(std::move(core));
         if (core_) {
             core_->setGain(static_cast<float>(volume_));
+            core_->setPan(static_cast<float>(pan_));
+            core_->setBus(bus_);
+            core_->setMaxVoices(maxVoices_);
             if (buffer_) {
                 core_->setSource(buffer_);
                 core_->setRootMidiNote(rootMidiNote_);

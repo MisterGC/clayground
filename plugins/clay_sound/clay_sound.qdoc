@@ -9,10 +9,26 @@
     \list
     \li \l Sound - One-shot / overlapping sound effects (pre-authored WAV)
     \li \l Music - Background music (play/pause/stop/loop/seek)
-    \li \l SynthInstrument - Real-time oscillator voice with ADSR/pitch env/LFO
+    \li \l SynthInstrument - Real-time oscillator voice with ADSR/pitch env/LFO and a resonant filter
     \li \l SampleInstrument - PCM sample playback with loop points and root note
     \li \l SongPlayer - Plays a \c .song.json pattern file against instruments
+    \li \l SfxPlayer - Plays a \c .sfx.json effect recipe, with variation, live or rendered offline
+    \li \l SoundMixer - The volume, echo and reverb of each bus: sound effects, music, voices
     \endlist
+
+    \section1 Stereo, pan and buses
+
+    The engine mixes in stereo. Every instrument has a \c pan, from -1 (left)
+    to +1 (right). The centre, 0 and the default, plays the same samples in
+    both channels that the engine played in mono before; panning only turns
+    the far channel down, to silence at either edge.
+
+    Every instrument also names the \c bus its voices mix into: \c "sfx"
+    (the default), \c "music" or \c "voice". \l SoundMixer holds one volume
+    per bus, which scales everything on that bus on top of each instrument's
+    own volume, so a game's settings screen sets three numbers instead of
+    touching every instrument. \l {SongPlayer::volume}{SongPlayer.volume}
+    scales every note a song plays, whatever instrument plays it.
 
     \section1 Platform Support
 
@@ -115,6 +131,11 @@
     \qmlproperty real Sound::volume
     Volume level from 0.0 (silent) to 1.0 (full). Default: 1.0
 
+    \qmlproperty real Sound::pan
+    \qmlproperty string Sound::bus
+    Stereo position and mixer bus, as for \l {SampleInstrument::pan}
+    {SampleInstrument}.
+
     \qmlproperty bool Sound::lazyLoading
     If true, audio loads on first play() call. If false (default), loads immediately.
 
@@ -168,7 +189,9 @@
     The audio file URL to load (local or remote).
 
     \qmlproperty real Music::volume
-    Volume level from 0.0 (silent) to 1.0 (full). Default: 1.0
+    Volume level from 0.0 (silent) to 1.0 (full). Default: 1.0. The track
+    plays at this volume times \l {SoundMixer::musicVolume}
+    {SoundMixer.musicVolume}; the property itself keeps the value set.
 
     \qmlproperty bool Music::lazyLoading
     If true, audio loads on first play() call. If false (default), loads immediately.
@@ -232,7 +255,7 @@
 /*!
     \qmltype SynthInstrument
     \inqmlmodule Clayground.Sound
-    \brief Real-time oscillator voice with ADSR, pitch envelope, and LFO.
+    \brief Real-time oscillator voice with ADSR, pitch envelope, LFO and a resonant filter.
 
     SynthInstrument owns an internal audio engine and one oscillator instrument.
     Call \l triggerNote() to fire a note; tweak the patch via properties. It
@@ -243,6 +266,11 @@
 
     \qmlproperty string SynthInstrument::waveform
     One of \c "sine", \c "square", \c "triangle", \c "sawtooth", \c "noise".
+
+    \qmlproperty real SynthInstrument::pulseWidth
+    For \c "square" only: the fraction of each period the wave is high,
+    0.05..0.95. The default 0.5 is the plain square; 0.25 or 0.125 give the
+    thinner, nasal pulses of chip sound.
 
     \qmlproperty real SynthInstrument::attack
     \qmlproperty real SynthInstrument::decay
@@ -262,8 +290,49 @@
     \qmlproperty string SynthInstrument::lfoTarget
     LFO in Hz/semitones targeting \c "pitch", \c "volume", or \c "none".
 
+    \qmlproperty string SynthInstrument::filterType
+    The filter after the oscillator: \c "none" (the default, bypassed),
+    \c "lowpass", \c "highpass" or \c "bandpass". It is a two-pole
+    state-variable filter, 12 dB per octave; the band-pass passes the cutoff
+    at unity gain.
+
+    \qmlproperty real SynthInstrument::cutoff
+    Cutoff frequency in Hz, 20..20000, default 1000. Ignored while
+    \l filterType is \c "none".
+
+    \qmlproperty real SynthInstrument::resonance
+    Peak at the cutoff, 0..1: 0 (the default) is flat (Q 0.707), 1 is Q 10,
+    about +20 dB.
+
+    \qmlproperty real SynthInstrument::filterAttack
+    \qmlproperty real SynthInstrument::filterDecay
+    \qmlproperty real SynthInstrument::filterSustain
+    \qmlproperty real SynthInstrument::filterRelease
+    \qmlproperty real SynthInstrument::filterEnvAmount
+    Cutoff envelope: an ADSR of its own (seconds; sustain 0..1, default 1)
+    that moves \l cutoff up by \c filterEnvAmount octaves at its peak, or
+    down if the amount is negative. The default amount 0 keeps the cutoff
+    fixed. A pluck: \c "lowpass", \c cutoff 400, \c filterEnvAmount 3,
+    \c filterDecay 0.2, \c filterSustain 0.
+
     \qmlproperty real SynthInstrument::volume
     Post-mix volume, 0..1.
+
+    \qmlproperty real SynthInstrument::pan
+    Stereo position, -1 (left) .. +1 (right). The default 0 plays centred,
+    the same samples in both channels. Panning turns the far channel down:
+    at 0.5 the left plays at half level, the right at full. Moving it moves
+    notes already ringing.
+
+    \qmlproperty string SynthInstrument::bus
+    The mixer bus the voices play through: \c "sfx" (the default),
+    \c "music" or \c "voice". Its volume is set on \l SoundMixer. Any
+    other name is refused with a warning and the bus stays as it was.
+
+    \qmlproperty int SynthInstrument::maxVoices
+    At most this many voices ring at once. A note that would exceed it cuts
+    the oldest voice of this instrument, without a release. The default 0
+    is no cap.
 
     \qmlproperty int SynthInstrument::activeVoices
     Read-only. Number of voices currently rendering.
@@ -315,6 +384,29 @@
     ADSR (attack/release only for now) applied on top of sample playback.
 
     \qmlproperty real SampleInstrument::volume
+    Post-mix volume, 0..1.
+
+    \qmlproperty real SampleInstrument::pan
+    Stereo position, -1 (left) .. +1 (right); 0, the default, is centred.
+    The same law as \l {SynthInstrument::pan}{SynthInstrument.pan}.
+
+    \qmlproperty string SampleInstrument::bus
+    The mixer bus: \c "sfx" (the default), \c "music" or \c "voice".
+
+    \qmlproperty string SampleInstrument::interpolation
+    How a note pitched away from \l rootNote reads between two source
+    samples: \c "nearest" (the closest sample: hard and aliased, 8-bit
+    grit), \c "linear" (the default, as before the modes existed) or
+    \c "gaussian" (four samples weighted by a Gaussian, like the SNES:
+    soft, the highs rolled off - a tone at a quarter of the sample rate
+    plays at 0.63 of its level). Applies to notes triggered after the
+    change. Any other name is refused with a warning.
+
+    \qmlproperty int SampleInstrument::maxVoices
+    At most this many voices ring at once; a note beyond it cuts the
+    oldest. The default 0 is no cap. As for
+    \l {SynthInstrument::maxVoices}{SynthInstrument.maxVoices}.
+
     \qmlproperty bool SampleInstrument::loaded
     \qmlproperty int  SampleInstrument::activeVoices
     \qmlproperty string SampleInstrument::errorString
@@ -340,6 +432,23 @@
     instrument. Watches the source file for changes and \e{hot-reloads}
     without resetting the playhead.
 
+    A version 2 song file defines its own instruments and the structure
+    adaptive music needs: segments with exit cues, layers an intensity
+    fades in, transitions synced to beat, bar, exit or end, and stingers.
+    It plays on those instruments (\l instruments is not read) and
+    follows \l state, \l intensity and \l playStinger(). Its notes are
+    scheduled 0.25 s ahead of the engine on their exact frames, the path
+    \l renderOffline() takes, so live and offline render the same
+    samples; a control reaches the music that much later.
+
+    \qml
+    SongPlayer {
+        source: "songs/adaptive.song.json"
+        state: game.fighting ? "combat" : "explore"
+        intensity: game.danger
+    }
+    \endqml
+
     See the \l {Clayground.Sound Module} overview or the plugin README
     for the JSON format.
 
@@ -359,19 +468,47 @@
     Read-only. True while actively advancing.
 
     \qmlproperty real SongPlayer::position
-    Current position in beats.
+    Current position in beats; for a v2 song, beats into \l segment.
 
     \qmlproperty real SongPlayer::tempo
     Tempo in BPM, taken from the song file.
 
     \qmlproperty real SongPlayer::totalBeats
-    Total length in beats (sum of section lengths \(\times\) repeats).
+    Total length in beats (sum of section lengths \(\times\) repeats);
+    for a v2 song, the length of \l segment.
 
     \qmlproperty bool SongPlayer::loop
     When true, playback wraps to 0 at end instead of stopping.
 
+    \qmlproperty real SongPlayer::volume
+    Volume of the whole song, 0..1, default 1. It scales every note the
+    player triggers, on any of its instruments, on top of the instrument's
+    own volume and its bus volume, and it keeps scaling notes while they
+    ring, so animating it fades the song smoothly. Two players sharing
+    instruments keep separate volumes. A QML object in \l instruments
+    that forwards \c triggerNote() to an instrument passes the volume on;
+    an instrument that does not play on the Clayground.Sound engine does
+    not get it.
+
     \qmlproperty string SongPlayer::error
     Last parse/IO error, empty when OK.
+
+    \qmlproperty int SongPlayer::version
+    Read-only. The file version of the loaded song, 1 or 2.
+
+    \qmlproperty string SongPlayer::state
+    Version 2: the segment the music should play. Changing it moves the
+    music there on the sync point of the first transition in the file
+    that matches, or on the next bar. Set before \l play(), the segment
+    the song starts in.
+
+    \qmlproperty real SongPlayer::intensity
+    Version 2: 0..1, default 0. Each layer of the song sounds from its
+    low to its high intensity, its level moving over the layer's fade;
+    a note plays at the level its start falls on.
+
+    \qmlproperty string SongPlayer::segment
+    Read-only. Version 2: the segment playing now.
 
     \section1 Methods
 
@@ -379,6 +516,30 @@
     \qmlmethod void SongPlayer::pause()
     \qmlmethod void SongPlayer::stop()
     \qmlmethod void SongPlayer::seek(real beats)
+
+    \qmlmethod bool SongPlayer::playStinger(string name)
+    Version 2: plays the stinger \a name on top of the music, on its
+    sync point. Returns false for an unknown stinger or while nothing
+    plays.
+
+    \qmlmethod list<real> SongPlayer::renderOffline(real seconds, list cues)
+    \a seconds of the song from its start (0 or less: its length,
+    \l totalBeats at \l tempo) as mono samples (the (L + R) / 2 downmix,
+    clamped to -1..1) at 44.1 kHz, with the bound instruments' current
+    patches and the player's \l volume and \l loop. Every note starts on
+    its exact frame, where live playback starts it on the tick it falls
+    into. Renders on an engine of its own and does not touch the live
+    sound or the playhead. Only SynthInstrument and SampleInstrument
+    play here; the bus volume, echo and reverb are not part of it. A C++
+    program without QML renders the same samples through \c renderSong()
+    of \c Clayground::SoundEngine.
+
+    A version 2 song renders on its own instruments, from the player's
+    \l state and \l intensity (0 seconds: one pass of that segment),
+    and \a cues steer it as a game would:
+    \c{[{ at: 2, state: "combat" }, { at: 3, intensity: 1 }, { at: 4, stinger: "pickup" }]},
+    \c at in seconds. Played live, a control reaches the song 0.25 s
+    after it is set; cues at those song times render what was heard.
 
     \section1 Signals
 
@@ -394,4 +555,235 @@
     reload, the previous model is preserved and playback keeps going.
 
     \sa SynthInstrument, SampleInstrument
+*/
+
+/*!
+    \qmltype SfxPlayer
+    \inqmlmodule Clayground.Sound
+    \brief Plays an effect recipe (\c .sfx.json) with variation, and renders
+    it offline the same way.
+
+    A recipe is a stack of layers - each one voice with a source
+    (oscillator, noise or a WAV sample), an envelope, a pitch curve, a
+    filter curve, a start offset, a gain and a pan, in Hz, ms, semitones
+    and dB - plus a variation spec: a random range per layer field, a
+    seed and a round-robin pool size. The plugin README documents the
+    format; the parser rejects an unknown field by its name and path.
+
+    \code
+    SfxPlayer {
+        id: detent
+        source: "sfx/wheel-detent.sfx.json"
+    }
+    // in a handler:
+    var seed = detent.play()
+    var samples = detent.renderOffline(seed)   // what that play() sounded like
+    \endcode
+
+    Every \l play() draws the next variation; a seed always draws the same
+    values. \l play() and \l renderOffline() schedule the same notes through
+    one code path, so a pre-rendered file of a seed and the live sound of it
+    are the same samples. Watches the recipe file and \e{hot-reloads} it; a
+    broken save keeps the last good recipe.
+
+    \section1 Properties
+
+    \qmlproperty url SfxPlayer::source
+    Path to a \c .sfx.json recipe. Sample files in it are relative to it.
+
+    \qmlproperty bool SfxPlayer::loaded
+    True once the recipe parsed and its samples loaded.
+
+    \qmlproperty string SfxPlayer::error
+    Last parse or load error, empty when OK. Starts with the path of the
+    failing field, e.g. \c{layers[1].envelope: unknown field 'decya'}.
+
+    \qmlproperty string SfxPlayer::name
+    The recipe's \c name.
+
+    \qmlproperty int SfxPlayer::layers
+    The number of layers in the recipe.
+
+    \qmlproperty int SfxPlayer::pool
+    The recipe's \c{variation.pool}: \l play() cycles through this many
+    variations; 0 makes every play a new one.
+
+    \qmlproperty int SfxPlayer::lastSeed
+    The seed of the last \l play() or \l playSeed(), -1 before the first.
+
+    \qmlproperty real SfxPlayer::volume
+    Volume of every layer, 0..1, default 1.
+
+    \qmlproperty real SfxPlayer::pan
+    -1 (left) .. +1 (right), added to each layer's own pan. Default 0.
+
+    \qmlproperty string SfxPlayer::bus
+    The bus the layers mix into: \c "sfx" (default), \c "music" or
+    \c "voice".
+
+    \section1 Methods
+
+    \qmlmethod int SfxPlayer::play(real velocity)
+    Plays the next variation and returns its seed, or -1 when nothing is
+    loaded. \a velocity (0..1, default 1) scales every layer.
+
+    \qmlmethod bool SfxPlayer::playSeed(int seed, real velocity)
+    Plays the variation of \a seed. Returns false when nothing is loaded.
+
+    \qmlmethod int SfxPlayer::variationSeed(int index)
+    The seed the \a{index}-th \l play() since the recipe loaded uses.
+
+    \qmlmethod list<real> SfxPlayer::renderOffline(int seed, real velocity)
+    What \l playSeed() of \a seed at \a velocity sends into its bus, as mono
+    samples (the (L + R) / 2 downmix, clamped to -1..1) at 44.1 kHz, from
+    the first layer's start to the last layer's end, at the player's
+    \l volume and \l pan. Renders on an engine of its own and does not
+    touch the live sound. The bus volume, echo and reverb are not part of
+    it.
+
+    \section1 Signals
+
+    \qmlsignal SfxPlayer::hotReloaded()
+    Emitted after the recipe file changed on disk and was loaded again.
+
+    \qmlsignal SfxPlayer::parseError(string message)
+    Emitted when the recipe or one of its samples fails to load. On a hot
+    reload the previous recipe keeps playing.
+
+    \sa SynthInstrument, SampleInstrument, SongPlayer
+*/
+
+/*!
+    \qmltype SoundMixer
+    \inqmlmodule Clayground.Sound
+    \brief The volume, echo and reverb of each mixer bus: sound effects, music and voices.
+
+    A singleton. Every instrument mixes into one of three buses, chosen by
+    its \c bus property; the bus volume scales all of it. The volumes
+    belong to the process-wide engine, so every QML engine in the process
+    sees the same values.
+
+    \qml
+    import Clayground.Sound
+
+    Slider { onMoved: SoundMixer.musicVolume = value }
+    SynthInstrument { bus: "music" }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty real SoundMixer::sfxVolume
+    Volume of the \c "sfx" bus, 0..1, default 1. Values outside are clamped.
+
+    \qmlproperty real SoundMixer::musicVolume
+    Volume of the \c "music" bus, 0..1, default 1.
+
+    \qmlproperty real SoundMixer::voiceVolume
+    Volume of the \c "voice" bus, 0..1, default 1.
+
+    \qmlproperty EchoEffect SoundMixer::sfxEcho
+    The echo of the \c "sfx" bus. Off by default.
+
+    \qmlproperty EchoEffect SoundMixer::musicEcho
+    The echo of the \c "music" bus. Off by default.
+
+    \qmlproperty EchoEffect SoundMixer::voiceEcho
+    The echo of the \c "voice" bus. Off by default.
+
+    \qmlproperty ReverbEffect SoundMixer::sfxReverb
+    The reverb of the \c "sfx" bus. Off by default.
+
+    \qmlproperty ReverbEffect SoundMixer::musicReverb
+    The reverb of the \c "music" bus. Off by default.
+
+    \qmlproperty ReverbEffect SoundMixer::voiceReverb
+    The reverb of the \c "voice" bus. Off by default.
+
+    \sa SynthInstrument, SampleInstrument, SongPlayer, EchoEffect, ReverbEffect
+*/
+
+/*!
+    \qmltype EchoEffect
+    \inqmlmodule Clayground.Sound
+    \brief The SNES-style echo of one bus: a delay, feedback and an 8-tap FIR filter.
+
+    Not created in QML; every bus has one, reached through \l SoundMixer
+    (\c sfxEcho, \c musicEcho, \c voiceEcho). The bus mix is written into
+    a delay line; the delayed signal runs through the FIR filter, whose
+    output is added to the bus at \l volume and fed back into the line at
+    \l feedback. A low-pass FIR darkens every repeat a little more than
+    the one before.
+
+    The echo runs before the bus's reverb and before its volume. Turning
+    it off drops its tail; turning it on again starts from silence. Its
+    values belong to the process-wide engine.
+
+    \qml
+    import Clayground.Sound
+
+    Component.onCompleted: {
+        SoundMixer.musicEcho.delay = 120
+        SoundMixer.musicEcho.feedback = 0.5
+        SoundMixer.musicEcho.fir = [0.25, 0.25, 0.25, 0.25]
+        SoundMixer.musicEcho.enabled = true
+    }
+    \endqml
+
+    \section1 Properties
+
+    \qmlproperty bool EchoEffect::enabled
+    Whether the echo runs. Default \c false: the bus sounds as without it.
+
+    \qmlproperty real EchoEffect::delay
+    Time from a sound to its first repeat in milliseconds, 1..1000,
+    default 120.
+
+    \qmlproperty real EchoEffect::feedback
+    Share of the filtered echo written back into the delay line, -1..1,
+    default 0.5. With the default taps every repeat is this times the
+    one before; a negative value flips the sign of every other repeat.
+
+    \qmlproperty real EchoEffect::volume
+    Level at which the filtered echo is added to the bus, 0..1, default 0.5.
+
+    \qmlproperty list<real> EchoEffect::fir
+    The eight FIR coefficients, -1..1 each, tap 0 the newest sample.
+    Default \c {[1, 0, 0, 0, 0, 0, 0, 0]}, which passes the delayed signal
+    unchanged. Fewer than eight values leave the remaining taps 0; more
+    are refused with a warning. The taps are consecutive samples at the
+    engine's rate. Taps that sum to more than 1 can make the repeats grow;
+    the delay line clips, so they cannot run away.
+
+    \sa SoundMixer, ReverbEffect
+*/
+
+/*!
+    \qmltype ReverbEffect
+    \inqmlmodule Clayground.Sound
+    \brief The small reverb of one bus.
+
+    Not created in QML; every bus has one, reached through \l SoundMixer
+    (\c sfxReverb, \c musicReverb, \c voiceReverb). A Schroeder reverb in
+    the Freeverb pattern: four damped feedback combs and two allpasses per
+    channel, fed the mono sum of the bus. The right channel's delays are a
+    little longer than the left's, so the tail is wide.
+
+    The reverb runs after the bus's echo and before its volume. Turning
+    it off drops its tail.
+
+    \section1 Properties
+
+    \qmlproperty bool ReverbEffect::enabled
+    Whether the reverb runs. Default \c false.
+
+    \qmlproperty real ReverbEffect::roomSize
+    Length of the tail, 0..1, default 0.5.
+
+    \qmlproperty real ReverbEffect::damping
+    How fast the high frequencies die in the tail, 0..1, default 0.5.
+
+    \qmlproperty real ReverbEffect::volume
+    Level of the reverberated signal added to the bus, 0..1, default 0.3.
+
+    \sa SoundMixer, EchoEffect
 */

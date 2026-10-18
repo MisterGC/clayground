@@ -17,6 +17,10 @@
 // or honour setLoops() — so `position` stays 0 there and `loop` has no
 // effect (#216). Playback itself needs a user gesture first, as it does
 // for any audio in a browser.
+//
+// Music does not play on the clay_sound engine, but it follows the
+// music bus: what reaches the speakers is `volume` times
+// SoundMixer.musicVolume, which is 1 unless a game lowers it.
 
 #ifndef CLAY_SOUND_MUSIC_H
 #define CLAY_SOUND_MUSIC_H
@@ -107,6 +111,7 @@ private:
     void beginRemoteFetch(const QUrl &url);
     void cancelInFlightReply();
     void resetSource();
+    void applyVolume();
 
     QMediaPlayer  *player_   = nullptr;
     QAudioOutput  *audioOut_ = nullptr;
