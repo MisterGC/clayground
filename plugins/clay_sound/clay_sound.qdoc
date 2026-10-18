@@ -635,6 +635,12 @@
     \a detune semitones as in \l play(). Returns false when nothing is
     loaded.
 
+    \qmlmethod void SfxPlayer::stop()
+    Ends every voice this player started: a ringing layer runs its own
+    release from now and is freed, a layer whose offset has not come yet
+    does not start. The player stays loaded; the next \l play() sounds
+    as before.
+
     \qmlmethod int SfxPlayer::variationSeed(int index)
     The seed the \a{index}-th \l play() since the recipe loaded uses.
 

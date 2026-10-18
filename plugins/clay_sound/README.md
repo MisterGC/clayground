@@ -267,6 +267,7 @@ detent.play(0.6)                       // the same at velocity 0.6 (all layers)
 detent.play(1, 7)                      // a fifth up (all layers, semitones)
 detent.playSeed(seed)                  // that variation again
 var mono = detent.renderOffline(seed)  // what play() of that seed sounded like
+detent.stop()                          // end what it still plays
 ```
 
 The wheel detent of `demo/sfx/` (lock_picker's, four layers):
@@ -345,6 +346,12 @@ detune)` - which transposes every layer, oscillator and sample alike: the
 play renders the samples of the same recipe with every layer's `detune`
 raised by that much. An effect a game plays on a scale (rising coins, one
 tone per tumbler) is one recipe.
+
+`stop()` ends every voice the player started: a ringing layer runs its own
+`envelope.release` from that moment and is freed, a layer whose `offset` has
+not come yet does not start. A long recipe - an ambience bed when the level
+changes - thus ends within its longest release, and the next `play()` works
+as before.
 
 `SfxPlayer` watches its recipe file and hot-reloads it; add `sfx/` (or
 `*.sfx.json`) to the sandbox's `.dojoignore`.
