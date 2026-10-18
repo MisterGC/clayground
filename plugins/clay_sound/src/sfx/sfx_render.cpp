@@ -205,6 +205,20 @@ int64_t SfxVoices::play(Engine &engine, const std::vector<SfxNote> &notes, int64
     return end;
 }
 
+void SfxVoices::stop(Engine &engine) const
+{
+    if (osc_) {
+        engine.releaseInstrument(oscId_);
+        // The cancelled layers' patches would wait for events that never come.
+        osc_->clearPatches();
+    }
+    for (const Sampler &s : std::as_const(samplers_)) {
+        if (!s.inst) continue;
+        engine.releaseInstrument(s.id);
+        s.inst->clearPatches();
+    }
+}
+
 std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
                              uint32_t seed, float velocity, float gain, float pan,
                              int sampleRate, bool stereo, int64_t frames, double detune)

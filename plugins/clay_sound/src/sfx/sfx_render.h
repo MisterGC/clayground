@@ -81,6 +81,11 @@ public:
     int64_t play(Engine &engine, const std::vector<SfxNote> &notes, int64_t at,
                  float velocity, int gainStage = -1) const;
 
+    // End everything play() started: layers not yet started never do,
+    // ringing ones run their release from the engine's current frame.
+    // The instruments stay attached; play() works as before.
+    void stop(Engine &engine) const;
+
 private:
     struct Sampler { int id = -1; SamplerInstrument *inst = nullptr; };
 

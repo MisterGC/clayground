@@ -106,6 +106,11 @@ bool SfxPlayer::playSeed(int seed, qreal velocity, qreal detune)
     return true;
 }
 
+void SfxPlayer::stop()
+{
+    voices_.stop(cs::AudioOutput::instance().engine());
+}
+
 int SfxPlayer::variationSeed(int index) const
 {
     return static_cast<int>(cs::sfxVariationSeed(recipe_, std::max(0, index)));

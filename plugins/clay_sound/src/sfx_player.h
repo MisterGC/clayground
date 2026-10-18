@@ -10,6 +10,7 @@
 //   }
 //   detent.play()            // the next variation of the pool
 //   detent.play(1, 7)        // the same, a fifth up
+//   detent.stop()            // end it, each layer with its release
 //   detent.renderOffline(s)  // what play() sounded like with seed s
 //
 // play() steps through the recipe's variations: the i-th play() uses
@@ -87,6 +88,9 @@ public:
     Q_INVOKABLE int  play(qreal velocity = 1.0, qreal detune = 0.0);
     // Play the variation of `seed`. Returns false when nothing is loaded.
     Q_INVOKABLE bool playSeed(int seed, qreal velocity = 1.0, qreal detune = 0.0);
+    // End every voice this player started, each with its layer's
+    // release; layers whose offset has not come yet do not start.
+    Q_INVOKABLE void stop();
     // The seed of the `index`-th play() since the recipe loaded.
     Q_INVOKABLE int  variationSeed(int index) const;
     // What play of `seed` at `velocity` and `detune` sends into its bus,
