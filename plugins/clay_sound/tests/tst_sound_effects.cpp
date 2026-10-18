@@ -206,7 +206,8 @@ void SoundEffectsTest::echoDelayAndDecay()
     QFETCH(double, volume);
     const double burst = 0.02;
     const int d = frames(delayMs / 1000.0);
-    const double seconds = 4.5 * delayMs / 1000.0 + burst;
+    // The checks below read up to the fifth delay: the gap after repeat 4.
+    const double seconds = 5.0 * delayMs / 1000.0 + burst;
 
     Rig dry, wetRig;
     auto &echo = wetRig.eng.echo(cs::Bus::Sfx);
