@@ -60,6 +60,13 @@ void OscillatorVoice::onNoteOff(int64_t atFrame)
         endFrame_ = atFrame;
 }
 
+void OscillatorVoice::onRelease(int64_t atFrame)
+{
+    // The release runs inside the gate, so the gate ends one release
+    // after `atFrame`.
+    onNoteOff(atFrame + static_cast<int64_t>(std::llround(patch_.release * sampleRate_)));
+}
+
 bool OscillatorVoice::isFinished(int64_t currentFrame) const
 {
     return currentFrame >= endFrame_;

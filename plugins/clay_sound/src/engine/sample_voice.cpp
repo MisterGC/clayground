@@ -78,6 +78,12 @@ void SampleVoice::onNoteOff(int64_t atFrame)
         endFrame_ = atFrame;
 }
 
+void SampleVoice::onRelease(int64_t atFrame)
+{
+    // As OscillatorVoice: the release runs inside the gate.
+    onNoteOff(atFrame + static_cast<int64_t>(std::llround(patch_.release * sampleRate_)));
+}
+
 bool SampleVoice::isFinished(int64_t currentFrame) const
 {
     if (exhausted_) return true;

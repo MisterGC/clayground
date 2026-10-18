@@ -58,6 +58,12 @@ public:
     // self-finish. Use resetVoices() to also silence the voice pool.
     void clearSchedule();
 
+    // End what one instrument plays: cancel its pending events and let
+    // each of its active voices run its own release from the current
+    // frame (IVoice::onRelease). The voices are reaped once released;
+    // the instrument stays registered and plays on the next event.
+    void releaseInstrument(int id);
+
     // Drop all active voices immediately (hard cut).
     void resetVoices();
 
