@@ -270,6 +270,15 @@ var mono = detent.renderOffline(seed)  // what play() of that seed sounded like
 detent.stop()                          // end what it still plays
 ```
 
+With `loop: true` a play repeats its variation until `stop()` - an ambience
+bed that plays on with no seam:
+
+```qml
+SfxPlayer { id: wind; source: "sfx/wind.sfx.json"; loop: true }
+var seed = wind.play()                 // pass after pass, until stop()
+var two = wind.renderOffline(seed, 1, 0, 2)  // two passes of the loop
+```
+
 The wheel detent of `demo/sfx/` (lock_picker's, four layers):
 
 ```json
@@ -352,6 +361,20 @@ tone per tumbler) is one recipe.
 not come yet does not start. A long recipe - an ambience bed when the level
 changes - thus ends within its longest release, and the next `play()` works
 as before.
+
+A looped recipe (`loop: true`, read by `play()`) plays the notes of the seed
+it drew pass after pass, until `stop()`. A pass starts one period after the
+one before: the period is the time until the last layer ends, less that
+layer's `envelope.release`. The release of one pass thus crossfades into the
+next pass, and a last layer without a release is followed by the next pass on
+the next sample - no gap either way. Whether the seam is smooth is the
+recipe's: give the layers an `envelope.attack` as long as the release (a
+linear fade-out over a linear fade-in of the same sound keeps the level), or
+none at all on noise. `renderOffline(seed, velocity, detune, passes)` of a
+looping player renders `passes` periods (default 1) of the same loop; the
+second of two passes is the loop as a file, steady from its last sample to
+its first. A `play()` while a loop plays replaces it, and a hot reload of a
+looping player loops the new recipe on.
 
 `SfxPlayer` watches its recipe file and hot-reloads it; add `sfx/` (or
 `*.sfx.json`) to the sandbox's `.dojoignore`.
