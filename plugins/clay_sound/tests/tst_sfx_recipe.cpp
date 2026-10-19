@@ -4,8 +4,9 @@
 // name, one seed renders the same samples every time and live playback
 // renders the samples renderOffline() does, a play transposed by n
 // semitones is the recipe with every layer's detune raised by n (#439),
-// stop() ends a playing recipe within its layers' release (#441),
-// and the values other seeds play with stay inside the declared ranges
+// stop() ends a playing recipe within its layers' release (#441), a
+// looped recipe plays on pass after pass with no gap and no jump at the
+// seam, live as offline (#442), and the values other seeds play with stay inside the declared ranges
 // - drawn and measured on the render (pitch by zero crossings, gain by
 // RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
 // renders on the same machine.
@@ -15,16 +16,19 @@
 #include "engine/note_event.h"
 #include "engine/oscillator_instrument.h"
 #include "engine/pcm_buffer.h"
+#include "offline/sound_files.h"
 #include "sfx/sfx_parser.h"
 #include "sfx/sfx_render.h"
 #include "sfx_player.h"
 
 #include <QtTest/QtTest>
+#include <QDir>
 #include <QFile>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -102,6 +106,7 @@ private slots:
     void playerResolvesSamplesNextToTheRecipe();
     void detuneTransposesEveryLayer();
     void stopEndsTheVoicesWithinTheirRelease();
+    void loopPlaysOnWithoutASeam();
     void hotReloadKeepsTheLastGoodRecipe();
 };
 
@@ -584,6 +589,115 @@ void SfxRecipeTest::stopEndsTheVoicesWithinTheirRelease()
     for (auto &s : live) s = std::clamp(s, -1.0f, 1.0f);
     QCOMPARE(QVector<float>(live.begin(), live.end()), offline);
     QVERIFY(rms(live, 0, live.size()) > 0.05);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+}
+
+// An ambience bed: a sine and a quieter noise, both one second long
+// with a 100 ms fade at either end. A pass is 900 ms - the last layer's
+// end less its release - so each fade-out crossfades into the next
+// pass's fade-in; 220 Hz over 900 ms is 198 whole cycles, so the sine of
+// one pass meets the next in phase.
+static const char *kBedRecipe = R"({"variation": {"seed": 3}, "layers": [
+    {"source": "sine", "freq": 220, "length": 1000, "gain": -6,
+     "envelope": {"attack": 100, "decay": 0, "sustain": 1, "release": 100}},
+    {"source": "noise", "length": 1000, "gain": -18,
+     "envelope": {"attack": 100, "decay": 0, "sustain": 1, "release": 100}}]})";
+
+// The loop seam check of `sp analyze --loop`: the step from buf[at - 1]
+// to buf[at] (wrapping) is a click when it is more than four times the
+// 99th percentile of the steps between neighbouring samples and above
+// 0.01.
+static bool seamless(const std::vector<float> &buf, size_t at, double *jump, double *typical)
+{
+    std::vector<double> steps;
+    for (size_t i = 1; i < buf.size(); ++i)
+        if (const double d = std::abs(buf[i] - buf[i - 1]); d > 0.0) steps.push_back(d);
+    std::sort(steps.begin(), steps.end());
+    *typical = steps.empty() ? 0.0 : steps[static_cast<size_t>(0.99 * (steps.size() - 1))];
+    *jump = std::abs(buf[at % buf.size()] - buf[(at + buf.size() - 1) % buf.size()]);
+    return *jump <= 4.0 * *typical || *jump <= 0.01;
+}
+
+void SfxRecipeTest::loopPlaysOnWithoutASeam()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QFile f(dir.filePath("bed.sfx.json"));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(kBedRecipe);
+    f.close();
+
+    QQmlEngine qml;
+    std::unique_ptr<QObject> player(createPlayer(qml, QUrl::fromLocalFile(f.fileName())));
+    QVERIFY(player);
+    QVERIFY2(player->property("loaded").toBool(), qPrintable(player->property("error").toString()));
+    const size_t period = static_cast<size_t>(std::llround(0.9 * kRate));
+    auto offline = [&player](int seed, int passes) {
+        QVector<float> out;
+        QMetaObject::invokeMethod(player.get(), "renderOffline", Q_RETURN_ARG(QVector<float>, out),
+                                  Q_ARG(int, seed), Q_ARG(qreal, 1.0), Q_ARG(qreal, 0.0),
+                                  Q_ARG(int, passes));
+        return std::vector<float>(out.begin(), out.end());
+    };
+
+    // Without loop the recipe plays once, passes or not.
+    QCOMPARE(offline(7, 2).size(), size_t(kRate));
+    player->setProperty("loop", true);
+    QVERIFY(player->property("loop").toBool());
+
+    // Two passes: 1.8 s, the level never drops at the seam and nothing
+    // jumps there.
+    const auto two = offline(7, 2);
+    QCOMPARE(two.size(), 2 * period);
+    const double steady = rms(two, period / 2 - 2205, 4410);
+    QVERIFY(steady > 0.1);
+    for (size_t at = period - 4410; at < period + 4410; at += 441)
+        QVERIFY2(rms(two, at, 441) > 0.5 * steady,
+                 qPrintable(QStringLiteral("10 ms at %1 ms: rms %2 of %3")
+                                .arg(at * 1000.0 / kRate).arg(rms(two, at, 441)).arg(steady)));
+    double jump = 0.0, typical = 0.0;
+    QVERIFY2(seamless(two, period, &jump, &typical),
+             qPrintable(QStringLiteral("seam jump %1, typical step %2").arg(jump).arg(typical)));
+    // The second pass on its own is the loop as a file: from its last
+    // sample back to its first is the seam it plays through.
+    const std::vector<float> pass(two.begin() + period, two.end());
+    QVERIFY2(seamless(pass, 0, &jump, &typical),
+             qPrintable(QStringLiteral("wrap jump %1, typical step %2").arg(jump).arg(typical)));
+    // For `sp analyze --loop` outside the test.
+    if (const QString out = qEnvironmentVariable("CLAY_SFX_LOOP_WAV"); !out.isEmpty())
+        QVERIFY(cs::writeWav(QDir::toNativeSeparators(out).toStdString(), pass, 1, kRate));
+
+    // Live: a looped play goes on past the last layer's end, the samples
+    // renderOffline() returns for as many passes, until stop().
+    auto &eng = cs::AudioOutput::instance().engine();
+    std::vector<float> skip(12345);
+    eng.renderOffline(skip.data(), 12345);
+    int seed = -1;
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "play", Q_RETURN_ARG(int, seed)));
+    // play() opened the sink; closed, it pulls nothing while the event
+    // loop runs and the engine renders only what the test takes.
+    cs::AudioOutput::instance().stop();
+    const auto expected = offline(seed, 3);
+    std::vector<float> live(3 * period);
+    for (size_t at = 0; at < live.size(); at += 882) {
+        // The player tops its passes up from the event loop, the way the
+        // sink's pull timer gives it time between buffers.
+        if (at % (882 * 25) == 0) QTest::qWait(120);
+        const int n = static_cast<int>(std::min<size_t>(882, live.size() - at));
+        eng.renderOffline(live.data() + at, n);
+    }
+    for (auto &x : live) x = std::clamp(x, -1.0f, 1.0f);
+    QCOMPARE(live, expected);
+    QVERIFY(rms(live, 2 * period + period / 2, 4410) > 0.1);   // well past the 1 s recipe
+
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "stop"));
+    QCOMPARE(eng.pendingEvents(), size_t(0));
+    QTest::qWait(250);   // a top-up after stop() schedules nothing
+    std::vector<float> after(2 * kRate);
+    for (size_t at = 0; at < after.size(); at += 882)
+        eng.renderOffline(after.data() + at, static_cast<int>(std::min<size_t>(882, after.size() - at)));
+    QVERIFY(rms(after, 0, 220) > 0.01);                         // a release, not a cut
+    QCOMPARE(rms(after, 4410, after.size() - 4410), 0.0);       // and nothing after it
     QCOMPARE(eng.activeVoices(), size_t(0));
 }
 
