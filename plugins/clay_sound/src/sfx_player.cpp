@@ -19,6 +19,16 @@
 
 namespace cs = clay::sound;
 
+namespace {
+
+// How far ahead of the engine a loop's passes are scheduled, and how
+// often that is topped up: a pass is in the engine long before its
+// frame comes, so a busy GUI thread does not open a gap at the seam.
+constexpr double kLoopAheadSeconds = 1.0;
+constexpr int    kLoopTopUpMs = 100;
+
+} // namespace
+
 SfxPlayer::SfxPlayer(QObject *parent)
     : QObject(parent)
 {
@@ -28,6 +38,8 @@ SfxPlayer::SfxPlayer(QObject *parent)
         updateWatchedFile(path);
         load(/*hot=*/true);
     });
+    loopTimer_.setInterval(kLoopTopUpMs);
+    connect(&loopTimer_, &QTimer::timeout, this, &SfxPlayer::scheduleLoopPasses);
 }
 
 SfxPlayer::~SfxPlayer()
@@ -80,6 +92,13 @@ void SfxPlayer::setBus(const QString &name)
     emit busChanged();
 }
 
+void SfxPlayer::setLoop(bool on)
+{
+    if (loop_ == on) return;
+    loop_ = on;
+    emit loopChanged();
+}
+
 // --- playing -------------------------------------------------------------
 
 int SfxPlayer::play(qreal velocity, qreal detune)
@@ -96,9 +115,23 @@ bool SfxPlayer::playSeed(int seed, qreal velocity, qreal detune)
     auto &output = cs::AudioOutput::instance();
     output.start(); // idempotent; opens the sink on the first played effect
     auto &eng = output.engine();
-    voices_.play(eng, cs::realizeSfx(recipe_, static_cast<uint32_t>(seed), detune),
-                 eng.currentFrame(),
-                 static_cast<float>(std::clamp(velocity, 0.0, 1.0)), output.triggerGainStage());
+    // A new play of a looping player replaces the loop that plays.
+    if (looping_) stop();
+    auto notes = cs::realizeSfx(recipe_, static_cast<uint32_t>(seed), detune);
+    const float v = static_cast<float>(std::clamp(velocity, 0.0, 1.0));
+    const int64_t at = eng.currentFrame();
+    const auto span = voices_.play(eng, notes, at, v, output.triggerGainStage());
+    if (loop_ && span.period > 0) {
+        looping_ = true;
+        loopNotes_ = std::move(notes);
+        loopVelocity_ = v;
+        loopDetune_ = detune;
+        loopGainStage_ = output.triggerGainStage();
+        loopPeriod_ = span.period;
+        loopNext_ = at + span.period;
+        scheduleLoopPasses();
+        loopTimer_.start();
+    }
     if (lastSeed_ != seed) {
         lastSeed_ = seed;
         emit lastSeedChanged();
@@ -108,7 +141,29 @@ bool SfxPlayer::playSeed(int seed, qreal velocity, qreal detune)
 
 void SfxPlayer::stop()
 {
+    endLoop();
     voices_.stop(cs::AudioOutput::instance().engine());
+}
+
+void SfxPlayer::endLoop()
+{
+    looping_ = false;
+    loopTimer_.stop();
+    loopNotes_.clear();
+}
+
+void SfxPlayer::scheduleLoopPasses()
+{
+    if (!looping_) return;
+    auto &eng = cs::AudioOutput::instance().engine();
+    const int64_t now = eng.currentFrame();
+    const int64_t ahead = now + std::llround(kLoopAheadSeconds * eng.sampleRate());
+    // A pass whose frame has gone by (the engine outran the timer) is
+    // skipped, never played late: the loop stays on its grid.
+    if (loopNext_ < now)
+        loopNext_ += (now - loopNext_ + loopPeriod_ - 1) / loopPeriod_ * loopPeriod_;
+    for (; loopNext_ <= ahead; loopNext_ += loopPeriod_)
+        voices_.play(eng, loopNotes_, loopNext_, loopVelocity_, loopGainStage_);
 }
 
 int SfxPlayer::variationSeed(int index) const
@@ -116,14 +171,15 @@ int SfxPlayer::variationSeed(int index) const
     return static_cast<int>(cs::sfxVariationSeed(recipe_, std::max(0, index)));
 }
 
-QVector<float> SfxPlayer::renderOffline(int seed, qreal velocity, qreal detune) const
+QVector<float> SfxPlayer::renderOffline(int seed, qreal velocity, qreal detune, int passes) const
 {
     if (!loaded_) return {};
     const auto samples = cs::renderRecipe(recipe_, samples_, static_cast<uint32_t>(seed),
                                           static_cast<float>(std::clamp(velocity, 0.0, 1.0)),
                                           static_cast<float>(volume_), static_cast<float>(pan_),
                                           cs::AudioOutput::instance().sampleRate(), /*stereo=*/false,
-                                          /*seconds=*/0.0, detune);
+                                          /*seconds=*/0.0, detune,
+                                          loop_ ? std::max(1, passes) : 0);
     return QVector<float>(samples.begin(), samples.end());
 }
 
@@ -137,6 +193,7 @@ void SfxPlayer::load(bool hot)
 
     const QUrl url = cs::resolveSourceUrl(this, source_);
     if (url.isEmpty()) {
+        endLoop();
         voices_.detach(cs::AudioOutput::instance().engine());
         recipe_ = {};
         samples_.clear();
@@ -245,6 +302,13 @@ void SfxPlayer::finishLoad()
     pending_ = {};
 
     auto &eng = cs::AudioOutput::instance().engine();
+    // The loop's notes belong to the recipe it drew them from; a new
+    // source starts silent, a hot reload of a looping player is heard
+    // below as the new recipe looping on.
+    const bool relooping = looping_ && done.hot;
+    const qreal velocity = loopVelocity_;
+    const qreal detune = loopDetune_;
+    endLoop();
     recipe_ = done.recipe;
     samples_ = done.samples;
     voices_.attach(eng, recipe_, samples_);
@@ -262,6 +326,7 @@ void SfxPlayer::finishLoad()
         loaded_ = true;
         emit loadedChanged();
     }
+    if (relooping && loop_) playSeed(lastSeed_, velocity, detune);
     if (done.hot) emit hotReloaded();
 }
 
@@ -275,6 +340,7 @@ void SfxPlayer::failLoad(const QString &message, bool hot, const QString &watchP
     setError(message);
     if (!hot) {
         updateWatchedFile(watchPath);
+        endLoop();
         voices_.detach(cs::AudioOutput::instance().engine());
         recipe_ = {};
         samples_.clear();

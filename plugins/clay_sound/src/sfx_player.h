@@ -13,6 +13,10 @@
 //   detent.stop()            // end it, each layer with its release
 //   detent.renderOffline(s)  // what play() sounded like with seed s
 //
+// With `loop` set, play() repeats the variation it drew pass after pass
+// until stop(), each pass one period after the one before (see
+// sfx/sfx_render.h); renderOffline() then renders that many passes.
+//
 // play() steps through the recipe's variations: the i-th play() uses
 // sfxVariationSeed(recipe, i), which cycles when the recipe sets a
 // pool. It returns the seed; renderOffline(seed) renders the same notes
@@ -35,8 +39,12 @@
 #include <QPointer>
 #include <QQmlEngine>
 #include <QString>
+#include <QTimer>
 #include <QUrl>
 #include <QVector>
+
+#include <cstdint>
+#include <vector>
 
 QT_BEGIN_NAMESPACE
 class QNetworkAccessManager;
@@ -58,6 +66,7 @@ class SfxPlayer : public QObject
     Q_PROPERTY(qreal   volume   READ volume   WRITE setVolume   NOTIFY volumeChanged)
     Q_PROPERTY(qreal   pan      READ pan      WRITE setPan      NOTIFY panChanged)
     Q_PROPERTY(QString bus      READ bus      WRITE setBus      NOTIFY busChanged)
+    Q_PROPERTY(bool    loop     READ loop     WRITE setLoop     NOTIFY loopChanged)
 
 public:
     explicit SfxPlayer(QObject *parent = nullptr);
@@ -81,6 +90,10 @@ public:
     // "sfx" (default), "music" or "voice".
     QString bus() const;
     void    setBus(const QString &name);
+    // play() loops its variation until stop(). Read by play() and
+    // renderOffline(): a loop that already plays goes on until stop().
+    bool loop() const { return loop_; }
+    void setLoop(bool on);
 
     // Play the next variation; returns its seed, -1 when nothing is
     // loaded. `velocity` (0..1) scales every layer, `detune` (semitones)
@@ -89,16 +102,17 @@ public:
     // Play the variation of `seed`. Returns false when nothing is loaded.
     Q_INVOKABLE bool playSeed(int seed, qreal velocity = 1.0, qreal detune = 0.0);
     // End every voice this player started, each with its layer's
-    // release; layers whose offset has not come yet do not start.
+    // release; layers whose offset has not come yet do not start, and a
+    // loop plays no further pass.
     Q_INVOKABLE void stop();
     // The seed of the `index`-th play() since the recipe loaded.
     Q_INVOKABLE int  variationSeed(int index) const;
     // What play of `seed` at `velocity` and `detune` sends into its bus,
     // as mono samples ((L + R) / 2, clamped to -1..1) at 44.1 kHz from
-    // the first layer's start to the last layer's end. Does not touch
-    // the shared engine.
+    // the first layer's start to the last layer's end, or with `loop`
+    // for `passes` periods of the loop. Does not touch the shared engine.
     Q_INVOKABLE QVector<float> renderOffline(int seed, qreal velocity = 1.0,
-                                             qreal detune = 0.0) const;
+                                             qreal detune = 0.0, int passes = 1) const;
 
 signals:
     void sourceChanged();
@@ -109,6 +123,7 @@ signals:
     void volumeChanged();
     void panChanged();
     void busChanged();
+    void loopChanged();
     void hotReloaded();
     void parseError(const QString &message);
 
@@ -133,6 +148,8 @@ private:
     void failLoad(const QString &message, bool hot, const QString &watchPath);
     QNetworkReply *fetch(const QUrl &url);
     void cancelFetches();
+    void endLoop();
+    void scheduleLoopPasses();
     void setError(const QString &err);
     void updateWatchedFile(const QString &path);
 
@@ -147,6 +164,18 @@ private:
     qreal volume_ = 1.0;
     qreal pan_ = 0.0;
     clay::sound::Bus bus_ = clay::sound::Bus::Sfx;
+
+    // The loop that plays: its notes, and the frame of its next pass,
+    // which loopTimer_ schedules ahead of the engine.
+    bool loop_ = false;
+    bool looping_ = false;
+    std::vector<clay::sound::SfxNote> loopNotes_;
+    float   loopVelocity_ = 1.0f;
+    qreal   loopDetune_ = 0.0;
+    int     loopGainStage_ = -1;
+    int64_t loopPeriod_ = 0;
+    int64_t loopNext_ = 0;
+    QTimer  loopTimer_;
 
     int generation_ = 0;
     Pending pending_;
