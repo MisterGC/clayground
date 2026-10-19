@@ -133,12 +133,17 @@ void SfxVoices::setBus(Bus b)
     for (const Sampler &s : std::as_const(samplers_)) if (s.inst) s.inst->setBus(b);
 }
 
-int64_t SfxVoices::play(Engine &engine, const std::vector<SfxNote> &notes, int64_t at,
-                        float velocity, int gainStage) const
+SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &notes, int64_t at,
+                                float velocity, int gainStage) const
 {
-    if (!osc_) return 0;
+    if (!osc_) return {};
     const int rate = engine.sampleRate();
-    int64_t end = 0;
+    Span span;
+    int64_t tail = 0;   // the release of the layer that ends last
+    auto ended = [&span, &tail](int64_t end, int64_t release) {
+        if (end > span.end) { span.end = end; tail = release; }
+        else if (end == span.end) tail = std::max(tail, release);
+    };
     for (const SfxNote &n : notes) {
         if (n.layer < 0 || n.layer >= recipe_.layers.size()) continue;
         const SfxLayer &layer = recipe_.layers[n.layer];
@@ -171,6 +176,8 @@ int64_t SfxVoices::play(Engine &engine, const std::vector<SfxNote> &notes, int64
             patch.attack  = n.get(P::Attack) / 1000.0;
             patch.release = n.get(P::Release) / 1000.0;
             s.inst->pushPatch(engine.schedule(ev), patch);
+            ended(offset + ev.durationFrames,
+                  std::min(ev.durationFrames, msToFrames(n.get(P::Release), rate)));
         } else {
             ev.instrumentId   = oscId_;
             ev.freqHz         = n.get(P::Freq) * detune;
@@ -199,10 +206,12 @@ int64_t SfxVoices::play(Engine &engine, const std::vector<SfxNote> &notes, int64
             patch.filterEnvAmount = n.get(P::FilterAmount);
             patch.noiseSeed  = n.noiseSeed;
             osc_->pushPatch(engine.schedule(ev), patch);
+            ended(offset + ev.durationFrames,
+                  std::min(ev.durationFrames, msToFrames(n.get(P::Release), rate)));
         }
-        end = std::max(end, offset + ev.durationFrames);
     }
-    return end;
+    span.period = std::max<int64_t>(span.end > 0 ? 1 : 0, span.end - tail);
+    return span;
 }
 
 void SfxVoices::stop(Engine &engine) const
@@ -221,15 +230,22 @@ void SfxVoices::stop(Engine &engine) const
 
 std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
                              uint32_t seed, float velocity, float gain, float pan,
-                             int sampleRate, bool stereo, int64_t frames, double detune)
+                             int sampleRate, bool stereo, int64_t frames, double detune,
+                             int passes)
 {
     Engine scratch(sampleRate);
     SfxVoices voices;
     voices.attach(scratch, recipe, samples);
     voices.setGain(gain);
     voices.setPan(pan);
-    const int64_t end = voices.play(scratch, realizeSfx(recipe, seed, detune), 0, velocity);
-    if (frames < 0) frames = end;
+    const auto notes = realizeSfx(recipe, seed, detune);
+    const SfxVoices::Span span = voices.play(scratch, notes, 0, velocity);
+    if (frames < 0) frames = passes > 0 ? passes * span.period : span.end;
+    // Every further pass that starts inside the render, as SfxPlayer
+    // schedules them.
+    if (passes > 0 && span.period > 0)
+        for (int64_t at = span.period; at < frames; at += span.period)
+            voices.play(scratch, notes, at, velocity);
 
     std::vector<float> out(static_cast<size_t>(frames) * (stereo ? 2 : 1));
     // In passes of the size the live sink pulls, though the samples do
@@ -245,11 +261,12 @@ std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
 
 std::vector<float> renderRecipe(const SfxRecipe &recipe, const SfxSamples &samples,
                                 uint32_t seed, float velocity, float gain, float pan,
-                                int sampleRate, bool stereo, double seconds, double detune)
+                                int sampleRate, bool stereo, double seconds, double detune,
+                                int passes)
 {
     const int64_t frames = seconds > 0.0 ? std::llround(seconds * sampleRate) : -1;
     std::vector<float> out = renderSfx(recipe, samples, seed, velocity, gain, pan,
-                                       sampleRate, stereo, frames, detune);
+                                       sampleRate, stereo, frames, detune, passes);
     for (float &s : out) s = std::clamp(s, -1.0f, 1.0f);
     return out;
 }

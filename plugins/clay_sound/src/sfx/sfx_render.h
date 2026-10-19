@@ -14,6 +14,12 @@
 //      schedules the realized layers there, each at its offset.
 //   3. renderSfx() does 1 and 2 on a scratch engine and renders it.
 //
+// A looped recipe plays the notes of one seed pass after pass, every
+// pass one period after the one before: the period is the frames until
+// the last layer ends, less that layer's release, so the release of one
+// pass crossfades into the start of the next and a layer without a
+// release is followed by the next pass on the frame after its last.
+//
 // SfxPlayer::play() runs 1 and 2 on the shared engine at its current
 // frame, renderOffline() runs 3: voice for voice the same notes, and
 // noise layers carry a seed of their own (OscillatorVoice::Patch::
@@ -75,11 +81,15 @@ public:
     void setPan(float p);
     void setBus(Bus b);
 
+    // Frames from a pass's start until its last layer has ended, and
+    // until the next pass of a loop starts (>= 1 while there is a layer).
+    struct Span { int64_t end = 0; int64_t period = 0; };
+
     // Schedule `notes` to start at engine frame `at` (each layer at its
-    // offset), every layer's gain scaled by `velocity`. Returns the
-    // number of frames from `at` until the last layer has ended.
-    int64_t play(Engine &engine, const std::vector<SfxNote> &notes, int64_t at,
-                 float velocity, int gainStage = -1) const;
+    // offset), every layer's gain scaled by `velocity`. Returns the span
+    // of what it scheduled, counted from `at`.
+    Span play(Engine &engine, const std::vector<SfxNote> &notes, int64_t at,
+              float velocity, int gainStage = -1) const;
 
     // End everything play() started: layers not yet started never do,
     // ringing ones run their release from the engine's current frame.
@@ -99,19 +109,22 @@ private:
 // What SfxVoices::play() of `seed` at `velocity`, transposed by `detune`
 // semitones, sends into its bus, rendered on a scratch engine from frame
 // 0 until the last layer ends, or for `frames` frames when that is >= 0:
-// interleaved stereo, or the (L + R) / 2 downmix when !stereo.
+// interleaved stereo, or the (L + R) / 2 downmix when !stereo. With
+// `passes` > 0 the recipe loops: a pass starts every period, and the
+// render lasts `passes` periods when `frames` is < 0.
 std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
                              uint32_t seed, float velocity, float gain, float pan,
                              int sampleRate, bool stereo, int64_t frames = -1,
-                             double detune = 0.0);
+                             double detune = 0.0, int passes = 0);
 
 // renderSfx() clamped to [-1, 1] like the live sink, `seconds` long
-// (<= 0: until the last layer ends). SfxPlayer::renderOffline() and a
-// program without QML render a recipe through this.
+// (<= 0: until the last layer ends, or `passes` periods of a loop).
+// SfxPlayer::renderOffline() and a program without QML render a recipe
+// through this.
 std::vector<float> renderRecipe(const SfxRecipe &recipe, const SfxSamples &samples,
                                 uint32_t seed, float velocity, float gain, float pan,
                                 int sampleRate, bool stereo, double seconds = 0.0,
-                                double detune = 0.0);
+                                double detune = 0.0, int passes = 0);
 
 } // namespace clay::sound
 
