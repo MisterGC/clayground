@@ -366,7 +366,10 @@ note, each grain the layer itself - its source, envelope, filter, `length`,
   crumble that thins out - and 5 is the reverse.
 - The other jitters move each grain's `gain` (dB), `filter.cutoff`
   (octaves), pitch (semitones, as `detune`) and `length` (ms) by a random
-  amount up to that much either way. `jitter.cutoff` needs a `filter`.
+  amount up to that much either way. `jitter.cutoff` needs a `filter`. A
+  grain stays inside the field's range: its gain at most 12 dB, its
+  `detune` within -48..48, its cutoff within 20..20000 Hz, its length at
+  least 0 - a jitter that reaches past an edge plays those grains at it.
 - Every grain's times and jitters, and its noise, are hashed from the
   play's seed, the layer and the grain's number alone: the same seed plays
   the same grains, another seed other ones. A layer's `vary` is drawn once
