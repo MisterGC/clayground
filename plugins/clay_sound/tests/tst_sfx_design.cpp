@@ -7,7 +7,8 @@
 // layers exactly, the same samples included; an override wins over the
 // macro that drives its path; a driven value outside what the recipe
 // accepts is clamped and reported; the three curves give their values;
-// and a macro drives an envelope segment's curve (#447).
+// a macro drives an envelope segment's curve (#447), and a burst's
+// numbers two groups deep and the recipe's voice cap (#448).
 
 #include "offline/sound_files.h"
 #include "sfx/sfx_design.h"
@@ -94,6 +95,7 @@ private slots:
     void aDrivenValueOutsideItsRangeIsClampedAndReported();
     void curves();
     void aMacroDrivesASegmentCurve();
+    void aMacroDrivesABurst();
     void templateRejects_data();
     void templateRejects();
     void designRejects_data();
@@ -373,6 +375,39 @@ void TestSfxDesign::aMacroDrivesASegmentCurve()
     QCOMPARE(r.recipe.layers[0].get(P::DecayCurve), 1.0);
     QVERIFY2(r.json.contains("\"envelope\": { \"decay\": 40, \"sustain\": 0, \"decayCurve\": 1 }"),
              r.json.constData());
+}
+
+// A burst's numbers are layer numbers too, its jitter a group inside a
+// group; `maxVoices` is a top-level path. The template holds each driven
+// number at the macro's default.
+void TestSfxDesign::aMacroDrivesABurst()
+{
+    const auto r = cs::SfxDesignCompiler::compile(
+        tinyDesign("\"macros\": { \"m\": 1 },"
+                   "\"overrides\": { \"maxVoices\": 8, \"layers[tone].burst.jitter.gain\": 6 }"),
+        tinyTemplate("{ \"path\": \"layers[tone].burst.count\", \"from\": 10, \"to\": 40 },"
+                     "{ \"path\": \"layers[0].burst.jitter.time\", \"from\": 0, \"to\": 1 }",
+                     "\"burst\": { \"count\": 25, \"duration\": 100, \"jitter\": { \"time\": 0.5 } }"));
+    QVERIFY2(r.ok, qPrintable(r.error));
+    QCOMPARE(r.recipe.maxVoices, 8);
+    const auto &l = r.recipe.layers[0];
+    QVERIFY(l.burst);
+    QCOMPARE(l.get(P::BurstCount), 40.0);
+    QCOMPARE(l.get(P::JitterTime), 1.0);
+    QCOMPARE(l.get(P::JitterGain), 6.0);
+    QVERIFY2(r.json.contains("\"burst\": { \"count\": 40, \"duration\": 100, \"jitter\": { \"time\": 1, \"gain\": 6 } }"),
+             r.json.constData());
+    QVERIFY2(r.json.contains("  \"maxVoices\": 8,\n  \"layers\": ["), r.json.constData());
+
+    // A null override takes the jitter group out, and the drive into it is
+    // the override's to leave alone.
+    const auto off = cs::SfxDesignCompiler::compile(
+        tinyDesign("\"overrides\": { \"layers[tone].burst.jitter\": null }"),
+        tinyTemplate("{ \"path\": \"layers[0].burst.jitter.time\", \"from\": 0, \"to\": 1 }",
+                     "\"burst\": { \"count\": 25, \"duration\": 100, \"jitter\": { \"time\": 0.5 } }"));
+    QVERIFY2(off.ok, qPrintable(off.error));
+    QCOMPARE(off.recipe.layers[0].get(P::JitterTime), 0.0);
+    QVERIFY2(off.json.contains("\"burst\": { \"count\": 25, \"duration\": 100 }"), off.json.constData());
 }
 
 void TestSfxDesign::templateRejects_data()
