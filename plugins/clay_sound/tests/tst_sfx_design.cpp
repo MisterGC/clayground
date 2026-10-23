@@ -6,8 +6,8 @@
 // for byte, every time; macros at their defaults give the template's
 // layers exactly, the same samples included; an override wins over the
 // macro that drives its path; a driven value outside what the recipe
-// accepts is clamped and reported; and the three curves give their
-// values.
+// accepts is clamped and reported; the three curves give their values;
+// and a macro drives an envelope segment's curve (#447).
 
 #include "offline/sound_files.h"
 #include "sfx/sfx_design.h"
@@ -93,6 +93,7 @@ private slots:
     void anOverrideWinsOverTheMacro();
     void aDrivenValueOutsideItsRangeIsClampedAndReported();
     void curves();
+    void aMacroDrivesASegmentCurve();
     void templateRejects_data();
     void templateRejects();
     void designRejects_data();
@@ -358,6 +359,20 @@ void TestSfxDesign::curves()
         QVERIFY2(res.ok, qPrintable(res.error + " in " + c.drive));
         QCOMPARE(res.recipe.layers[0].get(c.param), c.expected);
     }
+}
+
+// A segment curve is a layer number like any other: a macro moves it,
+// and the writer puts it after the envelope's times.
+void TestSfxDesign::aMacroDrivesASegmentCurve()
+{
+    const auto r = cs::SfxDesignCompiler::compile(
+        tinyDesign("\"macros\": { \"m\": 1 }"),
+        tinyTemplate("{ \"path\": \"layers[0].envelope.decayCurve\", \"from\": 0, \"to\": 1 }",
+                     "\"envelope\": { \"decay\": 40, \"sustain\": 0, \"decayCurve\": 0.5 }"));
+    QVERIFY2(r.ok, qPrintable(r.error));
+    QCOMPARE(r.recipe.layers[0].get(P::DecayCurve), 1.0);
+    QVERIFY2(r.json.contains("\"envelope\": { \"decay\": 40, \"sustain\": 0, \"decayCurve\": 1 }"),
+             r.json.constData());
 }
 
 void TestSfxDesign::templateRejects_data()
