@@ -308,8 +308,8 @@ The wheel detent of `demo/sfx/` (lock_picker's, four layers):
 }
 ```
 
-Top level: `version` (1), `name`, `variation`, `layers` (required, at least
-one). A layer:
+Top level: `version` (1), `name`, `variation`, `maxVoices` (see "Bursts"
+below), `layers` (required, at least one). A layer:
 
 | Field | Unit | Default | Meaning |
 |-------|------|---------|---------|
@@ -327,6 +327,7 @@ one). A layer:
 | `pulseWidth` | 0.05..0.95 | 0.5 | `square` only |
 | `lfo` | `target`; `rate` Hz; `depth` semitones (pitch) or 0..1 (volume) | -, 0, 0 | `pitch` or `volume` |
 | `sample`, `interpolation` | path; `nearest`, `linear`, `gaussian` | -, `linear` | the WAV of a `sample` layer, relative to the recipe file |
+| `burst` | `count` 1..256; `duration` ms; `density` 0.01..100; `jitter`: `time` 0..1, `gain` dB, `cutoff` octaves, `freq` semitones, `length` ms | required, required, 1; 0, 0, 0, 0, 0 | the layer plays as `count` short grains inside `duration` (see "Bursts"); not on a `sample` layer |
 | `vary` | `{"<field>": [min, max]}` | - | per play, `min..max` is added to the field |
 
 Segment curves: every envelope segment - attack, decay and release of the
@@ -341,8 +342,50 @@ shapes. For an impact or a ring, `"decay": 400, "sustain": 0, "decayCurve": 1`
 falls evenly in dB over its 400 ms; a linear decay of the same time stays
 loud for most of it and drops off at the end.
 
+Bursts: crumble, gravel, crackle and debris are many tiny grains with
+random timing. A layer with a `burst` plays as `count` grains instead of one
+note, each grain the layer itself - its source, envelope, filter, `length`,
+`gain` - started at its own time inside the `duration` after the layer's
+`offset`:
+
+```json
+{ "name": "grit", "source": "noise", "offset": 5, "length": 3, "gain": -4,
+  "envelope": { "decay": 3, "sustain": 0 },
+  "filter": { "type": "bandpass", "cutoff": 1400, "resonance": 0.2 },
+  "burst": { "count": 23, "duration": 420, "density": 0.2,
+             "jitter": { "time": 1, "gain": 3, "cutoff": 0.5, "length": 1 } } }
+```
+
+- Grain `i` of `n` owns the slot `[i, i + 1) / n` of the burst and starts
+  in its middle; `jitter.time` moves it up to that fraction of half the
+  slot either way, so at 1 a grain starts anywhere in its slot. The grains
+  keep their order, and every one starts inside the `duration`.
+- `density` is the grain rate at the burst's end over the rate at its
+  start, the change between them exponential: 1 (the default) spreads the
+  grains evenly, 0.2 starts them five times as densely as it ends - a
+  crumble that thins out - and 5 is the reverse.
+- The other jitters move each grain's `gain` (dB), `filter.cutoff`
+  (octaves), pitch (semitones, as `detune`) and `length` (ms) by a random
+  amount up to that much either way. `jitter.cutoff` needs a `filter`. A
+  grain stays inside the field's range: its gain at most 12 dB, its
+  `detune` within -48..48, its cutoff within 20..20000 Hz, its length at
+  least 0 - a jitter that reaches past an edge plays those grains at it.
+- Every grain's times and jitters, and its noise, are hashed from the
+  play's seed, the layer and the grain's number alone: the same seed plays
+  the same grains, another seed other ones. A layer's `vary` is drawn once
+  per play and holds for all its grains; `vary` can move the burst's
+  numbers too (`burst.count`, `burst.jitter.gain`), and a fractional
+  `count` plays the nearest whole number of grains.
+
+`maxVoices` (top level, 0..256, default 0 = no cap) bounds the grains of
+the recipe's bursts that ring at once: a grain that would exceed it cuts the
+oldest grain still ringing, with no fade. It counts the grains of every play
+of the player, and only grains: the recipe's other layers never count
+against it and are never cut. A recipe with a cap needs a burst.
+
 `vary` names a numeric field by its path: `detune`, `gain`, `envelope.decay`,
-`envelope.decayCurve`, `filter.cutoff`, `pitch.start`, `pitch.curve`, ...
+`envelope.decayCurve`, `filter.cutoff`, `pitch.start`, `pitch.curve`,
+`burst.count`, `burst.jitter.time`, ...
 Every value a range can reach must be a valid value of that field. The
 parser rejects an unknown field by name and path (`layers[1].envelope:
 unknown field 'decya'`), and so does a hot reload, which keeps playing the
@@ -470,7 +513,8 @@ sign) or `db` (`from` and `to` in dB, the value written is `10^(dB / 20)`:
 a level in 0..1, such as `envelope.sustain`, moved evenly by ear), with `t`
 the macro's place in its range from 0 to 1. A drive's path is a layer's
 number in the `vary` syntax behind a layer selector: `layers[1].gain`,
-`layers[body].envelope.decay` - an index, or the name of exactly one layer.
+`layers[body].envelope.decay`, `layers[grit].burst.count` - an index, or the
+name of exactly one layer.
 The field must have a meaning on its layer (no `filter.cutoff` without a
 `filter`), and a path is driven by one macro only.
 
@@ -486,7 +530,7 @@ A design file:
 | `template` | required: the `id` and `version` of the template it is for; another version does not compile |
 | `name` | the compiled recipe's `name`; the template's when absent |
 | `macros` | `{"<id>": value}`, each inside its macro's range; a macro not named stays at its default |
-| `overrides` | `{"<path>": value}`: `name`, `variation.seed`, `variation.pool`, or any field of a layer - `layers[2].gain`, `layers[body].filter.type`, `layers[body].vary.detune` - or a whole group (`layers[0].envelope`). `null` removes the field. Two overrides may not write into each other (`layers[0].filter` and `layers[0].filter.cutoff`) |
+| `overrides` | `{"<path>": value}`: `name`, `variation.seed`, `variation.pool`, `maxVoices`, or any field of a layer - `layers[2].gain`, `layers[body].filter.type`, `layers[body].vary.detune`, `layers[grit].burst.jitter.time` - or a whole group (`layers[0].envelope`, `layers[grit].burst.jitter`). `null` removes the field. Two overrides may not write into each other (`layers[0].filter` and `layers[0].filter.cutoff`) |
 | `locks` | macro ids and paths the tools must leave alone; the compiler checks they name one and otherwise ignores them |
 | `meta` | any object (lineage, a target); the compiler ignores it |
 

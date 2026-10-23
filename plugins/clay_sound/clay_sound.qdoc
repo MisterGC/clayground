@@ -567,8 +567,10 @@
     (oscillator, noise or a WAV sample), an envelope, a pitch curve, a
     filter curve, a start offset, a gain and a pan, in Hz, ms, semitones
     and dB; each envelope segment and the pitch sweep linear or, up to
-    exponential, a straight line in dB - plus a variation spec: a random range per layer field, a
-    seed and a round-robin pool size. The plugin README documents the
+    exponential, a straight line in dB; a layer with a \c burst plays as
+    many short seeded grains, \c maxVoices bounding how many ring at once -
+    plus a variation spec: a random range per layer field, a seed and a
+    round-robin pool size. The plugin README documents the
     format; the parser rejects an unknown field by its name and path.
     A recipe can also be compiled from a design file - a template, its
     macro values and overrides (\c .sfx.design.json) - by the engine
