@@ -4,7 +4,9 @@
 // layers, each one voice with a source, an envelope, a pitch curve, a
 // filter curve, a start offset, a gain and a pan, all in physical units
 // (Hz, ms, semitones, dB), plus a variation spec: a random range per
-// layer parameter, a seed and a round-robin pool size.
+// layer parameter, a seed and a round-robin pool size. A layer with a
+// burst plays as many short seeded notes, its grains, and the recipe's
+// voice cap bounds how many of them ring at once.
 //
 // Built by SfxParser, turned into notes by sfx_render.h.
 
@@ -33,6 +35,8 @@ enum class SfxParam : int {
     PulseWidth, LfoRate, LfoDepth,
     AttackCurve, DecayCurve, ReleaseCurve, PitchCurve,
     FilterAttackCurve, FilterDecayCurve, FilterReleaseCurve,
+    BurstCount, BurstDuration, BurstDensity,
+    JitterTime, JitterGain, JitterCutoff, JitterFreq, JitterLength,
     Count
 };
 
@@ -79,6 +83,17 @@ inline constexpr std::array<SfxParamInfo, kSfxParamCount> kSfxParams = {{
     {"filter.attackCurve",    0.0,   1.0,   0.0},
     {"filter.decayCurve",     0.0,   1.0,   0.0},
     {"filter.releaseCurve",   0.0,   1.0,   0.0},
+    // A burst: the layer plays `count` grains (rounded) inside `duration`,
+    // the grain rate at the end `density` times the one at the start.
+    {"burst.count",           1.0,   256.0,   1.0},
+    {"burst.duration",        0.0, 10000.0,   0.0},   // ms
+    {"burst.density",         0.01,  100.0,   1.0},   // end rate / start rate
+    // How far each grain strays, either way, from the layer's value.
+    {"burst.jitter.time",     0.0,     1.0,   0.0},   // of its slot; 1 = anywhere in it
+    {"burst.jitter.gain",     0.0,    48.0,   0.0},   // dB
+    {"burst.jitter.cutoff",   0.0,     8.0,   0.0},   // octaves
+    {"burst.jitter.freq",     0.0,    48.0,   0.0},   // semitones
+    {"burst.jitter.length",   0.0, 10000.0,   0.0},   // ms
 }};
 
 inline const SfxParamInfo &sfxParamInfo(SfxParam p) { return kSfxParams[static_cast<int>(p)]; }
@@ -104,6 +119,7 @@ struct SfxLayer
 
     OscillatorVoice::FilterType filterType = OscillatorVoice::FilterType::Off;
     int lfoTarget = 0;              // as OscillatorVoice::Patch: 0 off, 1 pitch, 2 volume
+    bool burst = false;             // plays as grains (the burst.* numbers), not as one note
 
     std::array<double, kSfxParamCount>   value{};
     std::array<SfxRange, kSfxParamCount> vary{};
@@ -117,6 +133,7 @@ struct SfxRecipe
     QString  name;
     uint32_t seed = 0;              // base of every variation seed
     int      pool = 0;              // play() cycles this many variations; 0 = a new one each time
+    int      maxVoices = 0;         // burst grains that ring at once; 0 = no cap
     QVector<SfxLayer> layers;
 };
 

@@ -8,10 +8,15 @@
 //      the same values on every platform; another parameter's range never
 //      moves them. `detune` (semitones) raises every layer's base detune
 //      before that, so a play transposed by 12 is the recipe with every
-//      layer's detune raised by 12.
+//      layer's detune raised by 12. A burst layer then becomes its
+//      grains: grain i of n starts in its slot [i, i + 1) / n of the
+//      burst, warped by the density, and strays from the layer's gain,
+//      cutoff, detune and length by its jitter, every draw hashed from
+//      (seed, layer, grain) alone; each grain has its own noise.
 //   2. SfxVoices holds the instruments a recipe plays on in one engine
-//      (one oscillator instrument, one sampler per sample layer) and
-//      schedules the realized layers there, each at its offset.
+//      (one oscillator instrument, one for the grains of every burst
+//      with the recipe's voice cap, one sampler per sample layer) and
+//      schedules the realized notes there, each at its offset.
 //   3. renderSfx() does 1 and 2 on a scratch engine and renders it.
 //
 // A looped recipe plays the notes of one seed pass after pass, every
@@ -47,14 +52,17 @@ class OscillatorInstrument;
 class SamplerInstrument;
 struct PcmBuffer;
 
-// One layer of one variation: the values it plays with.
+// One layer of one variation, or one grain of a burst layer: the values
+// it plays with.
 struct SfxNote
 {
     int layer = 0;
     std::array<double, kSfxParamCount> value{};
     uint32_t noiseSeed = 1;     // never 0: 0 would fall back to the start frame
+    bool grain = false;         // plays on the grain instrument, under the voice cap
 
     double get(SfxParam p) const { return value[static_cast<int>(p)]; }
+    double &at(SfxParam p)       { return value[static_cast<int>(p)]; }
 };
 
 // The seed play() uses for its `index`-th variation: index modulo the
@@ -101,6 +109,8 @@ private:
 
     int oscId_ = -1;
     OscillatorInstrument *osc_ = nullptr;
+    int grainId_ = -1;              // -1 while the recipe has no burst
+    OscillatorInstrument *grain_ = nullptr;
     QVector<Sampler> samplers_;     // per layer; id -1 for oscillator layers
     SfxSamples samples_;
     SfxRecipe recipe_;

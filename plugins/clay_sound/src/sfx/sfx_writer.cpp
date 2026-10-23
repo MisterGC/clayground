@@ -18,7 +18,7 @@ namespace {
 // The order the README documents each object's keys in.
 const QStringList &topKeys()
 {
-    static const QStringList k = {"version", "name", "variation", "layers"};
+    static const QStringList k = {"version", "name", "variation", "maxVoices", "layers"};
     return k;
 }
 
@@ -26,7 +26,7 @@ const QStringList &layerKeys()
 {
     static const QStringList k = {"name", "role", "source", "sample", "interpolation",
                                   "freq", "detune", "gain", "pan", "offset", "length",
-                                  "envelope", "pitch", "filter", "pulseWidth", "lfo", "vary"};
+                                  "envelope", "pitch", "filter", "pulseWidth", "lfo", "burst", "vary"};
     return k;
 }
 
@@ -50,12 +50,16 @@ const QStringList &groupKeys(const QString &group)
                                        "sustain", "release", "amount", "attackCurve",
                                        "decayCurve", "releaseCurve"};
     static const QStringList lfo = {"target", "rate", "depth"};
+    static const QStringList burst = {"count", "duration", "density", "jitter"};
+    static const QStringList jitter = {"time", "gain", "cutoff", "freq", "length"};
     static const QStringList none;
     if (group == QLatin1String("variation")) return variation;
     if (group == QLatin1String("envelope")) return envelope;
     if (group == QLatin1String("pitch")) return pitch;
     if (group == QLatin1String("filter")) return filter;
     if (group == QLatin1String("lfo")) return lfo;
+    if (group == QLatin1String("burst")) return burst;
+    if (group == QLatin1String("jitter")) return jitter;
     if (group == QLatin1String("vary")) return varyKeys();
     return none;
 }
