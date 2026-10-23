@@ -93,6 +93,31 @@ public:
         // white, so their peaks stay inside -1..1 as white's do.
         NoiseColor noiseColor = NoiseColor::White;
         NoiseRate  noiseRate  = NoiseRate::Sample;
+
+        // Two-operator FM: a sine modulator at fmRatio times the voice's
+        // frequency (pitch envelope and pitch LFO included) moves the
+        // wave's phase by up to fmIndex radians. On a sine that puts
+        // sidebands at f + n * fmRatio * f for every whole n, the n-th
+        // at J_n(fmIndex) of the carrier's level; a negative one folds
+        // back onto the positive axis. The index follows an ADSR of its
+        // own (seconds, sustain 0..1, curves as attackCurve): attack and
+        // decay 0 with sustain 1 hold it at fmIndex. fmRatio 0, the
+        // default, is no FM. Noise ignores it.
+        double fmRatio   = 0.0;
+        double fmIndex   = 0.0;
+        double fmAttack  = 0.0;
+        double fmDecay   = 0.0;
+        double fmSustain = 1.0;
+        double fmRelease = 0.0;
+        double fmAttackCurve  = 0.0;
+        double fmDecayCurve   = 0.0;
+        double fmReleaseCurve = 0.0;
+
+        // Ring modulation: the wave times a sine at ringRatio times the
+        // voice's frequency, before the filter. On a sine that leaves the
+        // sum and the difference of the two, each at half the level, and
+        // neither of them. ringRatio 0, the default, is no ring.
+        double ringRatio = 0.0;
     };
 
     void setPatch(const Patch& p) { patch_ = p; }
@@ -121,6 +146,8 @@ private:
     bool     noiseDraw_    = true;       // draw the next one this sample
     double   pink_[7]      = {};         // pink filter states
     double   brown_        = 0.0;        // brown integrator state
+    double   fmPhase_      = 0.0;        // FM modulator, 0..1
+    double   ringPhase_    = 0.0;        // ring modulator, 0..1
     double   filterIc1_    = 0.0;        // SVF integrator states
     double   filterIc2_    = 0.0;
 };

@@ -3,7 +3,7 @@
 // SfxRecipe — pure data of an effect recipe (*.sfx.json): a stack of
 // layers, each one voice with a source, an envelope, a pitch curve, a
 // filter curve, a start offset, a gain and a pan, all in physical units
-// (Hz, ms, semitones, dB), plus a variation spec: a random range per
+// (Hz, ms, semitones, dB), an oscillator layer FM or ring modulation, plus a variation spec: a random range per
 // layer parameter, a seed and a round-robin pool size. A layer with a
 // burst plays as many short seeded notes, its grains, and the recipe's
 // voice cap bounds how many of them ring at once.
@@ -37,6 +37,9 @@ enum class SfxParam : int {
     FilterAttackCurve, FilterDecayCurve, FilterReleaseCurve,
     BurstCount, BurstDuration, BurstDensity,
     JitterTime, JitterGain, JitterCutoff, JitterFreq, JitterLength,
+    FmRatio, FmIndex, FmAttack, FmDecay, FmSustain, FmRelease,
+    FmAttackCurve, FmDecayCurve, FmReleaseCurve,
+    RingRatio,
     Count
 };
 
@@ -94,6 +97,19 @@ inline constexpr std::array<SfxParamInfo, kSfxParamCount> kSfxParams = {{
     {"burst.jitter.cutoff",   0.0,     8.0,   0.0},   // octaves
     {"burst.jitter.freq",     0.0,    48.0,   0.0},   // semitones
     {"burst.jitter.length",   0.0, 10000.0,   0.0},   // ms
+    // Two-operator FM: the modulator at `ratio` times the layer's pitch,
+    // `index` the phase deviation in radians at the peak of its envelope.
+    {"fm.ratio",              0.01,   64.0,   1.0},
+    {"fm.index",              0.0,    32.0,   0.0},   // radians
+    {"fm.attack",             0.0, 10000.0,   0.0},   // ms
+    {"fm.decay",              0.0, 10000.0,   0.0},   // ms
+    {"fm.sustain",            0.0,     1.0,   1.0},   // of the index
+    {"fm.release",            0.0, 10000.0,   0.0},   // ms
+    {"fm.attackCurve",        0.0,     1.0,   0.0},
+    {"fm.decayCurve",         0.0,     1.0,   0.0},
+    {"fm.releaseCurve",       0.0,     1.0,   0.0},
+    // Ring modulation: the layer times a sine at `ratio` times its pitch.
+    {"ring.ratio",            0.01,   64.0,   1.0},
 }};
 
 inline const SfxParamInfo &sfxParamInfo(SfxParam p) { return kSfxParams[static_cast<int>(p)]; }
@@ -123,6 +139,8 @@ struct SfxLayer
     OscillatorVoice::NoiseColor noiseColor = OscillatorVoice::NoiseColor::White;
     OscillatorVoice::NoiseRate  noiseRate  = OscillatorVoice::NoiseRate::Sample;
     bool burst = false;             // plays as grains (the burst.* numbers), not as one note
+    bool fm = false;                // runs FM (the fm.* numbers)
+    bool ring = false;              // runs ring modulation (ring.ratio)
 
     std::array<double, kSfxParamCount>   value{};
     std::array<SfxRange, kSfxParamCount> vary{};
