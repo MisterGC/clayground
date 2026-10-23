@@ -28,6 +28,12 @@ public:
     // a lower frequency moves the whole spectrum down.
     enum class NoiseColor { White, Pink, Brown };
     enum class NoiseRate { Sample, Freq };
+    // The LFO's wave, -1..1 at lfoRate Hz. Sine starts at 0 and rises;
+    // square is +1 for the first half of each period, -1 for the second.
+    // SampleHold holds a random value for each period, SmoothRandom
+    // glides from one random value to the next over each period (a
+    // raised-cosine step), both drawn from lfoSeed.
+    enum class LfoShape { Sine, Square, SampleHold, SmoothRandom };
 
     struct Patch
     {
@@ -56,10 +62,17 @@ public:
         double pitchTime  = 0.0;
         double pitchCurve = 0.0;
 
-        // LFO. lfoTarget: 0=off, 1=pitch, 2=volume.
+        // LFO. lfoTarget: 0=off, 1=pitch (depth in semitones), 2=volume
+        // (depth 0..1), 3=cutoff (depth in octaves, on top of the cutoff
+        // envelope; no effect while the filter is off).
         double lfoRate   = 0.0;
         double lfoDepth  = 0.0;
         int    lfoTarget = 0;
+        LfoShape lfoShape = LfoShape::Sine;
+        // The seed of a random shape's values, as noiseSeed: 0 seeds it
+        // from the note's start frame, any other value gives the same
+        // values wherever the note starts.
+        uint32_t lfoSeed = 0;
 
         // Two-pole state-variable filter after the oscillator. Off
         // bypasses it, so the voice sounds as it did before the filter.
@@ -130,7 +143,9 @@ public:
 
 private:
     double renderSample(int64_t frame);
-    double filter(double in, double t, double duration);
+    double filter(double in, double t, double duration, double lfoOctaves);
+    double lfoAt(double t);
+    double nextLfoRandom();
     double nextWhite();
     double nextNoise();
 
@@ -148,6 +163,10 @@ private:
     double   brown_        = 0.0;        // brown integrator state
     double   fmPhase_      = 0.0;        // FM modulator, 0..1
     double   ringPhase_    = 0.0;        // ring modulator, 0..1
+    uint32_t lfoSeed_      = 1;          // random LFO shapes' xorshift state
+    int64_t  lfoPeriod_    = 0;          // the LFO period lfoFrom_ starts
+    double   lfoFrom_      = 0.0;        // random value of that period
+    double   lfoTo_        = 0.0;        // and of the next one
     double   filterIc1_    = 0.0;        // SVF integrator states
     double   filterIc2_    = 0.0;
 };
