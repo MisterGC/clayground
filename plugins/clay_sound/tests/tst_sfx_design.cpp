@@ -7,8 +7,9 @@
 // layers exactly, the same samples included; an override wins over the
 // macro that drives its path; a driven value outside what the recipe
 // accepts is clamped and reported; the three curves give their values;
-// a macro drives an envelope segment's curve (#447), and a burst's
-// numbers two groups deep and the recipe's voice cap (#448).
+// a macro drives an envelope segment's curve (#447), a burst's
+// numbers two groups deep and the recipe's voice cap (#448), and an
+// override sets a noise layer's colour and rate (#449).
 
 #include "offline/sound_files.h"
 #include "sfx/sfx_design.h"
@@ -101,6 +102,7 @@ private slots:
     void designRejects_data();
     void designRejects();
     void aNullOverrideRemovesTheField();
+    void anOverrideSetsTheNoiseColourAndRate();
 };
 
 // The writer changes the bytes, not the recipe: the demo recipe reads
@@ -509,6 +511,24 @@ void TestSfxDesign::aNullOverrideRemovesTheField()
     const QJsonObject body = QJsonDocument::fromJson(res.json).object().value("layers").toArray().at(1).toObject();
     QVERIFY(!body.contains("pitch"));
     QVERIFY(!body.contains("vary"));    // the group went with its last field
+}
+
+void TestSfxDesign::anOverrideSetsTheNoiseColourAndRate()
+{
+    QByteArray tpl = tinyTemplate("{ \"path\": \"layers[tone].gain\", \"from\": -12, \"to\": 0 }");
+    tpl.replace("\"source\": \"sine\"", "\"source\": \"noise\"");
+    const auto plain = cs::SfxDesignCompiler::compile(tinyDesign({}), tpl);
+    QVERIFY2(plain.ok, qPrintable(plain.error));
+    QCOMPARE(plain.recipe.layers[0].noiseColor, cs::OscillatorVoice::NoiseColor::White);
+    QCOMPARE(plain.recipe.layers[0].noiseRate, cs::OscillatorVoice::NoiseRate::Sample);
+
+    const auto res = cs::SfxDesignCompiler::compile(
+        tinyDesign("\"overrides\": { \"layers[tone].noise.color\": \"brown\", \"layers[tone].noise.rate\": \"freq\" }"),
+        tpl);
+    QVERIFY2(res.ok, qPrintable(res.error));
+    QCOMPARE(res.recipe.layers[0].noiseColor, cs::OscillatorVoice::NoiseColor::Brown);
+    QCOMPARE(res.recipe.layers[0].noiseRate, cs::OscillatorVoice::NoiseRate::Freq);
+    QVERIFY2(res.json.contains("\"noise\": { \"color\": \"brown\", \"rate\": \"freq\" }"), res.json.constData());
 }
 
 QTEST_GUILESS_MAIN(TestSfxDesign)
