@@ -36,6 +36,7 @@ set(ENGINE_SRC
     src/sfx/sfx_parser.cpp src/sfx/sfx_parser.h
     src/sfx/sfx_render.cpp src/sfx/sfx_render.h
     src/sfx/sfx_writer.cpp src/sfx/sfx_writer.h
+    src/sfx/sfx_design.cpp src/sfx/sfx_design.h
     src/offline/sound_files.cpp src/offline/sound_files.h
     src/clay_sound_engine.h)
 
