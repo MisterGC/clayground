@@ -22,15 +22,17 @@
 
 namespace clay::sound {
 
-// Every number a layer has. The order is the file's documentation order
-// and nothing else: each parameter draws its variation from its own
-// hash of the seed, so adding one never moves another's values.
+// Every number a layer has. Each parameter draws its variation from a
+// hash of the seed and its index here, so a new one goes at the end:
+// put anywhere else it would move the values of those after it.
 enum class SfxParam : int {
     Freq, Detune, Gain, Pan, Offset, Length,
     Attack, Decay, Sustain, Release,
     PitchStart, PitchEnd, PitchTime,
     Cutoff, Resonance, FilterAttack, FilterDecay, FilterSustain, FilterRelease, FilterAmount,
     PulseWidth, LfoRate, LfoDepth,
+    AttackCurve, DecayCurve, ReleaseCurve, PitchCurve,
+    FilterAttackCurve, FilterDecayCurve, FilterReleaseCurve,
     Count
 };
 
@@ -69,6 +71,14 @@ inline constexpr std::array<SfxParamInfo, kSfxParamCount> kSfxParams = {{
     {"pulseWidth",      0.05,         0.95,  0.5},
     {"lfo.rate",        0.0,        100.0,   0.0},   // Hz
     {"lfo.depth",       0.0,         48.0,   0.0},   // semitones (pitch) or 0..1 (volume)
+    // Segment curves: 0 linear .. 1 exponential (engine/segment_curve.h).
+    {"envelope.attackCurve",  0.0,   1.0,   0.0},
+    {"envelope.decayCurve",   0.0,   1.0,   0.0},
+    {"envelope.releaseCurve", 0.0,   1.0,   0.0},
+    {"pitch.curve",           0.0,   1.0,   0.0},
+    {"filter.attackCurve",    0.0,   1.0,   0.0},
+    {"filter.decayCurve",     0.0,   1.0,   0.0},
+    {"filter.releaseCurve",   0.0,   1.0,   0.0},
 }};
 
 inline const SfxParamInfo &sfxParamInfo(SfxParam p) { return kSfxParams[static_cast<int>(p)]; }
