@@ -8,8 +8,9 @@
 // macro that drives its path; a driven value outside what the recipe
 // accepts is clamped and reported; the three curves give their values;
 // a macro drives an envelope segment's curve (#447), a burst's
-// numbers two groups deep and the recipe's voice cap (#448), and an
-// override sets a noise layer's colour and rate (#449).
+// numbers two groups deep and the recipe's voice cap (#448), an
+// override sets a noise layer's colour and rate (#449), and a macro
+// drives an FM index while an override swaps the fm for a ring (#450).
 
 #include "offline/sound_files.h"
 #include "sfx/sfx_design.h"
@@ -103,6 +104,7 @@ private slots:
     void designRejects();
     void aNullOverrideRemovesTheField();
     void anOverrideSetsTheNoiseColourAndRate();
+    void aMacroDrivesTheFmIndexAndAnOverrideSwapsItForARing();
 };
 
 // The writer changes the bytes, not the recipe: the demo recipe reads
@@ -529,6 +531,31 @@ void TestSfxDesign::anOverrideSetsTheNoiseColourAndRate()
     QCOMPARE(res.recipe.layers[0].noiseColor, cs::OscillatorVoice::NoiseColor::Brown);
     QCOMPARE(res.recipe.layers[0].noiseRate, cs::OscillatorVoice::NoiseRate::Freq);
     QVERIFY2(res.json.contains("\"noise\": { \"color\": \"brown\", \"rate\": \"freq\" }"), res.json.constData());
+}
+
+void TestSfxDesign::aMacroDrivesTheFmIndexAndAnOverrideSwapsItForARing()
+{
+    const QByteArray layer = "\"fm\": { \"ratio\": 2.76, \"index\": 3 }";
+    const QByteArray drive = "{ \"path\": \"layers[tone].fm.index\", \"from\": 1, \"to\": 5 }";
+    const auto r = cs::SfxDesignCompiler::compile(
+        tinyDesign("\"macros\": { \"m\": 1 }, \"overrides\": { \"layers[tone].fm.decay\": 300 }"),
+        tinyTemplate(drive, layer));
+    QVERIFY2(r.ok, qPrintable(r.error));
+    const auto &l = r.recipe.layers[0];
+    QVERIFY(l.fm);
+    QCOMPARE(l.get(P::FmIndex), 5.0);
+    QCOMPARE(l.get(P::FmDecay), 300.0);
+    QVERIFY2(r.json.contains("\"fm\": { \"ratio\": 2.76, \"index\": 5, \"decay\": 300 }"), r.json.constData());
+
+    const auto swapped = cs::SfxDesignCompiler::compile(
+        tinyDesign("\"overrides\": { \"layers[tone].fm\": null, \"layers[tone].ring\": { \"ratio\": 1.5 } }"),
+        tinyTemplate(drive, layer));
+    QVERIFY2(swapped.ok, qPrintable(swapped.error));
+    QVERIFY(!swapped.recipe.layers[0].fm);
+    QVERIFY(swapped.recipe.layers[0].ring);
+    QCOMPARE(swapped.recipe.layers[0].get(P::RingRatio), 1.5);
+    QVERIFY2(swapped.json.contains("\"ring\": { \"ratio\": 1.5 }"), swapped.json.constData());
+    QVERIFY2(!swapped.json.contains("\"fm\""), swapped.json.constData());
 }
 
 QTEST_GUILESS_MAIN(TestSfxDesign)
