@@ -77,7 +77,7 @@ inline constexpr std::array<SfxParamInfo, kSfxParamCount> kSfxParams = {{
     {"filter.amount", -10.0,         10.0,   0.0},   // octaves at the envelope's peak
     {"pulseWidth",      0.05,         0.95,  0.5},
     {"lfo.rate",        0.0,        100.0,   0.0},   // Hz
-    {"lfo.depth",       0.0,         48.0,   0.0},   // semitones (pitch) or 0..1 (volume)
+    {"lfo.depth",       0.0,         48.0,   0.0},   // semitones (pitch), 0..1 (volume) or octaves (cutoff)
     // Segment curves: 0 linear .. 1 exponential (engine/segment_curve.h).
     {"envelope.attackCurve",  0.0,   1.0,   0.0},
     {"envelope.decayCurve",   0.0,   1.0,   0.0},
@@ -134,7 +134,8 @@ struct SfxLayer
     SampleVoice::Interpolation interpolation = SampleVoice::Interpolation::Linear;
 
     OscillatorVoice::FilterType filterType = OscillatorVoice::FilterType::Off;
-    int lfoTarget = 0;              // as OscillatorVoice::Patch: 0 off, 1 pitch, 2 volume
+    int lfoTarget = 0;              // as OscillatorVoice::Patch: 0 off, 1 pitch, 2 volume, 3 cutoff
+    OscillatorVoice::LfoShape lfoShape = OscillatorVoice::LfoShape::Sine;
     // Noise layers: the colour, and whether `freq` clocks the noise.
     OscillatorVoice::NoiseColor noiseColor = OscillatorVoice::NoiseColor::White;
     OscillatorVoice::NoiseRate  noiseRate  = OscillatorVoice::NoiseRate::Sample;

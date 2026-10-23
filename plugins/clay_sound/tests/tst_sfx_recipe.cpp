@@ -17,7 +17,11 @@
 // with a lower freq and with a play's detune (#449), FM at 1:2.76 puts
 // its sidebands where the Bessel functions say, ring modulation leaves
 // the sum and the difference alone, and an FM index on a decay narrows
-// the spectrum with it (#450), and the values other seeds play with stay inside the declared ranges
+// the spectrum with it (#450), a sine lfo is the lfo of before, a
+// random lfo renders the same samples for the same seed, sample-and-hold
+// holds one level a period while smooth random glides through the same
+// levels, and a cutoff lfo moves the cutoff by its depth in octaves
+// (#451), and the values other seeds play with stay inside the declared ranges
 // - drawn and measured on the render (pitch by zero crossings, gain by
 // RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
 // renders on the same machine.
@@ -240,6 +244,21 @@ static std::vector<float> renderTone(const QByteArray &group)
     return cs::renderSfx(r, {}, 1, 1.0f, 1.0f, 0.0f, kRate, false, -1, 0.0);
 }
 
+// One mono render of the recipe `json` at `seed`.
+static std::vector<float> renderRecipe(const QByteArray &json, uint32_t seed = 1)
+{
+    return cs::renderSfx(parseOk(json), {}, seed, 1.0f, 1.0f, 0.0f, kRate, false, -1, 0.0);
+}
+
+// Two seconds of a 500 Hz sine whose volume follows an lfo of `shape`
+// at 10 Hz: one lfo period is 4410 frames.
+static QByteArray volumeLfoRecipe(const QByteArray &shape, double depth = 1.0)
+{
+    return R"({"layers": [{"source": "sine", "freq": 500, "length": 2000,
+               "lfo": {"target": "volume", "shape": ")" + shape + R"(", "rate": 10, "depth": )"
+           + QByteArray::number(depth) + "}}]}";
+}
+
 class SfxRecipeTest : public QObject
 {
     Q_OBJECT
@@ -268,6 +287,12 @@ private slots:
     void fmAt1To276PutsTheSidebandsWhereBesselSays();
     void ringLeavesTheSumAndTheDifference();
     void theIndexEnvelopeNarrowsTheSpectrumAsItDecays();
+    void lfoShapeAndCutoffTargetAreLfoFields();
+    void aSineLfoIsTheLfoOfBefore();
+    void aSeededRandomLfoRendersTheSameSamplesForTheSameSeed();
+    void seededLfoIgnoresTheStartFrame();
+    void squareAndSampleHoldHoldALevelAndSmoothRandomGlides();
+    void aCutoffLfoMovesTheCutoffByItsDepthInOctaves();
     void sameSeedRendersSameSamples();
     void otherSeedsStayInsideTheDeclaredRanges();
     void poolCyclesItsVariations();
@@ -946,6 +971,196 @@ void SfxRecipeTest::theIndexEnvelopeNarrowsTheSpectrumAsItDecays()
     }
     QCOMPARE(windows, 21);
     QVERIFY2(worst < 0.03, qPrintable(QStringLiteral("spread %1 off index x 1000 / sqrt(2)").arg(worst)));
+}
+
+void SfxRecipeTest::lfoShapeAndCutoffTargetAreLfoFields()
+{
+    using S = cs::OscillatorVoice::LfoShape;
+    const auto r = parseOk(R"({"layers": [
+      {"source": "sine", "length": 10, "lfo": {"target": "pitch", "rate": 5, "depth": 1}},
+      {"source": "square", "length": 10, "lfo": {"target": "pitch", "shape": "square", "rate": 5, "depth": 1}},
+      {"source": "noise", "length": 10, "lfo": {"target": "volume", "shape": "sample_hold", "rate": 20, "depth": 0.5}},
+      {"source": "sawtooth", "length": 10, "filter": {"type": "lowpass"},
+       "lfo": {"target": "cutoff", "shape": "smooth_random", "rate": 3, "depth": 2},
+       "vary": {"lfo.depth": [0, 1]}}]})");
+    QCOMPARE(r.layers.size(), 4);
+    QCOMPARE(r.layers[0].lfoTarget, 1);
+    QCOMPARE(r.layers[0].lfoShape, S::Sine);
+    QCOMPARE(r.layers[1].lfoShape, S::Square);
+    QCOMPARE(r.layers[2].lfoTarget, 2);
+    QCOMPARE(r.layers[2].lfoShape, S::SampleHold);
+    QCOMPARE(r.layers[3].lfoTarget, 3);
+    QCOMPARE(r.layers[3].lfoShape, S::SmoothRandom);
+    QCOMPARE(r.layers[3].get(P::LfoDepth), 2.0);
+    QVERIFY(r.layers[3].vary[int(P::LfoDepth)].on);
+
+    const QList<QPair<QByteArray, QString>> bad = {
+        {R"("source": "sine", "length": 10, "lfo": {"target": "pitch", "shape": "triangle"})",
+         "layers[0].lfo.shape: unknown shape 'triangle' (sine, square, sample_hold, smooth_random)"},
+        {R"("source": "sine", "length": 10, "lfo": {"target": "pitch", "shape": 2})",
+         "layers[0].lfo.shape: must be a string"},
+        {R"("source": "sine", "length": 10, "lfo": {"target": "filter"})",
+         "layers[0].lfo.target: unknown target 'filter' (pitch, volume, cutoff)"},
+        {R"("source": "sine", "length": 10, "lfo": {"target": "cutoff", "rate": 3, "depth": 1})",
+         "layers[0].lfo.target: a cutoff lfo needs a 'filter' with a 'type'"},
+        {R"("source": "sine", "length": 10, "lfo": {"target": "pitch", "seed": 4})",
+         "layers[0].lfo: unknown field 'seed'"},
+        {R"("source": "sample", "sample": "x.wav", "lfo": {"target": "volume", "shape": "sample_hold"})",
+         "layers[0].lfo: does not apply to a sample layer"}};
+    for (const auto &b : bad) {
+        const auto res = cs::SfxParser::parse("{\"layers\": [{" + b.first + "}]}");
+        QVERIFY2(!res.ok, b.first.constData());
+        QVERIFY2(res.error.startsWith(b.second), qPrintable(res.error));
+    }
+}
+
+void SfxRecipeTest::aSineLfoIsTheLfoOfBefore()
+{
+    // The default: a voice's patch has a sine lfo seeded from its start,
+    // and a recipe's lfo without a shape renders what one naming the sine
+    // does, to the last bit, on each target.
+    const cs::OscillatorVoice::Patch patch;
+    QCOMPARE(patch.lfoShape, cs::OscillatorVoice::LfoShape::Sine);
+    QCOMPARE(patch.lfoSeed, 0u);
+    const auto noShape = renderTone(R"("lfo": {"target": "pitch", "rate": 5, "depth": 2})");
+    QCOMPARE(renderTone(R"("lfo": {"target": "pitch", "shape": "sine", "rate": 5, "depth": 2})"), noShape);
+    QVERIFY(noShape != renderTone({}));
+    QCOMPARE(renderTone(R"("lfo": {"target": "volume", "shape": "sine", "rate": 5, "depth": 0.5})"),
+             renderTone(R"("lfo": {"target": "volume", "rate": 5, "depth": 0.5})"));
+    QCOMPARE(renderTone(R"("filter": {"type": "lowpass"}, "lfo": {"target": "cutoff", "shape": "sine", "rate": 5, "depth": 1})"),
+             renderTone(R"("filter": {"type": "lowpass"}, "lfo": {"target": "cutoff", "rate": 5, "depth": 1})"));
+}
+
+void SfxRecipeTest::aSeededRandomLfoRendersTheSameSamplesForTheSameSeed()
+{
+    // On every target: one seed renders the same samples every time,
+    // another seed other ones.
+    const QList<QByteArray> layers = {
+        R"("source": "sine", "freq": 300, "lfo": {"target": "pitch", "rate": 12, "depth": 3)",
+        R"("source": "sine", "freq": 300, "lfo": {"target": "volume", "rate": 12, "depth": 1)",
+        R"("source": "noise", "filter": {"type": "lowpass", "cutoff": 900},
+           "lfo": {"target": "cutoff", "rate": 12, "depth": 2)"};
+    for (const QByteArray shape : {"sample_hold", "smooth_random"}) {
+        for (const auto &layer : layers) {
+            const QByteArray json = R"({"layers": [{"length": 500, )" + layer
+                                    + R"(, "shape": ")" + shape + R"("}}]})";
+            const auto a = renderRecipe(json, 7);
+            QVERIFY(!a.empty());
+            QCOMPARE(renderRecipe(json, 7), a);
+            QVERIFY2(renderRecipe(json, 8) != a, json.constData());
+        }
+    }
+    // The grains of a burst each draw their own lfo.
+    const QByteArray grains = R"({"layers": [{"source": "sine", "freq": 300, "length": 40,
+        "lfo": {"target": "pitch", "shape": "sample_hold", "rate": 100, "depth": 12},
+        "burst": {"count": 2, "duration": 100}}]})";
+    const auto g = renderRecipe(grains, 3);
+    QCOMPARE(renderRecipe(grains, 3), g);
+    const size_t at = std::llround(0.05 * kRate);   // the second grain's slot
+    QVERIFY(std::vector<float>(g.begin(), g.begin() + 1700)
+            != std::vector<float>(g.begin() + at, g.begin() + at + 1700));
+}
+
+void SfxRecipeTest::seededLfoIgnoresTheStartFrame()
+{
+    // A voice whose patch names an lfo seed wobbles the same wherever it
+    // starts; seed 0 seeds it from the start frame, and differs.
+    auto render = [](int64_t start, uint32_t seed) {
+        cs::Engine eng(kRate);
+        auto osc = std::make_unique<cs::OscillatorInstrument>();
+        auto *o = osc.get();
+        const int id = eng.addInstrument(std::move(osc));
+        std::vector<float> skip(static_cast<size_t>(start));
+        eng.renderOffline(skip.data(), static_cast<int>(start));
+        cs::NoteEvent ev;
+        ev.instrumentId = id;
+        ev.timeFrames = start;
+        ev.durationFrames = 8000;
+        ev.freqHz = 440.0;
+        cs::OscillatorVoice::Patch p;
+        p.attack = 0.0; p.decay = 0.0; p.sustain = 1.0; p.release = 0.0;
+        p.lfoTarget = 1; p.lfoRate = 30.0; p.lfoDepth = 4.0;
+        p.lfoShape = cs::OscillatorVoice::LfoShape::SmoothRandom;
+        p.lfoSeed = seed;
+        o->pushPatch(eng.schedule(ev), p);
+        std::vector<float> out(8000);
+        eng.renderOffline(out.data(), 8000);
+        return out;
+    };
+    QCOMPARE(render(100, 77), render(5000, 77));
+    QVERIFY(render(100, 0) != render(5000, 0));
+    QVERIFY(render(100, 77) != render(100, 78));
+}
+
+void SfxRecipeTest::squareAndSampleHoldHoldALevelAndSmoothRandomGlides()
+{
+    constexpr size_t kPeriod = kRate / 10;
+    constexpr size_t kEdge = kPeriod / 10;    // left out around each step
+    const double sineRms = std::sqrt(0.5);
+
+    // Square at depth 0.5: full level the first half of each period,
+    // half of it the second.
+    const auto sq = renderRecipe(volumeLfoRecipe("square", 0.5));
+    for (size_t k = 0; k < 19; ++k) {
+        const size_t at = k * kPeriod;
+        QVERIFY(std::abs(rms(sq, at + kEdge, kPeriod / 2 - 2 * kEdge) - sineRms) < 0.01);
+        QVERIFY(std::abs(rms(sq, at + kPeriod / 2 + kEdge, kPeriod / 2 - 2 * kEdge) - 0.5 * sineRms) < 0.01);
+    }
+
+    // Sample-and-hold: one level through a period, the two halves of it
+    // alike; from period to period it moves, inside 0..1 at depth 1.
+    // Smooth random, at the same seed, passes through each of those levels
+    // as its period starts and glides between them: no step between two
+    // neighbouring windows comes near the largest step of the held one.
+    const auto sh = renderRecipe(volumeLfoRecipe("sample_hold"));
+    const auto sm = renderRecipe(volumeLfoRecipe("smooth_random"));
+    std::vector<double> held;
+    for (size_t k = 0; k < 19; ++k) {
+        const size_t at = k * kPeriod + kEdge;
+        const size_t half = (kPeriod - 2 * kEdge) / 2;
+        const double a = rms(sh, at, half), b = rms(sh, at + half, half);
+        QVERIFY2(std::abs(a - b) < 0.005, qPrintable(QStringLiteral("period %1: %2 vs %3").arg(k).arg(a).arg(b)));
+        QVERIFY(a <= sineRms + 0.005);
+        held.push_back(a);
+        if (k > 0) {
+            const double start = rms(sm, k * kPeriod - 220, 441);   // five periods of the sine
+            QVERIFY2(std::abs(start - a) < 0.01,
+                     qPrintable(QStringLiteral("period %1: smooth %2, held %3").arg(k).arg(start).arg(a)));
+        }
+    }
+    const auto [lo, hi] = std::minmax_element(held.begin(), held.end());
+    QVERIFY2(*hi - *lo > 0.2, "the held levels hardly move");
+    double heldStep = 0.0, smoothStep = 0.0;
+    constexpr size_t kWin = kPeriod / 10;
+    for (size_t i = kWin; i + kWin <= 19 * kPeriod; i += kWin) {
+        heldStep = std::max(heldStep, std::abs(rms(sh, i, kWin) - rms(sh, i - kWin, kWin)));
+        smoothStep = std::max(smoothStep, std::abs(rms(sm, i, kWin) - rms(sm, i - kWin, kWin)));
+    }
+    QVERIFY2(smoothStep < 0.3 * heldStep, qPrintable(QStringLiteral("smooth %1, held %2").arg(smoothStep).arg(heldStep)));
+}
+
+void SfxRecipeTest::aCutoffLfoMovesTheCutoffByItsDepthInOctaves()
+{
+    // White noise through a 1000 Hz lowpass, its cutoff moved by a 1 Hz
+    // square lfo of depth 2: the first half of each second sounds as a
+    // fixed 4000 Hz lowpass does, the second half as a 250 Hz one.
+    auto noise = [](const QByteArray &cutoff, const QByteArray &lfo) {
+        return renderRecipe(R"({"layers": [{"source": "noise", "length": 1000,
+                                 "filter": {"type": "lowpass", "cutoff": )" + cutoff + "}"
+                            + (lfo.isEmpty() ? QByteArray() : ", \"lfo\": " + lfo) + "}]}");
+    };
+    auto median = [](const std::vector<float> &buf, size_t from, size_t to) {
+        return medianFrequency(powerSpectrum(std::vector<float>(buf.begin() + from, buf.begin() + to)));
+    };
+    const auto moved = noise("1000", R"({"target": "cutoff", "shape": "square", "rate": 1, "depth": 2})");
+    const size_t half = kRate / 2, settle = 1000;
+    const double high = median(moved, settle, half);
+    const double low = median(moved, half + settle, kRate);
+    const double at4000 = median(noise("4000", {}), settle, half);
+    const double at250 = median(noise("250", {}), half + settle, kRate);
+    QVERIFY2(std::abs(high / at4000 - 1.0) < 0.1, qPrintable(QStringLiteral("%1 vs %2 Hz").arg(high).arg(at4000)));
+    QVERIFY2(std::abs(low / at250 - 1.0) < 0.1, qPrintable(QStringLiteral("%1 vs %2 Hz").arg(low).arg(at250)));
+    QVERIFY2(high / low > 8.0, qPrintable(QStringLiteral("%1 vs %2 Hz").arg(high).arg(low)));
 }
 
 void SfxRecipeTest::seededNoiseIgnoresTheStartFrame()

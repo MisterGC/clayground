@@ -50,7 +50,7 @@ const QStringList &groupKeys(const QString &group)
     static const QStringList filter = {"type", "cutoff", "resonance", "attack", "decay",
                                        "sustain", "release", "amount", "attackCurve",
                                        "decayCurve", "releaseCurve"};
-    static const QStringList lfo = {"target", "rate", "depth"};
+    static const QStringList lfo = {"target", "shape", "rate", "depth"};
     static const QStringList noise = {"color", "rate"};
     static const QStringList fm = {"ratio", "index", "attack", "decay", "sustain", "release",
                                    "attackCurve", "decayCurve", "releaseCurve"};

@@ -58,6 +58,16 @@ void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
         ? patch_.noiseSeed
         : 12345u + static_cast<uint32_t>(ev.timeFrames & 0xffffffff);
     noiseDraw_ = true;
+    // Apart from the noise seed, so a noise voice's LFO does not follow
+    // its hiss; never 0, which xorshift would never leave.
+    lfoSeed_ = patch_.lfoSeed != 0
+        ? patch_.lfoSeed
+        : (0x2545f491u ^ static_cast<uint32_t>(ev.timeFrames & 0xffffffff)) | 1u;
+    lfoPeriod_ = 0;
+    if (patch_.lfoShape == LfoShape::SampleHold || patch_.lfoShape == LfoShape::SmoothRandom) {
+        lfoFrom_ = nextLfoRandom();
+        lfoTo_   = nextLfoRandom();
+    }
     std::fill(std::begin(pink_), std::end(pink_), 0.0);
     brown_ = 0.0;
     // The colour filters' slowest pole needs about 900 draws to settle;
@@ -65,6 +75,41 @@ void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
     // long note does.
     if (patch_.waveform == Waveform::Noise && patch_.noiseColor != NoiseColor::White)
         for (int i = 0; i < 4096; ++i) nextNoise();
+}
+
+double OscillatorVoice::nextLfoRandom()
+{
+    lfoSeed_ ^= lfoSeed_ << 13;
+    lfoSeed_ ^= lfoSeed_ >> 17;
+    lfoSeed_ ^= lfoSeed_ << 5;
+    return static_cast<double>(lfoSeed_) / static_cast<double>(0xFFFFFFFFu) * 2.0 - 1.0;
+}
+
+// The LFO's value at `t` seconds into the note, -1..1. Called once per
+// rendered sample, in order: a random shape draws its values as `t`
+// enters each period.
+double OscillatorVoice::lfoAt(double t)
+{
+    const double cycles = t * patch_.lfoRate;
+    switch (patch_.lfoShape) {
+    case LfoShape::Sine:
+        return std::sin(2.0 * kPi * t * patch_.lfoRate);
+    case LfoShape::Square:
+        return cycles - std::floor(cycles) < 0.5 ? 1.0 : -1.0;
+    case LfoShape::SampleHold:
+    case LfoShape::SmoothRandom: {
+        const int64_t period = static_cast<int64_t>(std::floor(cycles));
+        while (lfoPeriod_ < period) {
+            lfoFrom_ = lfoTo_;
+            lfoTo_   = nextLfoRandom();
+            ++lfoPeriod_;
+        }
+        if (patch_.lfoShape == LfoShape::SampleHold) return lfoFrom_;
+        const double step = 0.5 - 0.5 * std::cos(kPi * (cycles - std::floor(cycles)));
+        return lfoFrom_ + (lfoTo_ - lfoFrom_) * step;
+    }
+    }
+    return 0.0;
 }
 
 double OscillatorVoice::nextWhite()
@@ -138,11 +183,12 @@ double OscillatorVoice::renderSample(int64_t frame)
                       patch_.sustain, patch_.release,
                       patch_.attackCurve, patch_.decayCurve, patch_.releaseCurve);
 
+    // One LFO value per sample, whichever target reads it.
+    const double lfo = patch_.lfoTarget != 0 && patch_.lfoRate > 0.0 ? lfoAt(t) : 0.0;
+
     // Volume LFO shaping of envelope.
-    if (patch_.lfoTarget == 2 && patch_.lfoRate > 0.0) {
-        const double lfo = std::sin(2.0 * kPi * t * patch_.lfoRate);
+    if (patch_.lfoTarget == 2 && patch_.lfoRate > 0.0)
         env *= 1.0 - patch_.lfoDepth * 0.5 * (1.0 - lfo);
-    }
 
     // --- Waveform (uses current phase) ---------------------------------
     // FM moves the phase the wave is read at, not the phase itself, so
@@ -203,10 +249,8 @@ double OscillatorVoice::renderSample(int64_t frame)
             patch_.pitchStart + (patch_.pitchEnd - patch_.pitchStart) * p;
         effFreq *= std::pow(2.0, semis / 12.0);
     }
-    if (patch_.lfoRate > 0.0 && patch_.lfoDepth > 0.0 && patch_.lfoTarget == 1) {
-        const double lfo = std::sin(2.0 * kPi * t * patch_.lfoRate);
+    if (patch_.lfoRate > 0.0 && patch_.lfoDepth > 0.0 && patch_.lfoTarget == 1)
         effFreq *= std::pow(2.0, lfo * patch_.lfoDepth / 12.0);
-    }
 
     if (patch_.ringRatio > 0.0) {
         wave *= std::sin(2.0 * kPi * ringPhase_);
@@ -230,14 +274,16 @@ double OscillatorVoice::renderSample(int64_t frame)
     }
 
     if (patch_.filterType != FilterType::Off)
-        wave = filter(wave, t, duration);
+        wave = filter(wave, t, duration,
+                      patch_.lfoTarget == 3 && patch_.lfoRate > 0.0 ? lfo * patch_.lfoDepth : 0.0);
 
     return wave * env * gain_;
 }
 
-double OscillatorVoice::filter(double in, double t, double duration)
+double OscillatorVoice::filter(double in, double t, double duration, double lfoOctaves)
 {
-    // Cutoff after its envelope, kept below Nyquist where tan() blows up.
+    // Cutoff after its envelope and a cutoff LFO's `lfoOctaves`, kept
+    // below Nyquist where tan() blows up.
     double fc = patch_.cutoff;
     if (patch_.filterEnvAmount != 0.0) {
         const double fenv = adsr(t, duration, patch_.filterAttack,
@@ -246,6 +292,7 @@ double OscillatorVoice::filter(double in, double t, double duration)
                                  patch_.filterDecayCurve, patch_.filterReleaseCurve);
         fc *= std::pow(2.0, patch_.filterEnvAmount * fenv);
     }
+    if (lfoOctaves != 0.0) fc *= std::pow(2.0, lfoOctaves);
     fc = std::clamp(fc, 20.0, 0.49 * sampleRate_);
 
     // Resonance maps exponentially onto the damping k = 1/Q, so equal
