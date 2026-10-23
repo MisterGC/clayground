@@ -47,7 +47,7 @@ static QByteArray tinyTemplate(const QByteArray &drives, const QByteArray &layer
 
 static QByteArray tinyDesign(const QByteArray &fields)
 {
-    return "{ \"template\": { \"id\": \"tiny\", \"version\": 1 }" + (fields.isEmpty() ? "" : ", " + fields) + " }";
+    return "{ \"template\": { \"id\": \"tiny\", \"version\": 1 }" + (fields.isEmpty() ? QByteArray() : ", " + fields) + " }";
 }
 
 static void compareLayers(const cs::SfxRecipe &a, const cs::SfxRecipe &b)
