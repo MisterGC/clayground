@@ -11,7 +11,10 @@
 // a burst of 40 grains starts 40 times inside its duration, the same seed
 // on the same grains and another seed on others, and the recipe's voice
 // cap bounds the grains that ring at once and no other layer, and a
-// grain's jitter keeps it inside its fields' ranges (#448),
+// grain's jitter keeps it inside its fields' ranges (#448), white noise
+// drawn every sample is the noise of before, pink and brown fall 3 and 6
+// dB per octave, and a noise clocked by its freq moves its spectrum down
+// with a lower freq and with a play's detune (#449),
 // and the values other seeds play with stay inside the declared ranges
 // - drawn and measured on the render (pitch by zero crossings, gain by
 // RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
@@ -36,6 +39,7 @@
 #include <QTemporaryDir>
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <memory>
 #include <vector>
 
@@ -121,6 +125,84 @@ static std::pair<double, double> lineFit(const std::vector<double> &y)
     return {slope, worst};
 }
 
+// The power spectrum of buf, averaged over 4096-frame Hann windows:
+// bin k is k * kRate / 4096 Hz, up to the Nyquist frequency.
+static constexpr size_t kFft = 4096;
+static std::vector<double> powerSpectrum(const std::vector<float> &buf)
+{
+    std::vector<double> power(kFft / 2 + 1, 0.0);
+    std::vector<std::complex<double>> x(kFft);
+    for (size_t at = 0; at + kFft <= buf.size(); at += kFft) {
+        for (size_t i = 0; i < kFft; ++i)
+            x[i] = buf[at + i] * (0.5 - 0.5 * std::cos(2.0 * M_PI * i / kFft));
+        // Iterative radix-2 FFT.
+        for (size_t i = 1, j = 0; i < kFft; ++i) {
+            size_t bit = kFft >> 1;
+            for (; j & bit; bit >>= 1) j ^= bit;
+            j ^= bit;
+            if (i < j) std::swap(x[i], x[j]);
+        }
+        for (size_t len = 2; len <= kFft; len <<= 1) {
+            const std::complex<double> w(std::cos(2.0 * M_PI / len), -std::sin(2.0 * M_PI / len));
+            for (size_t i = 0; i < kFft; i += len) {
+                std::complex<double> wk(1.0, 0.0);
+                for (size_t k = 0; k < len / 2; ++k) {
+                    const auto u = x[i + k], v = x[i + k + len / 2] * wk;
+                    x[i + k] = u + v;
+                    x[i + k + len / 2] = u - v;
+                    wk *= w;
+                }
+            }
+        }
+        for (size_t k = 0; k < power.size(); ++k) power[k] += std::norm(x[k]);
+    }
+    return power;
+}
+
+// The mean power in dB of each octave from `lowest` Hz, `octaves` of them.
+static std::vector<double> octaveLevels(const std::vector<double> &power, double lowest, int octaves)
+{
+    std::vector<double> db;
+    for (int o = 0; o < octaves; ++o) {
+        const double lo = lowest * std::pow(2.0, o);
+        double sum = 0.0;
+        int n = 0;
+        for (size_t k = 0; k < power.size(); ++k) {
+            const double f = static_cast<double>(k) * kRate / kFft;
+            if (f >= lo && f < 2.0 * lo) { sum += power[k]; ++n; }
+        }
+        db.push_back(10.0 * std::log10(sum / n));
+    }
+    return db;
+}
+
+// The frequency below which half of the power lies.
+static double medianFrequency(const std::vector<double> &power)
+{
+    double total = 0.0;
+    for (size_t k = 1; k < power.size(); ++k) total += power[k];
+    double acc = 0.0;
+    for (size_t k = 1; k < power.size(); ++k) {
+        acc += power[k];
+        if (acc >= total / 2.0) return static_cast<double>(k) * kRate / kFft;
+    }
+    return kRate / 2.0;
+}
+
+// Four seconds of one flat noise layer with `noise` as its noise group.
+static QByteArray noiseRecipe(const QByteArray &noise, double freq = 440.0)
+{
+    return R"({"variation": {"seed": 3}, "layers": [{"source": "noise", "length": 4000, "freq": )"
+           + QByteArray::number(freq) + (noise.isEmpty() ? QByteArray() : ", \"noise\": " + noise)
+           + "}]}";
+}
+
+static std::vector<float> renderNoise(const QByteArray &noise, double freq = 440.0, double detune = 0.0)
+{
+    const auto r = parseOk(noiseRecipe(noise, freq));
+    return cs::renderSfx(r, {}, 1, 1.0f, 1.0f, 0.0f, kRate, false, -1, detune);
+}
+
 class SfxRecipeTest : public QObject
 {
     Q_OBJECT
@@ -138,6 +220,11 @@ private slots:
     void sameSeedPlaysTheSameGrains();
     void voiceCapBoundsTheGrainsThatRingAtOnce();
     void grainsStayInsideTheFieldRanges();
+    void noiseIsALayerGroup();
+    void whiteNoiseDrawnEverySampleIsTheNoiseOfBefore();
+    void pinkAndBrownFall3And6DbPerOctave();
+    void aLowerRateMovesTheSpectrumDown();
+    void detuneMovesAClockedNoiseLayer();
     void seededNoiseIgnoresTheStartFrame();
     void sameSeedRendersSameSamples();
     void otherSeedsStayInsideTheDeclaredRanges();
@@ -521,6 +608,151 @@ void SfxRecipeTest::grainsStayInsideTheFieldRanges()
     QCOMPARE(gainHi, 12.0);         // grains that drew above it play at it
     QVERIFY(gainLo < -30.0);        // and the jitter still reaches down
     QCOMPARE(detuneHi, 48.0);
+}
+
+void SfxRecipeTest::noiseIsALayerGroup()
+{
+    using C = cs::OscillatorVoice::NoiseColor;
+    using R = cs::OscillatorVoice::NoiseRate;
+    const auto r = parseOk(R"({"layers": [
+      {"source": "noise", "length": 10},
+      {"source": "noise", "length": 10, "noise": {"color": "pink"}},
+      {"source": "noise", "length": 10, "noise": {"color": "brown", "rate": "freq"}}]})");
+    QCOMPARE(r.layers.size(), 3);
+    QCOMPARE(r.layers[0].noiseColor, C::White);
+    QCOMPARE(r.layers[0].noiseRate, R::Sample);
+    QCOMPARE(r.layers[1].noiseColor, C::Pink);
+    QCOMPARE(r.layers[1].noiseRate, R::Sample);
+    QCOMPARE(r.layers[2].noiseColor, C::Brown);
+    QCOMPARE(r.layers[2].noiseRate, R::Freq);
+
+    const QList<QPair<QByteArray, QString>> bad = {
+        {R"("source": "sine", "length": 10, "noise": {"color": "pink"})",
+         "layers[0].noise: applies to a noise layer only"},
+        {R"("source": "noise", "length": 10, "noise": {"colour": "pink"})",
+         "layers[0].noise: unknown field 'colour'"},
+        {R"("source": "noise", "length": 10, "noise": {"color": "blue"})",
+         "layers[0].noise.color: unknown color 'blue' (white, pink, brown)"},
+        {R"("source": "noise", "length": 10, "noise": {"rate": 2000})",
+         "layers[0].noise.rate: must be a string"},
+        {R"("source": "noise", "length": 10, "noise": {"rate": "pitch"})",
+         "layers[0].noise.rate: unknown rate 'pitch' (sample, freq)"}};
+    for (const auto &b : bad) {
+        const auto res = cs::SfxParser::parse("{\"layers\": [{" + b.first + "}]}");
+        QVERIFY(!res.ok);
+        QVERIFY2(res.error.startsWith(b.second), qPrintable(res.error));
+    }
+}
+
+void SfxRecipeTest::whiteNoiseDrawnEverySampleIsTheNoiseOfBefore()
+{
+    // The noise of before: one xorshift step per sample, mapped onto
+    // -1..1, whatever the frequency - for the default patch, and for one
+    // that names white and the sample rate.
+    auto render = [](double freq, bool named) {
+        cs::Engine eng(kRate);
+        auto osc = std::make_unique<cs::OscillatorInstrument>();
+        auto *o = osc.get();
+        const int id = eng.addInstrument(std::move(osc));
+        cs::NoteEvent ev;
+        ev.instrumentId = id;
+        ev.durationFrames = 4000;
+        ev.freqHz = freq;
+        cs::OscillatorVoice::Patch p;
+        p.waveform = cs::OscillatorVoice::Waveform::Noise;
+        p.attack = 0.0; p.decay = 0.0; p.sustain = 1.0; p.release = 0.0;
+        p.noiseSeed = 77;
+        if (named) {
+            p.noiseColor = cs::OscillatorVoice::NoiseColor::White;
+            p.noiseRate = cs::OscillatorVoice::NoiseRate::Sample;
+        }
+        o->pushPatch(eng.schedule(ev), p);
+        std::vector<float> out(4000);
+        eng.renderOffline(out.data(), 4000);
+        return out;
+    };
+    std::vector<float> before(4000);
+    uint32_t s = 77;
+    for (auto &v : before) {
+        s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+        v = static_cast<float>(static_cast<double>(s) / static_cast<double>(0xFFFFFFFFu) * 2.0 - 1.0);
+    }
+    for (double freq : {440.0, 55.0, 5000.0}) {
+        QCOMPARE(render(freq, false), before);
+        QCOMPARE(render(freq, true), before);
+    }
+}
+
+void SfxRecipeTest::pinkAndBrownFall3And6DbPerOctave()
+{
+    // Six octaves from 250 Hz: the level falls by a straight line in dB
+    // per octave, flat for white, about 3 dB for pink and 6 for brown.
+    struct Colour { QByteArray noise; double slope; };
+    const QList<Colour> colours = {{{}, 0.0},
+                                   {R"({"color": "white"})", 0.0},
+                                   {R"({"color": "pink"})", -3.0},
+                                   {R"({"color": "brown"})", -6.0}};
+    for (const auto &c : colours) {
+        const auto levels = octaveLevels(powerSpectrum(renderNoise(c.noise)), 250.0, 6);
+        const auto [slope, worst] = lineFit(levels);
+        qInfo("%s: %.2f dB per octave, farthest octave %.2f dB from the line",
+              c.noise.isEmpty() ? "default" : c.noise.constData(), slope, worst);
+        QVERIFY2(std::abs(slope - c.slope) < 0.5,
+                 qPrintable(QStringLiteral("%1: %2 dB per octave").arg(QString(c.noise)).arg(slope)));
+        QVERIFY2(worst < 1.0, qPrintable(QStringLiteral("%1: %2 dB off the line").arg(QString(c.noise)).arg(worst)));
+    }
+    // Pink and brown sit about 6 dB below white, inside -1..1.
+    const double white = rms(renderNoise({}), 0, 4 * kRate);
+    for (const QByteArray &noise : {QByteArray(R"({"color": "pink"})"), QByteArray(R"({"color": "brown"})")}) {
+        const auto buf = renderNoise(noise);
+        const double db = 20.0 * std::log10(rms(buf, 0, buf.size()) / white);
+        qInfo("%s: %.2f dB below white", noise.constData(), -db);
+        QVERIFY2(db > -7.5 && db < -4.5, qPrintable(QStringLiteral("%1: %2 dB").arg(QString(noise)).arg(db)));
+        for (float v : buf) QVERIFY(std::abs(v) <= 1.0f);
+    }
+}
+
+void SfxRecipeTest::aLowerRateMovesTheSpectrumDown()
+{
+    // Clocked by its freq, the noise holds each value for one period, so
+    // its power at a frequency depends on frequency / freq alone, scaled
+    // by the hold: a quarter of the freq lays every octave two octaves
+    // lower and 6.02 dB (4x) up - for every colour, over the five octaves
+    // below each freq (above 8 kHz the images of the faster clock fold
+    // back from the Nyquist frequency and add about 1 dB). Drawn every
+    // sample, freq does nothing.
+    for (const QByteArray color : {"white", "pink", "brown"}) {
+        const QByteArray clocked = R"({"color": ")" + color + R"(", "rate": "freq"})";
+        const auto high = octaveLevels(powerSpectrum(renderNoise(clocked, 8000)), 250.0, 5);  // to 8 kHz
+        const auto low = octaveLevels(powerSpectrum(renderNoise(clocked, 2000)), 62.5, 5);    // to 2 kHz
+        double worst = 0.0;
+        for (size_t i = 0; i < high.size(); ++i)
+            worst = std::max(worst, std::abs(low[i] - high[i] - 10.0 * std::log10(4.0)));
+        qInfo("%s: two octaves down each octave is 6.02 dB up, give or take %.2f dB", color.constData(), worst);
+        QVERIFY(worst < 1.0);
+        const QByteArray unclocked = R"({"color": ")" + color + R"("})";
+        QCOMPARE(renderNoise(unclocked, 8000), renderNoise(unclocked, 2000));
+    }
+    // For white the move is plain in one number: half of the power lies
+    // below a quarter of the frequency.
+    const double high = medianFrequency(powerSpectrum(renderNoise(R"({"rate": "freq"})", 8000)));
+    const double low = medianFrequency(powerSpectrum(renderNoise(R"({"rate": "freq"})", 2000)));
+    qInfo("white: half of the power below %.0f Hz at 8000, below %.0f Hz at 2000", high, low);
+    QVERIFY(high / low > 3.0 && high / low < 5.0);
+}
+
+void SfxRecipeTest::detuneMovesAClockedNoiseLayer()
+{
+    // A play's detune moves a clocked noise layer as it moves its freq:
+    // two octaves down puts half of the power a quarter as high.
+    const QByteArray clocked = R"({"rate": "freq"})";
+    const double plain = medianFrequency(powerSpectrum(renderNoise(clocked, 8000)));
+    const double down = medianFrequency(powerSpectrum(renderNoise(clocked, 8000, -24)));
+    QVERIFY2(plain / down > 3.0 && plain / down < 5.0,
+             qPrintable(QStringLiteral("%1 Hz, %2 Hz two octaves down").arg(plain).arg(down)));
+    QCOMPARE(renderNoise(clocked, 8000, -24), renderNoise(clocked, 2000));
+    // Drawn every sample, it does not move.
+    QCOMPARE(renderNoise({}, 8000, -24), renderNoise({}, 8000));
 }
 
 void SfxRecipeTest::seededNoiseIgnoresTheStartFrame()
