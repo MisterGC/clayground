@@ -36,10 +36,18 @@ public:
         double sustain = 0.60;
         double release = 0.30;
 
-        // Pitch envelope (semitone offsets, sweep time in seconds).
+        // Curve of each ADSR segment: 0 linear .. 1 exponential, a
+        // straight line in dB (segment_curve.h).
+        double attackCurve  = 0.0;
+        double decayCurve   = 0.0;
+        double releaseCurve = 0.0;
+
+        // Pitch envelope (semitone offsets, sweep time in seconds) and
+        // the curve of its sweep, 0 linear .. 1 exponential.
         double pitchStart = 0.0;
         double pitchEnd   = 0.0;
         double pitchTime  = 0.0;
+        double pitchCurve = 0.0;
 
         // LFO. lfoTarget: 0=off, 1=pitch, 2=volume.
         double lfoRate   = 0.0;
@@ -60,6 +68,11 @@ public:
         double filterSustain   = 1.0;
         double filterRelease   = 0.0;
         double filterEnvAmount = 0.0;
+        // Curves of the cutoff envelope's segments, as attackCurve,
+        // decayCurve and releaseCurve.
+        double filterAttackCurve  = 0.0;
+        double filterDecayCurve   = 0.0;
+        double filterReleaseCurve = 0.0;
 
         // Noise only: the seed of the noise sequence. 0, the default,
         // seeds it from the note's start frame, so two notes at
