@@ -27,6 +27,17 @@ bool Scheduler::cancel(EventId id)
     return true;
 }
 
+size_t Scheduler::cancelInstrument(int instrumentId)
+{
+    const auto before = pending_.size();
+    pending_.erase(std::remove_if(pending_.begin(), pending_.end(),
+                                  [instrumentId](const Entry& x) {
+                                      return x.ev.instrumentId == instrumentId;
+                                  }),
+                   pending_.end());
+    return before - pending_.size();
+}
+
 void Scheduler::clear()
 {
     pending_.clear();

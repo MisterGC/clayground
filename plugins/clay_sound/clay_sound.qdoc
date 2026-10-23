@@ -621,22 +621,43 @@
     The bus the layers mix into: \c "sfx" (default), \c "music" or
     \c "voice".
 
+    \qmlproperty bool SfxPlayer::loop
+    When true, \l play() repeats the variation it drew pass after pass
+    until \l stop(), for an ambience bed. A pass starts one period after
+    the one before: the time until the last layer ends, less that layer's
+    release, so the release crossfades into the next pass and there is
+    no gap. Read by \l play() and \l renderOffline(); a loop that already
+    plays goes on until \l stop(). Default false.
+
     \section1 Methods
 
-    \qmlmethod int SfxPlayer::play(real velocity)
+    \qmlmethod int SfxPlayer::play(real velocity, real detune)
     Plays the next variation and returns its seed, or -1 when nothing is
-    loaded. \a velocity (0..1, default 1) scales every layer.
+    loaded. \a velocity (0..1, default 1) scales every layer. \a detune
+    (semitones, default 0) transposes every layer, oscillator and sample:
+    the play sounds as the recipe would with every layer's \c detune
+    raised by it, so one recipe plays a scale.
 
-    \qmlmethod bool SfxPlayer::playSeed(int seed, real velocity)
-    Plays the variation of \a seed. Returns false when nothing is loaded.
+    \qmlmethod bool SfxPlayer::playSeed(int seed, real velocity, real detune)
+    Plays the variation of \a seed, at \a velocity and transposed by
+    \a detune semitones as in \l play(). Returns false when nothing is
+    loaded.
+
+    \qmlmethod void SfxPlayer::stop()
+    Ends every voice this player started: a ringing layer runs its own
+    release from now and is freed, a layer whose offset has not come yet
+    does not start, and a \l loop plays no further pass. The player stays
+    loaded; the next \l play() sounds as before.
 
     \qmlmethod int SfxPlayer::variationSeed(int index)
     The seed the \a{index}-th \l play() since the recipe loaded uses.
 
-    \qmlmethod list<real> SfxPlayer::renderOffline(int seed, real velocity)
-    What \l playSeed() of \a seed at \a velocity sends into its bus, as mono
+    \qmlmethod list<real> SfxPlayer::renderOffline(int seed, real velocity, real detune, int passes)
+    What \l playSeed() of \a seed at \a velocity and \a detune (semitones,
+    default 0) sends into its bus, as mono
     samples (the (L + R) / 2 downmix, clamped to -1..1) at 44.1 kHz, from
-    the first layer's start to the last layer's end, at the player's
+    the first layer's start to the last layer's end - with \l loop,
+    \a passes periods (default 1) of the loop - at the player's
     \l volume and \l pan. Renders on an engine of its own and does not
     touch the live sound. The bus volume, echo and reverb are not part of
     it.

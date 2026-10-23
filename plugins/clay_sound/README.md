@@ -264,8 +264,19 @@ SfxPlayer {
 }
 var seed = detent.play()               // the next variation; returns its seed
 detent.play(0.6)                       // the same at velocity 0.6 (all layers)
+detent.play(1, 7)                      // a fifth up (all layers, semitones)
 detent.playSeed(seed)                  // that variation again
 var mono = detent.renderOffline(seed)  // what play() of that seed sounded like
+detent.stop()                          // end what it still plays
+```
+
+With `loop: true` a play repeats its variation until `stop()` - an ambience
+bed that plays on with no seam:
+
+```qml
+SfxPlayer { id: wind; source: "sfx/wind.sfx.json"; loop: true }
+var seed = wind.play()                 // pass after pass, until stop()
+var two = wind.renderOffline(seed, 1, 0, 2)  // two passes of the loop
 ```
 
 The wheel detent of `demo/sfx/` (lock_picker's, four layers):
@@ -337,6 +348,33 @@ sends into its bus - at the player's `volume` and `pan`, as the mono
 `(L + R) / 2` downmix, from the first layer's start to the last layer's end.
 What the bus adds afterwards (its volume, echo and reverb) is not part of
 it. `volume`, `pan` and `bus` work as on the instruments.
+
+All three take a `detune` in semitones after the velocity - `play(velocity,
+detune)`, `playSeed(seed, velocity, detune)`, `renderOffline(seed, velocity,
+detune)` - which transposes every layer, oscillator and sample alike: the
+play renders the samples of the same recipe with every layer's `detune`
+raised by that much. An effect a game plays on a scale (rising coins, one
+tone per tumbler) is one recipe.
+
+`stop()` ends every voice the player started: a ringing layer runs its own
+`envelope.release` from that moment and is freed, a layer whose `offset` has
+not come yet does not start. A long recipe - an ambience bed when the level
+changes - thus ends within its longest release, and the next `play()` works
+as before.
+
+A looped recipe (`loop: true`, read by `play()`) plays the notes of the seed
+it drew pass after pass, until `stop()`. A pass starts one period after the
+one before: the period is the time until the last layer ends, less that
+layer's `envelope.release`. The release of one pass thus crossfades into the
+next pass, and a last layer without a release is followed by the next pass on
+the next sample - no gap either way. Whether the seam is smooth is the
+recipe's: give the layers an `envelope.attack` as long as the release (a
+linear fade-out over a linear fade-in of the same sound keeps the level), or
+none at all on noise. `renderOffline(seed, velocity, detune, passes)` of a
+looping player renders `passes` periods (default 1) of the same loop; the
+second of two passes is the loop as a file, steady from its last sample to
+its first. A `play()` while a loop plays replaces it, and a hot reload of a
+looping player loops the new recipe on.
 
 `SfxPlayer` watches its recipe file and hot-reloads it; add `sfx/` (or
 `*.sfx.json`) to the sandbox's `.dojoignore`.
@@ -425,7 +463,7 @@ cs::writeWav("song.wav", music, 1, cs::kSampleRate, cs::WavFormat::Pcm16);
 |---|---|
 | `loadRecipe(path, &file, &error)` | parses a `*.sfx.json` and decodes its sample layers, each relative to the recipe |
 | `loadSong(path, &model, &error)` | parses a `.song.json`; a v2 song's sample instruments get their WAVs decoded, each relative to the song |
-| `renderRecipe(recipe, samples, seed, velocity, gain, pan, rate, stereo, seconds)` | the samples `SfxPlayer.renderOffline(seed)` returns at that `volume` and `pan`; `seconds` 0 = until the last layer ends |
+| `renderRecipe(recipe, samples, seed, velocity, gain, pan, rate, stereo, seconds, detune)` | the samples `SfxPlayer.renderOffline(seed, velocity, detune)` returns at that `volume` and `pan`; `seconds` 0 = until the last layer ends, `detune` 0 = as written |
 | `renderSong(model, instruments, seconds, volume, loop, rate, stereo)` | the samples `SongPlayer.renderOffline(seconds)` returns; `seconds` 0 = the song's length |
 | `renderSong(model, performance, seconds, volume, loop, rate, stereo)` | a v2 song on its own instruments, from `performance.start` at `performance.intensity`, each of `performance.cues` (state, intensity or stinger) at its song frame: what live playback renders for the same controls; `seconds` 0 = one pass of the start segment |
 | `writeWav(path, samples, channels, rate, format, &error)` | 32-bit float (default, the samples exactly) or 16-bit wav; stereo samples interleaved |

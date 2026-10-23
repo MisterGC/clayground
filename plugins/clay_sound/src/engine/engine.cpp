@@ -49,6 +49,13 @@ void Engine::clearSchedule()
     scheduler_.clear();
 }
 
+void Engine::releaseInstrument(int id)
+{
+    scheduler_.cancelInstrument(id);
+    for (auto& av : voices_)
+        if (av.instrumentId == id) av.voice->onRelease(currentFrame_);
+}
+
 void Engine::resetVoices()
 {
     voices_.clear();

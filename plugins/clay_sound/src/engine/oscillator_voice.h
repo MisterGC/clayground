@@ -73,6 +73,7 @@ public:
 
     void onNoteOn(const NoteEvent& ev, int sampleRate) override;
     void onNoteOff(int64_t atFrame) override;
+    void onRelease(int64_t atFrame) override;
     void render(float* buffer, int frames, int64_t bufferStartFrame) override;
     bool isFinished(int64_t currentFrame) const override;
 

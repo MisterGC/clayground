@@ -2,10 +2,13 @@
 //
 // Effect recipes (#428): the parser rejects an unknown field by its
 // name, one seed renders the same samples every time and live playback
-// renders the samples renderOffline() does, and the values other seeds
-// play with stay inside the declared ranges - drawn and measured on the
-// render (pitch by zero crossings, gain by RMS, pan by the channel
-// ratio, offset by the onset). Sample equality is only asserted between
+// renders the samples renderOffline() does, a play transposed by n
+// semitones is the recipe with every layer's detune raised by n (#439),
+// stop() ends a playing recipe within its layers' release (#441), a
+// looped recipe plays on pass after pass with no gap and no jump at the
+// seam, live as offline (#442), and the values other seeds play with stay inside the declared ranges
+// - drawn and measured on the render (pitch by zero crossings, gain by
+// RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
 // renders on the same machine.
 
 #include "audio_output.h"
@@ -13,16 +16,19 @@
 #include "engine/note_event.h"
 #include "engine/oscillator_instrument.h"
 #include "engine/pcm_buffer.h"
+#include "offline/sound_files.h"
 #include "sfx/sfx_parser.h"
 #include "sfx/sfx_render.h"
 #include "sfx_player.h"
 
 #include <QtTest/QtTest>
+#include <QDir>
 #include <QFile>
 #include <QQmlComponent>
 #include <QQmlEngine>
 #include <QSignalSpy>
 #include <QTemporaryDir>
+#include <algorithm>
 #include <cmath>
 #include <memory>
 #include <vector>
@@ -98,6 +104,9 @@ private slots:
     void sampleLayerPlaysTheWav();
     void livePlaybackRendersWhatRenderOfflineReturns();
     void playerResolvesSamplesNextToTheRecipe();
+    void detuneTransposesEveryLayer();
+    void stopEndsTheVoicesWithinTheirRelease();
+    void loopPlaysOnWithoutASeam();
     void hotReloadKeepsTheLastGoodRecipe();
 };
 
@@ -425,6 +434,271 @@ void SfxRecipeTest::playerResolvesSamplesNextToTheRecipe()
     QVERIFY(!player->property("loaded").toBool());
     QVERIFY2(player->property("error").toString().startsWith("layers[1].sample: cannot open"),
              qPrintable(player->property("error").toString()));
+}
+
+// One sine, one noise and one sample layer, each with a detune of its
+// own and a varied one; %1 is added to every layer's detune.
+static QByteArray detuneRecipe(int up)
+{
+    return QStringLiteral(R"({"variation": {"seed": 7}, "layers": [
+        {"source": "sine", "freq": 330, "length": 40, "detune": %1,
+         "vary": {"detune": [-1, 1]}},
+        {"source": "noise", "length": 20, "detune": %2},
+        {"source": "sample", "sample": "hit.wav", "detune": %3,
+         "vary": {"detune": [-0.5, 0.5]}}]})")
+        .arg(3 + up).arg(-2 + up).arg(-5 + up).toUtf8();
+}
+
+void SfxRecipeTest::detuneTransposesEveryLayer()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QVERIFY(QFile::copy(CLAY_SOUND_DEMO_WAV, dir.filePath("hit.wav")));
+    auto write = [&dir](const QString &name, const QByteArray &json) {
+        QFile f(dir.filePath(name));
+        if (!f.open(QIODevice::WriteOnly)) return false;
+        f.write(json);
+        return true;
+    };
+    QVERIFY(write("base.sfx.json", detuneRecipe(0)));
+    QVERIFY(write("up12.sfx.json", detuneRecipe(12)));
+
+    QQmlEngine qml;
+    std::unique_ptr<QObject> base(createPlayer(qml, QUrl::fromLocalFile(dir.filePath("base.sfx.json"))));
+    std::unique_ptr<QObject> up(createPlayer(qml, QUrl::fromLocalFile(dir.filePath("up12.sfx.json"))));
+    QVERIFY(base && up);
+    QVERIFY2(base->property("loaded").toBool(), qPrintable(base->property("error").toString()));
+    QVERIFY2(up->property("loaded").toBool(), qPrintable(up->property("error").toString()));
+
+    auto offline = [](QObject *p, int seed, qreal velocity, qreal detune) {
+        QVector<float> out;
+        QMetaObject::invokeMethod(p, "renderOffline", Q_RETURN_ARG(QVector<float>, out),
+                                  Q_ARG(int, seed), Q_ARG(qreal, velocity), Q_ARG(qreal, detune));
+        return out;
+    };
+    for (int seed : {1, 2, 99}) {
+        const auto shifted = offline(base.get(), seed, 1.0, 12.0);
+        QVERIFY(!shifted.isEmpty());
+        QCOMPARE(shifted, offline(up.get(), seed, 1.0, 0.0));
+        QVERIFY(shifted != offline(base.get(), seed, 1.0, 0.0));
+
+        // Without a detune nothing changes.
+        QVector<float> plain;
+        QMetaObject::invokeMethod(base.get(), "renderOffline", Q_RETURN_ARG(QVector<float>, plain),
+                                  Q_ARG(int, seed), Q_ARG(qreal, 1.0));
+        QCOMPARE(plain, offline(base.get(), seed, 1.0, 0.0));
+    }
+
+    // Live: play() and playSeed() with a detune render what renderOffline()
+    // with it returns.
+    auto &eng = cs::AudioOutput::instance().engine();
+    auto listen = [&eng](qsizetype frames) {
+        std::vector<float> live(static_cast<size_t>(frames));
+        for (size_t at = 0; at < live.size(); at += 882) {
+            const int n = static_cast<int>(std::min<size_t>(882, live.size() - at));
+            eng.renderOffline(live.data() + at, n);
+        }
+        for (auto &s : live) s = std::clamp(s, -1.0f, 1.0f);
+        return QVector<float>(live.begin(), live.end());
+    };
+    int seed = -1;
+    QVERIFY(QMetaObject::invokeMethod(base.get(), "play", Q_RETURN_ARG(int, seed),
+                                      Q_ARG(qreal, 0.8), Q_ARG(qreal, 7.0)));
+    const auto expected = offline(base.get(), seed, 0.8, 7.0);
+    QCOMPARE(listen(expected.size()), expected);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+
+    bool played = false;
+    QVERIFY(QMetaObject::invokeMethod(base.get(), "playSeed", Q_RETURN_ARG(bool, played),
+                                      Q_ARG(int, 4), Q_ARG(qreal, 1.0), Q_ARG(qreal, -12.0)));
+    QVERIFY(played);
+    const auto down = offline(base.get(), 4, 1.0, -12.0);
+    QCOMPARE(listen(down.size()), down);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+}
+
+// A held sine, a held square that starts later and a sample: the
+// longest release is the square's 50 ms.
+static const char *kHeldRecipe = R"({"variation": {"seed": 5}, "layers": [
+    {"source": "sine", "freq": 220, "length": 2000,
+     "envelope": {"attack": 5, "decay": 0, "sustain": 0.8, "release": 30}},
+    {"source": "square", "freq": 330, "length": 1500, "offset": 400,
+     "envelope": {"attack": 5, "decay": 0, "sustain": 0.6, "release": 50}},
+    {"source": "sample", "sample": "hit.wav", "envelope": {"release": 10}}]})";
+
+void SfxRecipeTest::stopEndsTheVoicesWithinTheirRelease()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QVERIFY(QFile::copy(CLAY_SOUND_DEMO_WAV, dir.filePath("hit.wav")));
+    QFile f(dir.filePath("held.sfx.json"));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(kHeldRecipe);
+    f.close();
+
+    QQmlEngine qml;
+    std::unique_ptr<QObject> empty(createPlayer(qml, QUrl()));
+    QVERIFY(empty);
+    QVERIFY(QMetaObject::invokeMethod(empty.get(), "stop"));   // nothing loaded: nothing to end
+
+    std::unique_ptr<QObject> player(createPlayer(qml, QUrl::fromLocalFile(f.fileName())));
+    QVERIFY(player);
+    QVERIFY2(player->property("loaded").toBool(), qPrintable(player->property("error").toString()));
+
+    auto &eng = cs::AudioOutput::instance().engine();
+    QCOMPARE(eng.activeVoices(), size_t(0));
+    auto listen = [&eng](double seconds) {
+        std::vector<float> live(static_cast<size_t>(std::llround(seconds * kRate)));
+        for (size_t at = 0; at < live.size(); at += 882) {
+            const int n = static_cast<int>(std::min<size_t>(882, live.size() - at));
+            eng.renderOffline(live.data() + at, n);
+        }
+        return live;
+    };
+    auto peak = [](const std::vector<float> &buf) {
+        float m = 0.0f;
+        for (float s : buf) m = std::max(m, std::abs(s));
+        return m;
+    };
+
+    int seed = -1;
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "play", Q_RETURN_ARG(int, seed)));
+    QVERIFY(seed >= 0);
+    QVERIFY(rms(listen(0.1), 0, 4410) > 0.05);
+    QCOMPARE(eng.activeVoices(), size_t(2));   // the sine and the sample; the square is pending
+    QCOMPARE(eng.pendingEvents(), size_t(1));
+
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "stop"));
+    QCOMPARE(eng.pendingEvents(), size_t(0));
+    // A release, not a cut: the first milliseconds still sound.
+    const auto release = listen(0.05);
+    QVERIFY(rms(release, 0, 220) > 0.05);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+    // Once the longest release has passed, the player is silent: the
+    // square that was to start at 400 ms never does.
+    QCOMPARE(peak(listen(1.0)), 0.0f);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+
+    // A new play() sounds again, the samples renderOffline() returns.
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "play", Q_RETURN_ARG(int, seed)));
+    QVector<float> offline;
+    QMetaObject::invokeMethod(player.get(), "renderOffline", Q_RETURN_ARG(QVector<float>, offline),
+                              Q_ARG(int, seed), Q_ARG(qreal, 1.0));
+    QCOMPARE(offline.size(), qsizetype(std::llround(2.0 * kRate)));
+    auto live = listen(2.0);
+    for (auto &s : live) s = std::clamp(s, -1.0f, 1.0f);
+    QCOMPARE(QVector<float>(live.begin(), live.end()), offline);
+    QVERIFY(rms(live, 0, live.size()) > 0.05);
+    QCOMPARE(eng.activeVoices(), size_t(0));
+}
+
+// An ambience bed: a sine and a quieter noise, both one second long
+// with a 100 ms fade at either end. A pass is 900 ms - the last layer's
+// end less its release - so each fade-out crossfades into the next
+// pass's fade-in; 220 Hz over 900 ms is 198 whole cycles, so the sine of
+// one pass meets the next in phase.
+static const char *kBedRecipe = R"({"variation": {"seed": 3}, "layers": [
+    {"source": "sine", "freq": 220, "length": 1000, "gain": -6,
+     "envelope": {"attack": 100, "decay": 0, "sustain": 1, "release": 100}},
+    {"source": "noise", "length": 1000, "gain": -18,
+     "envelope": {"attack": 100, "decay": 0, "sustain": 1, "release": 100}}]})";
+
+// The loop seam check of `sp analyze --loop`: the step from buf[at - 1]
+// to buf[at] (wrapping) is a click when it is more than four times the
+// 99th percentile of the steps between neighbouring samples and above
+// 0.01.
+static bool seamless(const std::vector<float> &buf, size_t at, double *jump, double *typical)
+{
+    std::vector<double> steps;
+    for (size_t i = 1; i < buf.size(); ++i)
+        if (const double d = std::abs(buf[i] - buf[i - 1]); d > 0.0) steps.push_back(d);
+    std::sort(steps.begin(), steps.end());
+    *typical = steps.empty() ? 0.0 : steps[static_cast<size_t>(0.99 * (steps.size() - 1))];
+    *jump = std::abs(buf[at % buf.size()] - buf[(at + buf.size() - 1) % buf.size()]);
+    return *jump <= 4.0 * *typical || *jump <= 0.01;
+}
+
+void SfxRecipeTest::loopPlaysOnWithoutASeam()
+{
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    QFile f(dir.filePath("bed.sfx.json"));
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write(kBedRecipe);
+    f.close();
+
+    QQmlEngine qml;
+    std::unique_ptr<QObject> player(createPlayer(qml, QUrl::fromLocalFile(f.fileName())));
+    QVERIFY(player);
+    QVERIFY2(player->property("loaded").toBool(), qPrintable(player->property("error").toString()));
+    const size_t period = static_cast<size_t>(std::llround(0.9 * kRate));
+    auto offline = [&player](int seed, int passes) {
+        QVector<float> out;
+        QMetaObject::invokeMethod(player.get(), "renderOffline", Q_RETURN_ARG(QVector<float>, out),
+                                  Q_ARG(int, seed), Q_ARG(qreal, 1.0), Q_ARG(qreal, 0.0),
+                                  Q_ARG(int, passes));
+        return std::vector<float>(out.begin(), out.end());
+    };
+
+    // Without loop the recipe plays once, passes or not.
+    QCOMPARE(offline(7, 2).size(), size_t(kRate));
+    player->setProperty("loop", true);
+    QVERIFY(player->property("loop").toBool());
+
+    // Two passes: 1.8 s, the level never drops at the seam and nothing
+    // jumps there.
+    const auto two = offline(7, 2);
+    QCOMPARE(two.size(), 2 * period);
+    const double steady = rms(two, period / 2 - 2205, 4410);
+    QVERIFY(steady > 0.1);
+    for (size_t at = period - 4410; at < period + 4410; at += 441)
+        QVERIFY2(rms(two, at, 441) > 0.5 * steady,
+                 qPrintable(QStringLiteral("10 ms at %1 ms: rms %2 of %3")
+                                .arg(at * 1000.0 / kRate).arg(rms(two, at, 441)).arg(steady)));
+    double jump = 0.0, typical = 0.0;
+    QVERIFY2(seamless(two, period, &jump, &typical),
+             qPrintable(QStringLiteral("seam jump %1, typical step %2").arg(jump).arg(typical)));
+    // The second pass on its own is the loop as a file: from its last
+    // sample back to its first is the seam it plays through.
+    const std::vector<float> pass(two.begin() + period, two.end());
+    QVERIFY2(seamless(pass, 0, &jump, &typical),
+             qPrintable(QStringLiteral("wrap jump %1, typical step %2").arg(jump).arg(typical)));
+    // For `sp analyze --loop` outside the test.
+    if (const QString out = qEnvironmentVariable("CLAY_SFX_LOOP_WAV"); !out.isEmpty())
+        QVERIFY(cs::writeWav(QDir::toNativeSeparators(out).toStdString(), pass, 1, kRate));
+
+    // Live: a looped play goes on past the last layer's end, the samples
+    // renderOffline() returns for as many passes, until stop().
+    auto &eng = cs::AudioOutput::instance().engine();
+    std::vector<float> skip(12345);
+    eng.renderOffline(skip.data(), 12345);
+    int seed = -1;
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "play", Q_RETURN_ARG(int, seed)));
+    // play() opened the sink; closed, it pulls nothing while the event
+    // loop runs and the engine renders only what the test takes.
+    cs::AudioOutput::instance().stop();
+    const auto expected = offline(seed, 3);
+    std::vector<float> live(3 * period);
+    for (size_t at = 0; at < live.size(); at += 882) {
+        // The player tops its passes up from the event loop, the way the
+        // sink's pull timer gives it time between buffers.
+        if (at % (882 * 25) == 0) QTest::qWait(120);
+        const int n = static_cast<int>(std::min<size_t>(882, live.size() - at));
+        eng.renderOffline(live.data() + at, n);
+    }
+    for (auto &x : live) x = std::clamp(x, -1.0f, 1.0f);
+    QCOMPARE(live, expected);
+    QVERIFY(rms(live, 2 * period + period / 2, 4410) > 0.1);   // well past the 1 s recipe
+
+    QVERIFY(QMetaObject::invokeMethod(player.get(), "stop"));
+    QCOMPARE(eng.pendingEvents(), size_t(0));
+    QTest::qWait(250);   // a top-up after stop() schedules nothing
+    std::vector<float> after(2 * kRate);
+    for (size_t at = 0; at < after.size(); at += 882)
+        eng.renderOffline(after.data() + at, static_cast<int>(std::min<size_t>(882, after.size() - at)));
+    QVERIFY(rms(after, 0, 220) > 0.01);                         // a release, not a cut
+    QCOMPARE(rms(after, 4410, after.size() - 4410), 0.0);       // and nothing after it
+    QCOMPARE(eng.activeVoices(), size_t(0));
 }
 
 void SfxRecipeTest::hotReloadKeepsTheLastGoodRecipe()

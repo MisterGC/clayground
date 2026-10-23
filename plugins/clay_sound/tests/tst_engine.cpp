@@ -8,6 +8,8 @@
 //   * sample-accurate spawn: a voice that emits a unit impulse at its
 //     start frame produces an impulse at the exact buffer offset
 //   * golden render: a deterministic note sequence hashes to a known value
+//   * releasing an instrument ends its voices one release later and
+//     cancels its pending events, and leaves other instruments alone
 //
 // The golden hash is computed on a quantised integer representation to
 // dodge FP-denormal / platform variance. It should remain stable across
@@ -16,6 +18,7 @@
 #include "engine/engine.h"
 #include "engine/instrument.h"
 #include "engine/note_event.h"
+#include "engine/oscillator_instrument.h"
 #include "engine/pcm_buffer.h"
 #include "engine/sample_voice.h"
 #include "engine/sampler_instrument.h"
@@ -142,6 +145,7 @@ private slots:
     void schedulerCancelDropsEvent();
     void voiceSpawnsAtExactFrame();
     void goldenRender();
+    void releaseInstrumentEndsItsVoicesAfterTheirRelease();
     void synthInstrumentOfflineTrigger();
     void synthInstrumentMultipleTriggersOverlap();
     void multipleSynthInstrumentsShareEngine();
@@ -214,6 +218,55 @@ void EngineSpineTest::voiceSpawnsAtExactFrame()
         else         QCOMPARE(buf[i], 0.0f);
     }
     QCOMPARE(eng.pendingEvents(), size_t{0});
+}
+
+void EngineSpineTest::releaseInstrumentEndsItsVoicesAfterTheirRelease()
+{
+    Engine eng(44100);
+    OscillatorVoice::Patch patch;
+    patch.attack = 0.0;
+    patch.decay = 0.0;
+    patch.sustain = 1.0;
+    patch.release = 0.01;               // 441 frames
+    auto a = std::make_unique<OscillatorInstrument>();
+    auto b = std::make_unique<OscillatorInstrument>();
+    a->setDefaultPatch(patch);
+    b->setDefaultPatch(patch);
+    const int idA = eng.addInstrument(std::move(a));
+    const int idB = eng.addInstrument(std::move(b));
+
+    // Each rings a long note now and has one more pending.
+    for (int id : {idA, idB}) {
+        NoteEvent ev;
+        ev.instrumentId = id;
+        ev.durationFrames = 44100;
+        eng.schedule(ev);
+        ev.timeFrames = 2000;
+        eng.schedule(ev);
+    }
+    std::vector<float> buf(1000);
+    eng.renderOffline(buf.data(), 1000);
+    QCOMPARE(eng.activeVoices(idA), size_t{1});
+    QCOMPARE(eng.pendingEvents(), size_t{2});
+
+    eng.releaseInstrument(idA);
+    QCOMPARE(eng.pendingEvents(), size_t{1});
+    eng.renderOffline(buf.data(), 440);
+    QCOMPARE(eng.activeVoices(idA), size_t{1});
+    eng.renderOffline(buf.data(), 1);
+    QCOMPARE(eng.activeVoices(idA), size_t{0});
+    QCOMPARE(eng.activeVoices(idB), size_t{1});
+
+    // B's pending note still fires; A plays again on its next event.
+    eng.renderOffline(buf.data(), 1000);
+    QCOMPARE(eng.activeVoices(idB), size_t{2});
+    NoteEvent again;
+    again.instrumentId = idA;
+    again.timeFrames = eng.currentFrame();
+    again.durationFrames = 100;
+    eng.schedule(again);
+    eng.renderOffline(buf.data(), 50);
+    QCOMPARE(eng.activeVoices(idA), size_t{1});
 }
 
 void EngineSpineTest::goldenRender()

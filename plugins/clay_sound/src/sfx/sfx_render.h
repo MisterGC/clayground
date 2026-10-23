@@ -2,15 +2,23 @@
 //
 // The one way an effect recipe becomes sound, live and offline alike:
 //
-//   1. realizeSfx(recipe, seed) draws the variation: every parameter
-//      with a "vary" range gets base + a value in [min, max), from a
-//      hash of (seed, layer, parameter) alone. The same seed gives the
-//      same values on every platform; another parameter's range never
-//      moves them.
+//   1. realizeSfx(recipe, seed, detune) draws the variation: every
+//      parameter with a "vary" range gets base + a value in [min, max),
+//      from a hash of (seed, layer, parameter) alone. The same seed gives
+//      the same values on every platform; another parameter's range never
+//      moves them. `detune` (semitones) raises every layer's base detune
+//      before that, so a play transposed by 12 is the recipe with every
+//      layer's detune raised by 12.
 //   2. SfxVoices holds the instruments a recipe plays on in one engine
 //      (one oscillator instrument, one sampler per sample layer) and
 //      schedules the realized layers there, each at its offset.
 //   3. renderSfx() does 1 and 2 on a scratch engine and renders it.
+//
+// A looped recipe plays the notes of one seed pass after pass, every
+// pass one period after the one before: the period is the frames until
+// the last layer ends, less that layer's release, so the release of one
+// pass crossfades into the start of the next and a layer without a
+// release is followed by the next pass on the frame after its last.
 //
 // SfxPlayer::play() runs 1 and 2 on the shared engine at its current
 // frame, renderOffline() runs 3: voice for voice the same notes, and
@@ -53,7 +61,7 @@ struct SfxNote
 // pool when the recipe has one. In 0..2^31-1, so QML holds it as an int.
 uint32_t sfxVariationSeed(const SfxRecipe &recipe, int index);
 
-std::vector<SfxNote> realizeSfx(const SfxRecipe &recipe, uint32_t seed);
+std::vector<SfxNote> realizeSfx(const SfxRecipe &recipe, uint32_t seed, double detune = 0.0);
 
 // The decoded WAV of each sample layer, indexed like recipe.layers;
 // null for the other layers.
@@ -73,11 +81,20 @@ public:
     void setPan(float p);
     void setBus(Bus b);
 
+    // Frames from a pass's start until its last layer has ended, and
+    // until the next pass of a loop starts (>= 1 while there is a layer).
+    struct Span { int64_t end = 0; int64_t period = 0; };
+
     // Schedule `notes` to start at engine frame `at` (each layer at its
-    // offset), every layer's gain scaled by `velocity`. Returns the
-    // number of frames from `at` until the last layer has ended.
-    int64_t play(Engine &engine, const std::vector<SfxNote> &notes, int64_t at,
-                 float velocity, int gainStage = -1) const;
+    // offset), every layer's gain scaled by `velocity`. Returns the span
+    // of what it scheduled, counted from `at`.
+    Span play(Engine &engine, const std::vector<SfxNote> &notes, int64_t at,
+              float velocity, int gainStage = -1) const;
+
+    // End everything play() started: layers not yet started never do,
+    // ringing ones run their release from the engine's current frame.
+    // The instruments stay attached; play() works as before.
+    void stop(Engine &engine) const;
 
 private:
     struct Sampler { int id = -1; SamplerInstrument *inst = nullptr; };
@@ -89,20 +106,25 @@ private:
     SfxRecipe recipe_;
 };
 
-// What SfxVoices::play() of `seed` at `velocity` sends into its bus,
-// rendered on a scratch engine from frame 0 until the last layer ends,
-// or for `frames` frames when that is >= 0: interleaved stereo, or the
-// (L + R) / 2 downmix when !stereo.
+// What SfxVoices::play() of `seed` at `velocity`, transposed by `detune`
+// semitones, sends into its bus, rendered on a scratch engine from frame
+// 0 until the last layer ends, or for `frames` frames when that is >= 0:
+// interleaved stereo, or the (L + R) / 2 downmix when !stereo. With
+// `passes` > 0 the recipe loops: a pass starts every period, and the
+// render lasts `passes` periods when `frames` is < 0.
 std::vector<float> renderSfx(const SfxRecipe &recipe, const SfxSamples &samples,
                              uint32_t seed, float velocity, float gain, float pan,
-                             int sampleRate, bool stereo, int64_t frames = -1);
+                             int sampleRate, bool stereo, int64_t frames = -1,
+                             double detune = 0.0, int passes = 0);
 
 // renderSfx() clamped to [-1, 1] like the live sink, `seconds` long
-// (<= 0: until the last layer ends). SfxPlayer::renderOffline() and a
-// program without QML render a recipe through this.
+// (<= 0: until the last layer ends, or `passes` periods of a loop).
+// SfxPlayer::renderOffline() and a program without QML render a recipe
+// through this.
 std::vector<float> renderRecipe(const SfxRecipe &recipe, const SfxSamples &samples,
                                 uint32_t seed, float velocity, float gain, float pan,
-                                int sampleRate, bool stereo, double seconds = 0.0);
+                                int sampleRate, bool stereo, double seconds = 0.0,
+                                double detune = 0.0, int passes = 0);
 
 } // namespace clay::sound
 
