@@ -6,7 +6,9 @@
 // semitones is the recipe with every layer's detune raised by n (#439),
 // stop() ends a playing recipe within its layers' release (#441), a
 // looped recipe plays on pass after pass with no gap and no jump at the
-// seam, live as offline (#442), and the values other seeds play with stay inside the declared ranges
+// seam, live as offline (#442), an exponential decay renders a straight
+// line in dB and an exponential pitch sweep settles into its end (#447),
+// and the values other seeds play with stay inside the declared ranges
 // - drawn and measured on the render (pitch by zero crossings, gain by
 // RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
 // renders on the same machine.
@@ -88,6 +90,33 @@ static const char *kRangesRecipe = R"({
   } ]
 })";
 
+// The level in dB of each `win`-frame window of buf[from, to).
+static std::vector<double> dbSeries(const std::vector<float> &buf, size_t from, size_t to, size_t win)
+{
+    std::vector<double> db;
+    for (size_t i = from; i + win <= to; i += win)
+        db.push_back(20.0 * std::log10(rms(buf, i, win)));
+    return db;
+}
+
+// The least-squares line through (i, y[i]): its slope per step, and the
+// largest distance of a point from it.
+static std::pair<double, double> lineFit(const std::vector<double> &y)
+{
+    const double n = static_cast<double>(y.size());
+    double sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (size_t i = 0; i < y.size(); ++i) {
+        const double x = static_cast<double>(i);
+        sx += x; sy += y[i]; sxx += x * x; sxy += x * y[i];
+    }
+    const double slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+    const double icept = (sy - slope * sx) / n;
+    double worst = 0.0;
+    for (size_t i = 0; i < y.size(); ++i)
+        worst = std::max(worst, std::abs(y[i] - (icept + slope * static_cast<double>(i))));
+    return {slope, worst};
+}
+
 class SfxRecipeTest : public QObject
 {
     Q_OBJECT
@@ -97,6 +126,9 @@ private slots:
     void rejectsAnUnknownFieldByName();
     void rejectsValuesOutsideTheirRange_data();
     void rejectsValuesOutsideTheirRange();
+    void segmentCurvesAreLayerNumbers();
+    void exponentialDecayIsAStraightLineInDb();
+    void exponentialPitchSweepSettlesIntoItsEnd();
     void seededNoiseIgnoresTheStartFrame();
     void sameSeedRendersSameSamples();
     void otherSeedsStayInsideTheDeclaredRanges();
@@ -191,6 +223,15 @@ void SfxRecipeTest::rejectsValuesOutsideTheirRange_data()
                                                         "lfo": {"target": "volume", "depth": 0.8},
                                                         "vary": {"lfo.depth": [0, 0.5]})")
                                         << "layers[0].lfo.depth: a volume lfo reaches at most 1";
+    QTest::newRow("curve beyond exponential") << QByteArray(R"("source": "sine", "length": 10,
+                                                              "envelope": {"releaseCurve": 2})")
+                                              << "layers[0].envelope.releaseCurve: 2 is outside 0..1";
+    QTest::newRow("decay curve on a sample") << QByteArray(R"("source": "sample", "sample": "a.wav",
+                                                             "envelope": {"decayCurve": 1})")
+                                             << "layers[0].envelope.decayCurve: does not apply to a sample layer";
+    QTest::newRow("filter curve without filter") << QByteArray(R"("source": "sine", "length": 10,
+                                                                 "vary": {"filter.decayCurve": [0, 0.5]})")
+                                                 << "layers[0].vary.filter.decayCurve: needs a 'filter' with a 'type'";
 }
 
 void SfxRecipeTest::rejectsValuesOutsideTheirRange()
@@ -200,6 +241,87 @@ void SfxRecipeTest::rejectsValuesOutsideTheirRange()
     const auto res = cs::SfxParser::parse("{\"layers\": [{" + layer + "}]}");
     QVERIFY(!res.ok);
     QVERIFY2(res.error.startsWith(error), qPrintable(res.error));
+}
+
+void SfxRecipeTest::segmentCurvesAreLayerNumbers()
+{
+    const auto r = parseOk(R"({ "layers": [
+      { "source": "sine", "length": 100,
+        "envelope": { "attackCurve": 0.25, "decayCurve": 1, "releaseCurve": 0.5 },
+        "pitch": { "start": 12, "time": 30, "curve": 1 },
+        "filter": { "type": "lowpass", "attackCurve": 0.1, "decayCurve": 0.2, "releaseCurve": 0.3 },
+        "vary": { "pitch.curve": [-0.5, 0] } },
+      { "source": "sample", "sample": "a.wav",
+        "envelope": { "attackCurve": 1, "releaseCurve": 1 } },
+      { "source": "noise", "length": 100 } ] })");
+    QCOMPARE(r.layers.size(), 3);
+    const auto &l = r.layers[0];
+    QCOMPARE(l.get(P::AttackCurve), 0.25);
+    QCOMPARE(l.get(P::DecayCurve), 1.0);
+    QCOMPARE(l.get(P::ReleaseCurve), 0.5);
+    QCOMPARE(l.get(P::PitchCurve), 1.0);
+    QCOMPARE(l.get(P::FilterAttackCurve), 0.1);
+    QCOMPARE(l.get(P::FilterDecayCurve), 0.2);
+    QCOMPARE(l.get(P::FilterReleaseCurve), 0.3);
+    QVERIFY(l.vary[int(P::PitchCurve)].on);
+    QCOMPARE(r.layers[1].get(P::AttackCurve), 1.0);
+    QCOMPARE(r.layers[1].get(P::ReleaseCurve), 1.0);
+    // Linear unless set.
+    for (P p : {P::AttackCurve, P::DecayCurve, P::ReleaseCurve, P::PitchCurve,
+                P::FilterAttackCurve, P::FilterDecayCurve, P::FilterReleaseCurve})
+        QCOMPARE(r.layers[2].get(p), 0.0);
+}
+
+// A 1 kHz sine decays from full to nothing over 500 ms. With decayCurve
+// 1 its level, measured in 10 ms windows (ten periods each), falls on a
+// straight line in dB at 60 dB per decay time; linear, the same fit
+// misses by more than 3 dB.
+void SfxRecipeTest::exponentialDecayIsAStraightLineInDb()
+{
+    auto decay = [](const char *curve) {
+        const auto r = parseOk(QByteArray(R"({ "layers": [ { "source": "sine", "freq": 1000, "length": 600,
+            "envelope": { "decay": 500, "sustain": 0, "decayCurve": )") + curve + " } } ] }");
+        const auto buf = cs::renderSfx(r, {}, 0, 1.0f, 1.0f, 0.0f, kRate, false);
+        // From 10 ms to 450 ms: the first window lies past the onset, the
+        // last before -60 dB, where the segment ends.
+        return dbSeries(buf, kRate / 100, kRate * 45 / 100, kRate / 100);
+    };
+
+    const auto exponential = decay("1");
+    QCOMPARE(exponential.size(), size_t{44});
+    const auto [slope, worst] = lineFit(exponential);
+    qInfo("exponential: %.4f dB per 10 ms, farthest point %.4f dB from the line", slope, worst);
+    QVERIFY2(std::abs(slope - (-1.2)) < 0.01, qPrintable(QString::number(slope)));   // -60 dB / 50 windows
+    QVERIFY2(worst < 0.05, qPrintable(QString::number(worst)));
+
+    const auto linear = decay("0");
+    const auto [linSlope, linWorst] = lineFit(linear);
+    qInfo("linear: %.4f dB per 10 ms, farthest point %.2f dB from the line", linSlope, linWorst);
+    QVERIFY2(linWorst > 3.0, qPrintable(QString::number(linWorst)));
+}
+
+// A sweep from +12 semitones to 0 over 200 ms, read halfway: linear it
+// is at +6 (1414 Hz); exponential it has covered all but 10^-1.5 of the
+// way, +0.38 semitones (1022 Hz); after the sweep it is at its end.
+void SfxRecipeTest::exponentialPitchSweepSettlesIntoItsEnd()
+{
+    auto sweep = [](const char *curve) {
+        const auto r = parseOk(QByteArray(R"({ "layers": [ { "source": "sine", "freq": 1000, "length": 400,
+            "pitch": { "start": 12, "end": 0, "time": 200, "curve": )") + curve + " } } ] }");
+        return cs::renderSfx(r, {}, 0, 1.0f, 1.0f, 0.0f, kRate, false);
+    };
+    const size_t halfway = kRate * 95 / 1000, ms10 = kRate / 100;
+
+    const double linHz = zeroCrossingFreq(sweep("0"), halfway, ms10);
+    const auto exp = sweep("1");
+    const double expHz = zeroCrossingFreq(exp, halfway, ms10);
+    const double expected = 1000.0 * std::pow(2.0, std::pow(10.0, -1.5));
+    qInfo("halfway: linear %.1f Hz, exponential %.1f Hz (expected %.1f)", linHz, expHz, expected);
+    QVERIFY2(std::abs(linHz / (1000.0 * std::sqrt(2.0)) - 1.0) < 0.01, qPrintable(QString::number(linHz)));
+    QVERIFY2(std::abs(expHz / expected - 1.0) < 0.01, qPrintable(QString::number(expHz)));
+
+    const double after = zeroCrossingFreq(exp, kRate * 250 / 1000, kRate / 10);
+    QVERIFY2(std::abs(after / 1000.0 - 1.0) < 0.002, qPrintable(QString::number(after)));
 }
 
 void SfxRecipeTest::seededNoiseIgnoresTheStartFrame()
