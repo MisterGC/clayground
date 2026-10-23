@@ -31,9 +31,10 @@
 //     "locks": ["weight"]
 //   }
 //
-// A path is `name`, `variation.seed`, `variation.pool`, or a layer field
-// in the "vary" syntax behind a layer selector: `layers[1].gain`,
-// `layers[body].envelope.decay` (an index, or the name of exactly one
+// A path is `name`, `variation.seed`, `variation.pool`, `maxVoices`, or a
+// layer field in the "vary" syntax behind a layer selector:
+// `layers[1].gain`, `layers[body].envelope.decay`,
+// `layers[grit].burst.jitter.time` (an index, or the name of exactly one
 // layer). Overrides take any layer field or group (`layers[0].filter`)
 // and null removes one; two overrides may not write into each other. A
 // macro drives numbers only, and a path is driven by one macro.
