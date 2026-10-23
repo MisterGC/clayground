@@ -379,6 +379,139 @@ looping player loops the new recipe on.
 `SfxPlayer` watches its recipe file and hot-reloads it; add `sfx/` (or
 `*.sfx.json`) to the sandbox's `.dojoignore`.
 
+### Design files: templates, macros and overrides
+
+A recipe is what a game plays; a design file is what a sound designer, or
+an agent, works on. It names a **template** - a recipe whose layers are the
+defaults, plus a few **macros**, knobs that each move several parameters at
+once - sets the macros, and writes **overrides** on top. The engine library
+compiles it to the flat `*.sfx.json`; `SfxPlayer` only ever reads the
+compiled file, so a game knows nothing of macros.
+
+The template `demo/sfx/wheel-detent.sfx.template.json` is the wheel detent
+above with three macros (its layers shortened here):
+
+```json
+{
+  "version": 1,
+  "template": { "id": "wheel-detent", "version": 1 },
+  "name": "wheel-detent",
+  "variation": { "seed": 1, "pool": 6 },
+  "layers": [ { "name": "tick", ... }, { "name": "body", ... },
+              { "name": "glint", ... }, { "name": "weight", ... } ],
+  "macros": [
+    { "id": "weight", "label": "Weight", "range": [0, 1], "default": 0.5,
+      "drives": [
+        { "path": "layers[body].freq", "from": 1108.73, "to": 554.37, "curve": "exp" },
+        { "path": "layers[weight].freq", "from": 174.61, "to": 87.31, "curve": "exp" },
+        { "path": "layers[weight].gain", "from": -19, "to": -7 } ] },
+    { "id": "click", "label": "Click", "range": [0, 1], "default": 0.5,
+      "drives": [
+        { "path": "layers[tick].gain", "from": -16.46, "to": -4.46 },
+        { "path": "layers[glint].gain", "from": -27.94, "to": -15.94 } ] },
+    { "id": "ring", "label": "Ring", "range": [0, 1], "default": 0.5,
+      "drives": [
+        { "path": "layers[body].envelope.decay", "from": 27.5, "to": 110, "curve": "exp" },
+        { "path": "layers[glint].envelope.decay", "from": 35, "to": 140, "curve": "exp" } ] }
+  ]
+}
+```
+
+and `demo/sfx/wheel-detent-heavy.sfx.design.json` a design on it, which
+compiles to the committed `demo/sfx/wheel-detent-heavy.sfx.json`:
+
+```json
+{
+  "version": 1,
+  "name": "wheel-detent-heavy",
+  "template": { "id": "wheel-detent", "version": 1 },
+  "macros": { "weight": 0.9, "click": 0.8, "ring": 0.7 },
+  "overrides": { "layers[glint].gain": -26 },
+  "locks": ["weight"]
+}
+```
+
+A template is a valid recipe - `version`, `name`, `variation`, `layers` as
+above - plus:
+
+| Field | Meaning |
+|-------|---------|
+| `template` | required: `id` (a string) and `version` (an integer from 1) |
+| `macros` | the knobs, in the order a tool shows them |
+| `meta` | any object, for what tools keep beside the format (provenance, a licence); the compiler ignores it |
+
+A macro:
+
+| Field | Meaning |
+|-------|---------|
+| `id` | required: letters, digits, `_` and `-`, not starting with a digit; unique in the template |
+| `label` | what a knob shows; the `id` when absent |
+| `range` | required: `[min, max]`, min below max |
+| `default` | required: inside the range |
+| `drives` | required, may be empty: `[{path, from, to, curve}]` - `from` is the value at the range's min, `to` at its max |
+
+A drive's `curve` is `lin` (default: `from + (to - from) * t`), `exp`
+(`from * (to / from)^t`, for Hz and ms; `from` and `to` non-zero and of one
+sign) or `db` (`from` and `to` in dB, the value written is `10^(dB / 20)`:
+a level in 0..1, such as `envelope.sustain`, moved evenly by ear), with `t`
+the macro's place in its range from 0 to 1. A drive's path is a layer's
+number in the `vary` syntax behind a layer selector: `layers[1].gain`,
+`layers[body].envelope.decay` - an index, or the name of exactly one layer.
+The field must have a meaning on its layer (no `filter.cutoff` without a
+`filter`), and a path is driven by one macro only.
+
+At its default a macro's drives must pass through the values the layers
+have (to 0.01 %; `layers[0].gain: at the macro's default 0.5 it gives -3,
+but layers[0].gain is -6` otherwise): a template is its own recipe at the
+default macro values.
+
+A design file:
+
+| Field | Meaning |
+|-------|---------|
+| `template` | required: the `id` and `version` of the template it is for; another version does not compile |
+| `name` | the compiled recipe's `name`; the template's when absent |
+| `macros` | `{"<id>": value}`, each inside its macro's range; a macro not named stays at its default |
+| `overrides` | `{"<path>": value}`: `name`, `variation.seed`, `variation.pool`, or any field of a layer - `layers[2].gain`, `layers[body].filter.type`, `layers[body].vary.detune` - or a whole group (`layers[0].envelope`). `null` removes the field. Two overrides may not write into each other (`layers[0].filter` and `layers[0].filter.cutoff`) |
+| `locks` | macro ids and paths the tools must leave alone; the compiler checks they name one and otherwise ignores them |
+| `meta` | any object (lineage, a target); the compiler ignores it |
+
+The compiled recipe is the template's recipe with the design's `name`, then
+its overrides, then every driven path the overrides leave alone. An override
+wins over the macro that drives its path, whatever the macro's value. A
+macro at its default writes nothing, so the template's value stays exactly
+as written; at any other value its drives go through their curves and are
+rounded to six significant digits, so a last-bit difference between two
+platforms' `pow()` never reaches the file. A driven value outside what the
+recipe accepts there - the field's range, less the layer's `vary` range for
+it, a volume lfo's depth at most 1 - is clamped to the edge and reported,
+not written as is. An override's value is not clamped: a recipe the parser
+rejects is an error (`the compiled recipe: layers[0].gain: 50 is outside
+-96..12`). Both parsers reject an unknown field by name and path
+(`macros[0]: unknown field 'lable'`, `overrides: unknown path
+'layers[0].gian'`), as the recipe parser does.
+
+The compiled file is written in one form - the keys in a fixed order
+(`version`, `name`, `variation`, `layers`; in a layer `name`, `role`,
+`source` first), a layer field per line, numbers in their shortest exact form -
+so the same template and design give the same bytes, on every platform.
+In C++ (see "The engine without QML"):
+
+```cpp
+cs::SfxCompileResult heavy;
+std::string error;
+cs::compileDesignFile("sfx/wheel-detent-heavy.sfx.design.json",
+                      "sfx/wheel-detent.sfx.template.json",
+                      "sfx/wheel-detent-heavy.sfx.json", &heavy, &error);
+for (const QString &line : heavy.clampMessages()) ...   // what was clamped
+for (const auto &d : heavy.drives) ...  // each drive: macro, path, value, written, clamped, overridden
+```
+
+`SfxDesignCompiler::parseTemplate()`, `parseDesign()` and `compile()` take
+the files' bytes instead; `writeSfxRecipe()` writes any recipe in the
+compiled form. A game ships the compiled `*.sfx.json`, not the design;
+setting a macro while a game runs is not part of this.
+
 ### Stereo, pan and buses
 
 The engine mixes in stereo. Every instrument (`SynthInstrument`,
@@ -462,6 +595,7 @@ cs::writeWav("song.wav", music, 1, cs::kSampleRate, cs::WavFormat::Pcm16);
 | Call | Does |
 |---|---|
 | `loadRecipe(path, &file, &error)` | parses a `*.sfx.json` and decodes its sample layers, each relative to the recipe |
+| `compileDesignFile(design, template, recipe, &result, &error)` | compiles a design file against its template and, with a `recipe` path, writes the compiled `*.sfx.json` there (see "Design files") |
 | `loadSong(path, &model, &error)` | parses a `.song.json`; a v2 song's sample instruments get their WAVs decoded, each relative to the song |
 | `renderRecipe(recipe, samples, seed, velocity, gain, pan, rate, stereo, seconds, detune)` | the samples `SfxPlayer.renderOffline(seed, velocity, detune)` returns at that `volume` and `pan`; `seconds` 0 = until the last layer ends, `detune` 0 = as written |
 | `renderSong(model, instruments, seconds, volume, loop, rate, stereo)` | the samples `SongPlayer.renderOffline(seconds)` returns; `seconds` 0 = the song's length |
