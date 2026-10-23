@@ -281,6 +281,19 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.noiseSeed  = n.noiseSeed;
             patch.noiseColor = layer.noiseColor;
             patch.noiseRate  = layer.noiseRate;
+            // A ratio of 0 is the voice's off: no group, no modulation.
+            if (layer.fm) {
+                patch.fmRatio   = n.get(P::FmRatio);
+                patch.fmIndex   = n.get(P::FmIndex);
+                patch.fmAttack  = n.get(P::FmAttack) / 1000.0;
+                patch.fmDecay   = n.get(P::FmDecay) / 1000.0;
+                patch.fmSustain = n.get(P::FmSustain);
+                patch.fmRelease = n.get(P::FmRelease) / 1000.0;
+                patch.fmAttackCurve  = n.get(P::FmAttackCurve);
+                patch.fmDecayCurve   = n.get(P::FmDecayCurve);
+                patch.fmReleaseCurve = n.get(P::FmReleaseCurve);
+            }
+            if (layer.ring) patch.ringRatio = n.get(P::RingRatio);
             inst->pushPatch(engine.schedule(ev), patch);
             ended(offset + ev.durationFrames,
                   std::min(ev.durationFrames, msToFrames(n.get(P::Release), rate)));
