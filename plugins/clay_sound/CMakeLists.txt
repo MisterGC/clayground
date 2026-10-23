@@ -22,6 +22,7 @@ set(ENGINE_SRC
     src/engine/instrument.h
     src/engine/instrument_spec.cpp src/engine/instrument_spec.h
     src/engine/scheduler.cpp src/engine/scheduler.h
+    src/engine/segment_curve.h
     src/engine/engine.cpp src/engine/engine.h
     src/engine/oscillator_voice.cpp src/engine/oscillator_voice.h
     src/engine/oscillator_instrument.cpp src/engine/oscillator_instrument.h

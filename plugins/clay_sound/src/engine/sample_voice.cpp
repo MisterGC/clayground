@@ -3,6 +3,7 @@
 #include "sample_voice.h"
 #include "note_event.h"
 #include "pcm_buffer.h"
+#include "segment_curve.h"
 
 #include <algorithm>
 #include <array>
@@ -144,17 +145,17 @@ double SampleVoice::envelopeAt(int64_t frame) const
 
     if (t < 0.0) return 0.0;
     if (patch_.attack > 0.0 && t < patch_.attack)
-        return t / patch_.attack;
+        return segmentShape(t / patch_.attack, patch_.attackCurve);
     if (patch_.decay > 0.0 && t < patch_.attack + patch_.decay) {
         const double p = (t - patch_.attack) / patch_.decay;
-        return 1.0 - (1.0 - patch_.sustain) * p;
+        return 1.0 - (1.0 - patch_.sustain) * segmentShape(p, patch_.decayCurve);
     }
     if (t < releaseStart)
         return patch_.sustain > 0.0 ? patch_.sustain : 1.0;
     if (patch_.release > 0.0 && t < duration) {
         const double p = (t - releaseStart) / patch_.release;
         const double base = patch_.sustain > 0.0 ? patch_.sustain : 1.0;
-        return base * (1.0 - p);
+        return base * (1.0 - segmentShape(p, patch_.releaseCurve));
     }
     // Default: raw playback with a hard gate at duration.
     return (t < duration) ? 1.0 : 0.0;
