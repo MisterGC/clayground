@@ -110,7 +110,8 @@ bool isLayerField(const QString &field)
 {
     static const QStringList named = {"name", "role", "source", "sample", "interpolation",
                                       "filter.type", "lfo.target",
-                                      "envelope", "pitch", "filter", "lfo", "vary"};
+                                      "envelope", "pitch", "filter", "lfo", "burst",
+                                      "burst.jitter", "vary"};
     if (named.contains(field) || paramFromPath(field) >= 0) return true;
     return field.startsWith(QLatin1String("vary.")) && paramFromPath(field.mid(5)) >= 0;
 }
@@ -118,7 +119,8 @@ bool isLayerField(const QString &field)
 bool isTopField(const QString &path)
 {
     return path == QLatin1String("name") || path == QLatin1String("variation")
-        || path == QLatin1String("variation.seed") || path == QLatin1String("variation.pool");
+        || path == QLatin1String("variation.seed") || path == QLatin1String("variation.pool")
+        || path == QLatin1String("maxVoices");
 }
 
 struct LayerPath
@@ -138,7 +140,7 @@ bool splitLayerPath(const QString &path, LayerPath &out)
 
 QString knownPathHint()
 {
-    return QStringLiteral("name, variation.seed, variation.pool, or layers[<index or name>].<field> "
+    return QStringLiteral("name, variation.seed, variation.pool, maxVoices, or layers[<index or name>].<field> "
                           "with a recipe layer field such as gain, envelope.decay or vary.detune");
 }
 
@@ -191,7 +193,8 @@ bool resolve(const QJsonObject &recipe, const QString &path, const QString &at, 
 }
 
 // "envelope.decay" -> ("envelope", "decay"); "vary.envelope.decay" ->
-// ("vary", "envelope.decay"); "gain" -> ("", "gain").
+// ("vary", "envelope.decay"); "burst.jitter.time" -> ("burst",
+// "jitter.time"); "gain" -> ("", "gain").
 QPair<QString, QString> splitField(const QString &field)
 {
     const int dot = field.indexOf(QLatin1Char('.'));
@@ -199,10 +202,18 @@ QPair<QString, QString> splitField(const QString &field)
     return {field.left(dot), field.mid(dot + 1)};
 }
 
+// A key of "vary" is a whole field path; any other group may hold a
+// group of its own.
+bool nested(const QString &group, const QString &key)
+{
+    return group != QLatin1String("vary") && key.contains(QLatin1Char('.'));
+}
+
 QJsonValue valueIn(const QJsonObject &obj, const QString &field)
 {
     const auto [group, key] = splitField(field);
     if (group.isEmpty()) return obj.value(key);
+    if (nested(group, key)) return valueIn(obj.value(group).toObject(), key);
     return obj.value(group).toObject().value(key);
 }
 
@@ -216,7 +227,9 @@ void writeIn(QJsonObject &obj, const QString &field, const QJsonValue &v)
         return;
     }
     QJsonObject g = obj.value(group).toObject();
-    if (v.isNull()) g.remove(key); else g.insert(key, v);
+    if (nested(group, key)) writeIn(g, key, v);
+    else if (v.isNull()) g.remove(key);
+    else g.insert(key, v);
     if (g.isEmpty()) obj.remove(group); else obj.insert(group, g);
 }
 
@@ -374,13 +387,14 @@ bool parseTemplateInto(const QByteArray &json, SfxTemplate &tpl)
 {
     QJsonObject root;
     if (!parseObject(json, root, QStringLiteral("template"))) return false;
-    if (!requireKeysOnly(root, {"version", "template", "name", "variation", "layers", "macros", "meta"}, {})
+    if (!requireKeysOnly(root, {"version", "template", "name", "variation", "maxVoices", "layers",
+                                "macros", "meta"}, {})
         || !formatVersion(root) || !templateRef(root, tpl.id, tpl.version) || !metaField(root))
         return false;
 
     // The template's recipe must be one by itself: it is what a design at
     // the default macro values compiles to.
-    for (const char *key : {"version", "name", "variation", "layers"})
+    for (const char *key : {"version", "name", "variation", "maxVoices", "layers"})
         if (root.contains(key)) tpl.recipe.insert(key, root.value(key));
     const auto parsed = SfxParser::parse(QJsonDocument(tpl.recipe).toJson(QJsonDocument::Compact));
     if (!parsed.ok) { err = parsed.error; return false; }
