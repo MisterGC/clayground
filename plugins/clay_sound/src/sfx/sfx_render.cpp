@@ -47,6 +47,11 @@ double burstOnset(double u, double duration, double density)
     return -duration / a * std::log(1.0 - u * (1.0 - std::exp(-a)));
 }
 
+double inRange(SfxParam p, double v)
+{
+    return std::clamp(v, sfxParamInfo(p).min, sfxParamInfo(p).max);
+}
+
 // The grains of the burst layer `note`: each the layer's note at its
 // onset, strayed by its jitter, with its own noise.
 void addGrains(const SfxNote &note, uint32_t layerSeed, std::vector<SfxNote> &notes)
@@ -63,10 +68,12 @@ void addGrains(const SfxNote &note, uint32_t layerSeed, std::vector<SfxNote> &no
         // last one starts before the burst's end.
         const double u = (i + 0.5 + 0.5 * note.get(P::JitterTime) * spread(0)) / count;
         g.at(P::Offset) += burstOnset(u, note.get(P::BurstDuration), note.get(P::BurstDensity));
-        g.at(P::Gain)   += note.get(P::JitterGain) * spread(1);
-        g.at(P::Cutoff)  = std::clamp(note.get(P::Cutoff) * std::exp2(note.get(P::JitterCutoff) * spread(2)),
-                                      sfxParamInfo(P::Cutoff).min, sfxParamInfo(P::Cutoff).max);
-        g.at(P::Detune) += note.get(P::JitterFreq) * spread(3);
+        // A jitter is a range per grain, and a grain stays a valid layer
+        // whatever its draw: the parser cannot bound these the way it
+        // bounds a vary range, since a design's macro may move either side.
+        g.at(P::Gain)    = inRange(P::Gain, note.get(P::Gain) + note.get(P::JitterGain) * spread(1));
+        g.at(P::Cutoff)  = inRange(P::Cutoff, note.get(P::Cutoff) * std::exp2(note.get(P::JitterCutoff) * spread(2)));
+        g.at(P::Detune)  = inRange(P::Detune, note.get(P::Detune) + note.get(P::JitterFreq) * spread(3));
         g.at(P::Length)  = std::max(0.0, note.get(P::Length) + note.get(P::JitterLength) * spread(4));
         g.noiseSeed = mix(grainSeed, kNoiseSalt) | 1u;
         notes.push_back(g);
