@@ -9,8 +9,10 @@
 // accepts is clamped and reported; the three curves give their values;
 // a macro drives an envelope segment's curve (#447), a burst's
 // numbers two groups deep and the recipe's voice cap (#448), an
-// override sets a noise layer's colour and rate (#449), and a macro
-// drives an FM index while an override swaps the fm for a ring (#450).
+// override sets a noise layer's colour and rate (#449), a macro
+// drives an FM index while an override swaps the fm for a ring (#450),
+// and an override sets an lfo's shape while a macro drives a cutoff
+// lfo's depth (#451).
 
 #include "offline/sound_files.h"
 #include "sfx/sfx_design.h"
@@ -65,6 +67,7 @@ static void compareLayers(const cs::SfxRecipe &a, const cs::SfxRecipe &b)
         QCOMPARE(int(x.source), int(y.source));
         QCOMPARE(int(x.filterType), int(y.filterType));
         QCOMPARE(x.lfoTarget, y.lfoTarget);
+        QCOMPARE(x.lfoShape, y.lfoShape);
         for (int k = 0; k < cs::kSfxParamCount; ++k) {
             QCOMPARE(x.value[k], y.value[k]);   // exactly: no tolerance
             QCOMPARE(x.vary[k].on, y.vary[k].on);
@@ -105,6 +108,7 @@ private slots:
     void aNullOverrideRemovesTheField();
     void anOverrideSetsTheNoiseColourAndRate();
     void aMacroDrivesTheFmIndexAndAnOverrideSwapsItForARing();
+    void anOverrideSetsTheLfoShapeAndAMacroDrivesACutoffLfo();
 };
 
 // The writer changes the bytes, not the recipe: the demo recipe reads
@@ -556,6 +560,27 @@ void TestSfxDesign::aMacroDrivesTheFmIndexAndAnOverrideSwapsItForARing()
     QCOMPARE(swapped.recipe.layers[0].get(P::RingRatio), 1.5);
     QVERIFY2(swapped.json.contains("\"ring\": { \"ratio\": 1.5 }"), swapped.json.constData());
     QVERIFY2(!swapped.json.contains("\"fm\""), swapped.json.constData());
+}
+
+void TestSfxDesign::anOverrideSetsTheLfoShapeAndAMacroDrivesACutoffLfo()
+{
+    using S = cs::OscillatorVoice::LfoShape;
+    const QByteArray layer = "\"filter\": { \"type\": \"lowpass\", \"cutoff\": 800 }, "
+                             "\"lfo\": { \"target\": \"cutoff\", \"rate\": 6, \"depth\": 1 }";
+    const QByteArray drive = "{ \"path\": \"layers[tone].lfo.depth\", \"from\": 0, \"to\": 2 }";
+    const auto plain = cs::SfxDesignCompiler::compile(tinyDesign({}), tinyTemplate(drive, layer));
+    QVERIFY2(plain.ok, qPrintable(plain.error));
+    QCOMPARE(plain.recipe.layers[0].lfoTarget, 3);
+    QCOMPARE(plain.recipe.layers[0].lfoShape, S::Sine);
+
+    const auto res = cs::SfxDesignCompiler::compile(
+        tinyDesign("\"macros\": { \"m\": 1 }, \"overrides\": { \"layers[tone].lfo.shape\": \"smooth_random\" }"),
+        tinyTemplate(drive, layer));
+    QVERIFY2(res.ok, qPrintable(res.error));
+    QCOMPARE(res.recipe.layers[0].lfoShape, S::SmoothRandom);
+    QCOMPARE(res.recipe.layers[0].get(P::LfoDepth), 2.0);
+    QVERIFY2(res.json.contains("\"lfo\": { \"target\": \"cutoff\", \"shape\": \"smooth_random\", \"rate\": 6, \"depth\": 2 }"),
+             res.json.constData());
 }
 
 QTEST_GUILESS_MAIN(TestSfxDesign)
