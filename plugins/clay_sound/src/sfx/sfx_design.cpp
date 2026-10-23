@@ -109,7 +109,7 @@ int paramFromPath(const QString &path)
 bool isLayerField(const QString &field)
 {
     static const QStringList named = {"name", "role", "source", "sample", "interpolation",
-                                      "filter.type", "lfo.target", "noise.color", "noise.rate",
+                                      "filter.type", "lfo.target", "lfo.shape", "noise.color", "noise.rate",
                                       "envelope", "pitch", "filter", "lfo", "noise", "fm", "ring",
                                       "burst", "burst.jitter", "vary"};
     if (named.contains(field) || paramFromPath(field) >= 0) return true;

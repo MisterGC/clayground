@@ -59,6 +59,7 @@ struct SfxNote
     int layer = 0;
     std::array<double, kSfxParamCount> value{};
     uint32_t noiseSeed = 1;     // never 0: 0 would fall back to the start frame
+    uint32_t lfoSeed = 1;       // a random LFO shape's, never 0 either
     bool grain = false;         // plays on the grain instrument, under the voice cap
 
     double get(SfxParam p) const { return value[static_cast<int>(p)]; }
