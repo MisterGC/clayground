@@ -101,6 +101,20 @@ OscillatorVoice::Waveform waveformOf(SfxSource s)
     }
 }
 
+// The voice's drive and crush. 24 bits round nothing and a rate at or
+// above the output's holds nothing, so a crush at its defaults is off.
+DriveCrush driveCrushOf(const SfxLayer &layer, const SfxNote &n)
+{
+    DriveCrush d;
+    d.drive   = layer.drive;
+    d.driveDb = n.get(P::Drive);
+    if (layer.crush) {
+        if (n.get(P::CrushBits) < 24.0) d.crushBits = n.get(P::CrushBits);
+        d.crushRate = n.get(P::CrushRate);
+    }
+    return d;
+}
+
 } // namespace
 
 uint32_t sfxVariationSeed(const SfxRecipe &recipe, int index)
@@ -246,6 +260,7 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.release = n.get(P::Release) / 1000.0;
             patch.attackCurve  = n.get(P::AttackCurve);
             patch.releaseCurve = n.get(P::ReleaseCurve);
+            patch.driveCrush = driveCrushOf(layer, n);
             s.inst->pushPatch(engine.schedule(ev), patch);
             ended(offset + ev.durationFrames,
                   std::min(ev.durationFrames, msToFrames(n.get(P::Release), rate)));
@@ -301,6 +316,7 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
                 patch.fmReleaseCurve = n.get(P::FmReleaseCurve);
             }
             if (layer.ring) patch.ringRatio = n.get(P::RingRatio);
+            patch.driveCrush = driveCrushOf(layer, n);
             inst->pushPatch(engine.schedule(ev), patch);
             ended(offset + ev.durationFrames,
                   std::min(ev.durationFrames, msToFrames(n.get(P::Release), rate)));
