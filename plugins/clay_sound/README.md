@@ -485,7 +485,8 @@ rounded to six significant digits, so a last-bit difference between two
 platforms' `pow()` never reaches the file. A driven value outside what the
 recipe accepts there - the field's range, less the layer's `vary` range for
 it, a volume lfo's depth at most 1 - is clamped to the edge and reported,
-not written as is. An override's value is not clamped: a recipe the parser
+not written as is - at a macro's default too, when an override (a wider
+`vary` range) leaves the template's value outside. An override's value is not clamped: a recipe the parser
 rejects is an error (`the compiled recipe: layers[0].gain: 50 is outside
 -96..12`). Both parsers reject an unknown field by name and path
 (`macros[0]: unknown field 'lable'`, `overrides: unknown path
