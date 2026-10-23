@@ -10,7 +10,8 @@
 // line in dB and an exponential pitch sweep settles into its end (#447),
 // a burst of 40 grains starts 40 times inside its duration, the same seed
 // on the same grains and another seed on others, and the recipe's voice
-// cap bounds the grains that ring at once and no other layer (#448),
+// cap bounds the grains that ring at once and no other layer, and a
+// grain's jitter keeps it inside its fields' ranges (#448),
 // and the values other seeds play with stay inside the declared ranges
 // - drawn and measured on the render (pitch by zero crossings, gain by
 // RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
@@ -136,6 +137,7 @@ private slots:
     void burstOf40GrainsStarts40TimesInsideItsDuration();
     void sameSeedPlaysTheSameGrains();
     void voiceCapBoundsTheGrainsThatRingAtOnce();
+    void grainsStayInsideTheFieldRanges();
     void seededNoiseIgnoresTheStartFrame();
     void sameSeedRendersSameSamples();
     void otherSeedsStayInsideTheDeclaredRanges();
@@ -497,6 +499,28 @@ void SfxRecipeTest::voiceCapBoundsTheGrainsThatRingAtOnce()
     QCOMPARE(at150, size_t(4 + 1));     // after the last grain started: the hum still rings
     recipe.maxVoices = 0;
     QCOMPARE(mostAtOnce(recipe, &at150), size_t(40 + 1));
+}
+
+// A layer at the top of its gain and far up in detune, with jitters
+// that reach past both: every grain is held to the field's range, so
+// none plays louder than 12 dB or further than 48 semitones up.
+void SfxRecipeTest::grainsStayInsideTheFieldRanges()
+{
+    const auto recipe = parseOk(R"({"layers": [{"source": "sine", "freq": 440, "length": 5,
+      "gain": 12, "detune": 40, "burst": {"count": 200, "duration": 100,
+                                          "jitter": {"gain": 48, "freq": 48}}}]})");
+    const auto notes = cs::realizeSfx(recipe, 1);
+    QCOMPARE(notes.size(), size_t(200));
+    double gainHi = -1e9, gainLo = 1e9, detuneHi = -1e9;
+    for (const auto &n : notes) {
+        gainHi = std::max(gainHi, n.get(P::Gain));
+        gainLo = std::min(gainLo, n.get(P::Gain));
+        detuneHi = std::max(detuneHi, n.get(P::Detune));
+    }
+    qInfo("grain gain %.2f..%.2f dB, detune up to %.2f semitones", gainLo, gainHi, detuneHi);
+    QCOMPARE(gainHi, 12.0);         // grains that drew above it play at it
+    QVERIFY(gainLo < -30.0);        // and the jitter still reaches down
+    QCOMPARE(detuneHi, 48.0);
 }
 
 void SfxRecipeTest::seededNoiseIgnoresTheStartFrame()
