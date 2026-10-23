@@ -204,7 +204,8 @@ needs. `demo/songs/adaptive.song.json` uses all of it:
 ```
 
 - **Instruments** take an effect recipe layer's fields and units (`source`,
-  `envelope` in ms, `pitch`, `filter`, `pulseWidth`, `lfo`, `gain` in dB up
+  `envelope` in ms, `pitch`, `filter`, `pulseWidth`, `lfo` (a sine on
+  `pitch` or `volume`; no `shape`, no `cutoff`), `gain` in dB up
   to 0, `pan`) plus `bus` (default `music`) and `maxVoices`, with a recipe
   layer's defaults for what is left out: no attack, decay or release, full
   sustain, linear segments, 0 dB, centred. The segment curves are a
@@ -325,7 +326,7 @@ below), `layers` (required, at least one). A layer:
 | `pitch` | `start`, `end` in semitones; `time` in ms; `curve` 0..1 | 0 | a sweep from `start` to `end` over `time` |
 | `filter` | `type`; `cutoff` Hz; `resonance` 0..1; `attack`, `decay`, `release` ms; `sustain` 0..1; `amount` octaves; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | -, 1000, 0, 0, 0, 0, 1, 0, 0, 0, 0 | `lowpass`, `highpass` or `bandpass`, with a cutoff envelope that moves the cutoff by `amount` octaves at its peak |
 | `pulseWidth` | 0.05..0.95 | 0.5 | `square` only |
-| `lfo` | `target`; `rate` Hz; `depth` semitones (pitch) or 0..1 (volume) | -, 0, 0 | `pitch` or `volume` |
+| `lfo` | `target`; `shape`; `rate` Hz, 0..100; `depth` semitones (pitch), 0..1 (volume) or octaves (cutoff) | -, `sine`, 0, 0 | `target` `pitch`, `volume` or `cutoff`; `shape` `sine`, `square`, `sample_hold` or `smooth_random` (see "LFO") |
 | `noise` | `color`: `white`, `pink`, `brown`; `rate`: `sample`, `freq` | `white`, `sample` | `noise` only (see "Noise") |
 | `fm` | `ratio` 0.01..64; `index` radians, 0..32; `attack`, `decay`, `release` ms; `sustain` 0..1; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | required, required; 0, 0, 0; 1; 0, 0, 0 | two-operator FM with an index envelope (see "FM and ring"); oscillator layers only |
 | `ring` | `ratio` 0.01..64 | required | ring modulation (see "FM and ring"); oscillator layers only, not with `fm` |
@@ -408,6 +409,36 @@ layer's pitch: `freq` raised by `detune`, the `pitch` sweep and a pitch
 - A layer takes one of the two, on `sine`, `square`, `triangle` or
   `sawtooth`; `noise` and `sample` take neither. `vary` and macros reach
   every number of both (`vary: {"fm.index": [-1, 1]}`).
+
+LFO: growls, fire flicker and organic wobble move at random, not on a
+sine. A layer's `lfo` moves one `target` by up to `depth` either way at
+`rate` Hz, on the wave its `shape` names; without a `shape` it is the sine
+it was before the field existed.
+
+```json
+{ "name": "flicker", "source": "noise", "length": 1500,
+  "filter": { "type": "bandpass", "cutoff": 900, "resonance": 0.3 },
+  "lfo": { "target": "cutoff", "shape": "smooth_random", "rate": 7, "depth": 1.5 } }
+```
+
+- `target`: `pitch` moves the layer's pitch by `depth` semitones, `volume`
+  takes up to `depth` (0..1) off the envelope, `cutoff` moves the filter's
+  cutoff by `depth` octaves on top of its envelope - so it needs a
+  `filter`. Each is the LFO's value, -1..1, times `depth`: a cutoff of 900
+  Hz at depth 1.5 moves between 318 and 2546 Hz.
+- `shape`: `sine` starts at 0 and rises. `square` is +1 for the first half
+  of each period and -1 for the second, with hard edges - on `volume` a
+  hard gate that clicks. `sample_hold` holds one random value, -1..1, for
+  each period of `1 / rate` seconds and jumps to the next. `smooth_random`
+  passes through the same values as each period starts and glides from one
+  to the next over the period (a raised-cosine step, so it neither jumps
+  nor kinks).
+- The random values are drawn from the play's seed, as a noise layer's
+  are: the same `variation.seed` and play renders the same samples, every
+  burst grain draws values of its own, and a pool of variations gives each
+  one other values. A layer has no seed of its own for its LFO.
+- `vary` and macros reach `rate` and `depth`; a design file's override
+  sets `layers[<layer>].lfo.shape`.
 
 Bursts: crumble, gravel, crackle and debris are many tiny grains with
 random timing. A layer with a `burst` plays as `count` grains instead of one
