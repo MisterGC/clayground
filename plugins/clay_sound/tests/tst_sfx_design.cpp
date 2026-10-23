@@ -301,6 +301,18 @@ void TestSfxDesign::aDrivenValueOutsideItsRangeIsClampedAndReported()
     QCOMPARE(varied.recipe.layers[0].get(P::Gain), 9.0);
     QCOMPARE(varied.drives[0].max, 9.0);
 
+    // At the default too: an override widening the vary range to [0, 4]
+    // leaves gain at most 8, so the template's 10 is clamped and reported.
+    const auto atDefault = cs::SfxDesignCompiler::compile(
+        tinyDesign("\"overrides\": { \"layers[0].vary.gain\": [0, 4] }"),
+        tinyTemplate("{ \"path\": \"layers[0].gain\", \"from\": 0, \"to\": 20 }", "\"gain\": 10"));
+    QVERIFY2(atDefault.ok, qPrintable(atDefault.error));
+    QCOMPARE(atDefault.recipe.layers[0].get(P::Gain), 8.0);
+    QVERIFY(atDefault.drives[0].clamped);
+    QCOMPARE(atDefault.drives[0].value, 10.0);
+    QCOMPARE(atDefault.drives[0].written, 8.0);
+    QCOMPARE(atDefault.clampMessages(), QStringList{"layers[0].gain: macro 'm' drives 10, clamped to 8 (-96..8)"});
+
     const auto low = cs::SfxDesignCompiler::compile(
         tinyDesign("\"macros\": { \"m\": 0 }"),
         tinyTemplate("{ \"path\": \"layers[0].gain\", \"from\": -150, \"to\": 138 }"));
