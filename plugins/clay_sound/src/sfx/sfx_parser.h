@@ -15,6 +15,7 @@
 //         "pitch": { "start": 12, "end": 0, "time": 12 },
 //         "vary": { "detune": [-1, 1], "gain": [-2, 0] } },
 //       { "role": "tail", "source": "noise", "length": 3,
+//         "noise": { "color": "pink", "rate": "freq" },
 //         "burst": { "count": 12, "duration": 200, "density": 0.3,
 //                    "jitter": { "time": 1, "gain": 3 } } }
 //     ]
