@@ -21,7 +21,11 @@
 // random lfo renders the same samples for the same seed, sample-and-hold
 // holds one level a period while smooth random glides through the same
 // levels, and a cutoff lfo moves the cutoff by its depth in octaves
-// (#451), and the values other seeds play with stay inside the declared ranges
+// (#451), a layer without drive or crush, or with a crush at its
+// defaults, sounds as before, drive adds the odd harmonics tanh puts on a
+// sine and no even ones, crush rounds to steps of its bits and holds each
+// value for a period of its rate, an oscillator and a sample layer alike,
+// before the layer's gain (#452), and the values other seeds play with stay inside the declared ranges
 // - drawn and measured on the render (pitch by zero crossings, gain by
 // RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
 // renders on the same machine.
@@ -244,6 +248,46 @@ static std::vector<float> renderTone(const QByteArray &group)
     return cs::renderSfx(r, {}, 1, 1.0f, 1.0f, 0.0f, kRate, false, -1, 0.0);
 }
 
+// The n-th harmonic's amplitude of tanh(g sin x): its Fourier sine
+// coefficient, summed over one period.
+static double tanhHarmonic(double g, int n)
+{
+    const int steps = 1 << 16;
+    double sum = 0.0;
+    for (int i = 0; i < steps; ++i) {
+        const double x = 2.0 * M_PI * i / steps;
+        sum += std::tanh(g * std::sin(x)) * std::sin(n * x);
+    }
+    return std::abs(2.0 * sum / steps);
+}
+
+// A one-second 500 Hz sine at full scale, as a sample layer's source.
+static cs::SfxSamples sineSample()
+{
+    std::vector<float> mono(kRate);
+    for (int i = 0; i < kRate; ++i) mono[i] = float(std::sin(2.0 * M_PI * 500.0 * i / kRate));
+    return {std::make_shared<const cs::PcmBuffer>(cs::PcmBuffer::fromFloats(std::move(mono), kRate))};
+}
+
+// That sine played by a sample layer; `fields` go into it.
+static std::vector<float> renderSampleLayer(const QByteArray &fields)
+{
+    const auto r = parseOk(R"({"layers": [{"source": "sample", "sample": "sine.wav")"
+                           + (fields.isEmpty() ? QByteArray() : ", " + fields) + "}]}");
+    return cs::renderSfx(r, sineSample(), 1, 1.0f, 1.0f, 0.0f, kRate, false, -1, 0.0);
+}
+
+// The lengths of the runs of equal samples in buf[from, from + n).
+static std::vector<int> runLengths(const std::vector<float> &buf, size_t from, size_t n)
+{
+    std::vector<int> runs{1};
+    for (size_t i = from + 1; i < from + n; ++i) {
+        if (buf[i] == buf[i - 1]) ++runs.back();
+        else runs.push_back(1);
+    }
+    return runs;
+}
+
 // One mono render of the recipe `json` at `seed`.
 static std::vector<float> renderRecipe(const QByteArray &json, uint32_t seed = 1)
 {
@@ -293,6 +337,12 @@ private slots:
     void seededLfoIgnoresTheStartFrame();
     void squareAndSampleHoldHoldALevelAndSmoothRandomGlides();
     void aCutoffLfoMovesTheCutoffByItsDepthInOctaves();
+    void driveAndCrushAreLayerFields();
+    void withoutDriveOrCrushALayerSoundsAsBefore();
+    void driveAddsTheOddHarmonicsOfTanh();
+    void crushRoundsToTheStepsOfItsBits();
+    void crushHoldsEachValueForAPeriodOfItsRate();
+    void aSampleLayerIsDrivenAndCrushedBeforeItsGain();
     void sameSeedRendersSameSamples();
     void otherSeedsStayInsideTheDeclaredRanges();
     void poolCyclesItsVariations();
@@ -1190,6 +1240,183 @@ void SfxRecipeTest::seededNoiseIgnoresTheStartFrame()
     QCOMPARE(render(100, 77), render(5000, 77));
     QVERIFY(render(100, 0) != render(5000, 0));
     QVERIFY(render(100, 77) != render(100, 78));
+}
+
+void SfxRecipeTest::driveAndCrushAreLayerFields()
+{
+    const auto r = parseOk(R"({"layers": [
+      {"source": "sine", "length": 10},
+      {"source": "sawtooth", "length": 10, "drive": 18, "vary": {"drive": [-6, 6]}},
+      {"source": "noise", "length": 10, "crush": {"bits": 4}},
+      {"source": "sample", "sample": "x.wav", "drive": 6, "crush": {"rate": 8000},
+       "vary": {"crush.rate": [-2000, 0]}}]})");
+    QCOMPARE(r.layers.size(), 4);
+    QVERIFY(!r.layers[0].drive);
+    QVERIFY(!r.layers[0].crush);
+    QVERIFY(r.layers[1].drive);
+    QCOMPARE(r.layers[1].get(P::Drive), 18.0);
+    QVERIFY(r.layers[1].vary[int(P::Drive)].on);
+    QVERIFY(r.layers[2].crush);
+    QCOMPARE(r.layers[2].get(P::CrushBits), 4.0);
+    QCOMPARE(r.layers[2].get(P::CrushRate), 192000.0);   // holds nothing
+    QVERIFY(r.layers[3].drive);
+    QVERIFY(r.layers[3].crush);
+    QCOMPARE(r.layers[3].get(P::CrushBits), 24.0);       // rounds nothing
+    QCOMPARE(r.layers[3].get(P::CrushRate), 8000.0);
+
+    const QList<QPair<QByteArray, QString>> bad = {
+        {R"("source": "sine", "length": 10, "drive": -3)",
+         "layers[0].drive: -3 is outside 0..48"},
+        {R"("source": "sine", "length": 10, "drive": "hot")",
+         "layers[0].drive: must be a number"},
+        {R"("source": "sine", "length": 10, "crush": {})",
+         "layers[0].crush: needs a 'bits' or a 'rate'"},
+        {R"("source": "sine", "length": 10, "crush": {"bits": 8, "depth": 2})",
+         "layers[0].crush: unknown field 'depth'"},
+        {R"("source": "sine", "length": 10, "crush": {"bits": 0})",
+         "layers[0].crush.bits: 0 is outside 1..24"},
+        {R"("source": "sine", "length": 10, "crush": {"rate": 10})",
+         "layers[0].crush.rate: 10 is outside 20..192000"},
+        {R"("source": "sine", "length": 10, "vary": {"drive": [0, 6]})",
+         "layers[0].vary.drive: needs a 'drive'"},
+        {R"("source": "sine", "length": 10, "vary": {"crush.bits": [-2, 0]})",
+         "layers[0].vary.crush.bits: needs a 'crush'"},
+        {R"("source": "sine", "length": 10, "crush": {"bits": 2}, "vary": {"crush.bits": [-2, 0]})",
+         "layers[0].vary.crush.bits: reaches 0..2, outside 1..24"}};
+    for (const auto &b : bad) {
+        const auto res = cs::SfxParser::parse("{\"layers\": [{" + b.first + "}]}");
+        QVERIFY2(!res.ok, b.first.constData());
+        QVERIFY2(res.error.startsWith(b.second), qPrintable(res.error));
+    }
+}
+
+void SfxRecipeTest::withoutDriveOrCrushALayerSoundsAsBefore()
+{
+    // Off in a voice's patch, and a crush at its defaults is no crush,
+    // to the last bit, on an oscillator and on a sample layer.
+    QVERIFY(!cs::OscillatorVoice::Patch{}.driveCrush.active());
+    QVERIFY(!cs::SampleVoice::Patch{}.driveCrush.active());
+    const auto tone = renderTone({});
+    QCOMPARE(renderTone(R"("crush": {"bits": 24, "rate": 192000})"), tone);
+    QVERIFY(renderTone(R"("drive": 0)") != tone);   // tanh even at 0 dB
+    const auto sample = renderSampleLayer({});
+    QCOMPARE(renderSampleLayer(R"("crush": {"bits": 24})"), sample);
+    QVERIFY(rms(sample, 0, sample.size()) > 0.5);
+}
+
+void SfxRecipeTest::driveAddsTheOddHarmonicsOfTanh()
+{
+    // A 500 Hz sine at full scale, 4410 frames (50 periods) from 0.25 s:
+    // the first, third and fifth harmonics at what tanh(g sin) puts
+    // there, the even ones at nothing, and the peak inside -1..1.
+    const size_t from = kRate / 4, n = 4410;
+    const auto clean = renderTone({});
+    QVERIFY(toneAmplitude(clean, from, n, 1500) < 1e-4);
+    double last3 = 0.0;
+    for (double db : {6.0, 12.0, 24.0}) {
+        const auto driven = renderTone("\"drive\": " + QByteArray::number(db));
+        const double g = std::pow(10.0, db / 20.0);
+        for (int h : {1, 3, 5}) {
+            const double want = tanhHarmonic(g, h);
+            const double got = toneAmplitude(driven, from, n, 500.0 * h);
+            QVERIFY2(std::abs(got - want) < 0.01 * want + 1e-4,
+                     qPrintable(QStringLiteral("%1 dB, harmonic %2: %3, tanh says %4")
+                                    .arg(db).arg(h).arg(got).arg(want)));
+        }
+        for (int h : {2, 4})
+            QVERIFY(toneAmplitude(driven, from, n, 500.0 * h) < 1e-3);
+        // More drive, more of the third harmonic.
+        const double third = toneAmplitude(driven, from, n, 1500);
+        QVERIFY2(third > last3 + 0.02, qPrintable(QString::number(third)));
+        last3 = third;
+        const auto [lo, hi] = std::minmax_element(driven.begin(), driven.end());
+        QVERIFY(*hi <= 1.0f && *lo >= -1.0f);
+    }
+}
+
+void SfxRecipeTest::crushRoundsToTheStepsOfItsBits()
+{
+    // `bits` rounds every sample to a multiple of 2^(1 - bits): a sine
+    // at full scale takes each of the 2^bits + 1 levels from -1 to 1.
+    for (int bits : {1, 2, 4, 6}) {
+        const auto crushed = renderTone("\"crush\": {\"bits\": " + QByteArray::number(bits) + "}");
+        const double step = std::pow(2.0, 1 - bits);
+        QSet<int> levels;
+        for (float v : crushed) {
+            const double k = v / step;
+            QVERIFY2(std::abs(k - std::round(k)) < 1e-5, qPrintable(QString::number(v)));
+            levels.insert(int(std::lround(k)));
+        }
+        QCOMPARE(levels.size(), (1 << bits) + 1);
+        QCOMPARE(*std::max_element(levels.begin(), levels.end()), 1 << (bits - 1));
+    }
+    // Between two depths the step is between theirs.
+    const auto between = renderTone(R"("crush": {"bits": 3.5})");
+    const QSet<float> levels(between.begin(), between.end());
+    QVERIFY2(levels.size() > 9 && levels.size() < 17, qPrintable(QString::number(levels.size())));
+}
+
+void SfxRecipeTest::crushHoldsEachValueForAPeriodOfItsRate()
+{
+    // 11025 Hz holds each value four samples exactly ...
+    const auto quarter = renderTone(R"("crush": {"rate": 11025})");
+    const auto runs = runLengths(quarter, 0, kRate);
+    QCOMPARE(int(runs.size()), 11025);
+    QVERIFY(std::all_of(runs.begin(), runs.end(), [](int r) { return r == 4; }));
+    // ... the one the plain tone has at each hold's start.
+    const auto tone = renderTone({});
+    for (int i = 0; i < kRate; i += 4) QCOMPARE(quarter[i], tone[i]);
+
+    // 3000 Hz: 3000 values a second, each held 14 or 15 samples
+    // (44100 / 3000 = 14.7).
+    const auto chip = renderTone(R"("crush": {"rate": 3000})");
+    const auto chipRuns = runLengths(chip, 0, kRate);
+    QVERIFY2(std::abs(int(chipRuns.size()) - 3000) <= 1, qPrintable(QString::number(chipRuns.size())));
+    QVERIFY(std::all_of(chipRuns.begin(), chipRuns.end(), [](int r) { return r == 14 || r == 15; }));
+
+    // The held steps fold the tone back from the crush rate: an image
+    // at 11025 - 500 Hz that the plain tone has none of, at the level a
+    // four-sample hold leaves at each frequency,
+    // |sin(4 pi f / rate) / (4 sin(pi f / rate))|.
+    const auto hold4 = [](double f) {
+        return std::abs(std::sin(4.0 * M_PI * f / kRate) / (4.0 * std::sin(M_PI * f / kRate)));
+    };
+    const size_t from = kRate / 4, n = 4410;
+    QVERIFY(toneAmplitude(tone, from, n, 10525) < 1e-4);
+    for (double f : {500.0, 10525.0, 11525.0}) {
+        const double got = toneAmplitude(quarter, from, n, f);
+        QVERIFY2(std::abs(got - hold4(f)) < 0.02 * hold4(f),
+                 qPrintable(QStringLiteral("%1 Hz: %2, a hold leaves %3").arg(f).arg(got).arg(hold4(f))));
+    }
+}
+
+void SfxRecipeTest::aSampleLayerIsDrivenAndCrushedBeforeItsGain()
+{
+    // At -6 dB the samples are 3-bit steps times the gain, not steps of
+    // the quieter signal: the gain comes after the crush.
+    const double gain = std::pow(10.0, -6.0 / 20.0);
+    const auto crushed = renderSampleLayer(R"("gain": -6, "crush": {"bits": 3})");
+    QSet<int> levels;
+    for (float v : crushed) {
+        const double k = v / gain / 0.25;
+        QVERIFY2(std::abs(k - std::round(k)) < 1e-4, qPrintable(QString::number(v)));
+        levels.insert(int(std::lround(k)));
+    }
+    QCOMPARE(levels.size(), 9);
+
+    // The drive is the same at either gain, only scaled by it.
+    const size_t from = kRate / 4, n = 4410;
+    QVERIFY(toneAmplitude(renderSampleLayer({}), from, n, 1500) < 1e-4);
+    const double want = tanhHarmonic(std::pow(10.0, 12.0 / 20.0), 3);
+    const double third = toneAmplitude(renderSampleLayer(R"("drive": 12)"), from, n, 1500);
+    QVERIFY2(std::abs(third - want) < 0.01 * want, qPrintable(QStringLiteral("%1 vs %2").arg(third).arg(want)));
+    const double quiet = toneAmplitude(renderSampleLayer(R"("drive": 12, "gain": -6)"), from, n, 1500);
+    QVERIFY2(std::abs(quiet - gain * third) < 0.01 * gain * third, qPrintable(QString::number(quiet)));
+
+    // A held rate on a sample, too.
+    const auto held = renderSampleLayer(R"("crush": {"rate": 11025})");
+    const auto runs = runLengths(held, 0, 4000);
+    QVERIFY(std::all_of(runs.begin(), runs.end(), [](int r) { return r == 4; }));
 }
 
 void SfxRecipeTest::sameSeedRendersSameSamples()

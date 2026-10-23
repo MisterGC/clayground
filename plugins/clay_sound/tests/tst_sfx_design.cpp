@@ -11,8 +11,9 @@
 // numbers two groups deep and the recipe's voice cap (#448), an
 // override sets a noise layer's colour and rate (#449), a macro
 // drives an FM index while an override swaps the fm for a ring (#450),
-// and an override sets an lfo's shape while a macro drives a cutoff
-// lfo's depth (#451).
+// an override sets an lfo's shape while a macro drives a cutoff
+// lfo's depth (#451), and a macro drives a layer's drive and crush bits
+// while an override adds a crush rate (#452).
 
 #include "offline/sound_files.h"
 #include "sfx/sfx_design.h"
@@ -68,6 +69,8 @@ static void compareLayers(const cs::SfxRecipe &a, const cs::SfxRecipe &b)
         QCOMPARE(int(x.filterType), int(y.filterType));
         QCOMPARE(x.lfoTarget, y.lfoTarget);
         QCOMPARE(x.lfoShape, y.lfoShape);
+        QCOMPARE(x.drive, y.drive);
+        QCOMPARE(x.crush, y.crush);
         for (int k = 0; k < cs::kSfxParamCount; ++k) {
             QCOMPARE(x.value[k], y.value[k]);   // exactly: no tolerance
             QCOMPARE(x.vary[k].on, y.vary[k].on);
@@ -109,6 +112,7 @@ private slots:
     void anOverrideSetsTheNoiseColourAndRate();
     void aMacroDrivesTheFmIndexAndAnOverrideSwapsItForARing();
     void anOverrideSetsTheLfoShapeAndAMacroDrivesACutoffLfo();
+    void aMacroDrivesDriveAndCrushAndAnOverrideAddsARate();
 };
 
 // The writer changes the bytes, not the recipe: the demo recipe reads
@@ -581,6 +585,24 @@ void TestSfxDesign::anOverrideSetsTheLfoShapeAndAMacroDrivesACutoffLfo()
     QCOMPARE(res.recipe.layers[0].get(P::LfoDepth), 2.0);
     QVERIFY2(res.json.contains("\"lfo\": { \"target\": \"cutoff\", \"shape\": \"smooth_random\", \"rate\": 6, \"depth\": 2 }"),
              res.json.constData());
+}
+
+void TestSfxDesign::aMacroDrivesDriveAndCrushAndAnOverrideAddsARate()
+{
+    const QByteArray layer = "\"drive\": 12, \"crush\": { \"bits\": 8 }";
+    const QByteArray drives = "{ \"path\": \"layers[tone].drive\", \"from\": 0, \"to\": 24 }, "
+                              "{ \"path\": \"layers[tone].crush.bits\", \"from\": 12, \"to\": 4 }";
+    const auto r = cs::SfxDesignCompiler::compile(
+        tinyDesign("\"macros\": { \"m\": 1 }, \"overrides\": { \"layers[tone].crush.rate\": 8000 }"),
+        tinyTemplate(drives, layer));
+    QVERIFY2(r.ok, qPrintable(r.error));
+    const auto &l = r.recipe.layers[0];
+    QVERIFY(l.drive);
+    QVERIFY(l.crush);
+    QCOMPARE(l.get(P::Drive), 24.0);
+    QCOMPARE(l.get(P::CrushBits), 4.0);
+    QCOMPARE(l.get(P::CrushRate), 8000.0);
+    QVERIFY2(r.json.contains("\"drive\": 24,\n      \"crush\": { \"bits\": 4, \"rate\": 8000 }"), r.json.constData());
 }
 
 QTEST_GUILESS_MAIN(TestSfxDesign)
