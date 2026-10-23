@@ -19,6 +19,8 @@
 //       { "role": "body", "source": "noise", "length": 900,
 //         "filter": { "type": "lowpass", "cutoff": 600 },
 //         "lfo": { "target": "cutoff", "shape": "sample_hold", "rate": 9, "depth": 1 } },
+//       { "role": "body", "source": "square", "freq": 110, "length": 400,
+//         "drive": 12, "crush": { "bits": 4, "rate": 8000 } },
 //       { "role": "tail", "source": "noise", "length": 3,
 //         "noise": { "color": "pink", "rate": "freq" },
 //         "burst": { "count": 12, "duration": 200, "density": 0.3,
