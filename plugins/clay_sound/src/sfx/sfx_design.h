@@ -43,7 +43,8 @@
 // at its default writes nothing, so it leaves the template's value as
 // it is; any other value goes through the drive's curve, is rounded to
 // six significant digits and clamped to what the recipe parser accepts
-// there. Each drive is reported, clamped or not. The result is written
+// there - the template's value at the default too, when an override
+// narrowed that. Each drive is reported, clamped or not. The result is written
 // by writeSfxRecipe() and checked by SfxParser: the same template and
 // design give the same bytes.
 //

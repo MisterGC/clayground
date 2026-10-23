@@ -544,9 +544,12 @@ bool compileInto(const SfxDesign &design, const SfxTemplate &tpl, SfxCompileResu
                                        [&](const auto &o) { return o.first.covers(t); });
             if (r.overridden) {
                 r.written = baseValue(doc, d.layer, d.param);
-            } else if (x == m.def) {
+            } else if (x == m.def && (lo > hi || (r.value >= lo && r.value <= hi))) {
                 r.written = r.value;    // the template's own value, left as written
             } else {
+                // Off the default, or at it when an override (a wider vary
+                // range) narrowed what the field may hold: clamped like any
+                // other driven value.
                 r.written = lo <= hi ? std::clamp(r.value, lo, hi) : r.value;
                 r.clamped = r.written != r.value;
                 write(doc, t, r.written);
