@@ -21,6 +21,13 @@ class OscillatorVoice : public IVoice
 public:
     enum class Waveform { Sine, Square, Triangle, Sawtooth, Noise };
     enum class FilterType { Off, LowPass, HighPass, BandPass };
+    // Noise only. The colour: white is flat, pink falls 3 dB and brown
+    // 6 dB per octave. The rate: Sample draws a new value every sample,
+    // Freq holds each value for one period of the voice's frequency (pitch
+    // envelope and pitch LFO included), as the SNES noise clock does, so
+    // a lower frequency moves the whole spectrum down.
+    enum class NoiseColor { White, Pink, Brown };
+    enum class NoiseRate { Sample, Freq };
 
     struct Patch
     {
@@ -80,6 +87,12 @@ public:
         // same sequence wherever the note starts (an effect recipe's
         // seeded noise layer, live and offline alike).
         uint32_t noiseSeed = 0;
+
+        // Noise only: white, drawn every sample, sounds as noise did
+        // before the two existed. Pink and brown sit about 6 dB below
+        // white, so their peaks stay inside -1..1 as white's do.
+        NoiseColor noiseColor = NoiseColor::White;
+        NoiseRate  noiseRate  = NoiseRate::Sample;
     };
 
     void setPatch(const Patch& p) { patch_ = p; }
@@ -93,6 +106,8 @@ public:
 private:
     double renderSample(int64_t frame);
     double filter(double in, double t, double duration);
+    double nextWhite();
+    double nextNoise();
 
     Patch    patch_{};
     int      sampleRate_   = 44100;
@@ -102,6 +117,10 @@ private:
     double   gain_         = 1.0;        // velocity at onNoteOn
     double   phase_        = 0.0;        // 0..1
     uint32_t noiseSeed_    = 12345;
+    double   noiseHeld_    = 0.0;        // the value a clocked noise holds
+    bool     noiseDraw_    = true;       // draw the next one this sample
+    double   pink_[7]      = {};         // pink filter states
+    double   brown_        = 0.0;        // brown integrator state
     double   filterIc1_    = 0.0;        // SVF integrator states
     double   filterIc2_    = 0.0;
 };

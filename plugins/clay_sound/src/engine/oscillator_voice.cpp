@@ -5,6 +5,7 @@
 #include "segment_curve.h"
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 
 namespace clay::sound {
 
@@ -54,6 +55,55 @@ void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
     noiseSeed_ = patch_.noiseSeed != 0
         ? patch_.noiseSeed
         : 12345u + static_cast<uint32_t>(ev.timeFrames & 0xffffffff);
+    noiseDraw_ = true;
+    std::fill(std::begin(pink_), std::end(pink_), 0.0);
+    brown_ = 0.0;
+    // The colour filters' slowest pole needs about 900 draws to settle;
+    // run them past that, so a grain of a few ms starts as loud as a
+    // long note does.
+    if (patch_.waveform == Waveform::Noise && patch_.noiseColor != NoiseColor::White)
+        for (int i = 0; i < 4096; ++i) nextNoise();
+}
+
+double OscillatorVoice::nextWhite()
+{
+    noiseSeed_ ^= noiseSeed_ << 13;
+    noiseSeed_ ^= noiseSeed_ >> 17;
+    noiseSeed_ ^= noiseSeed_ << 5;
+    return static_cast<double>(noiseSeed_) /
+               static_cast<double>(0xFFFFFFFFu) *
+               2.0 -
+           1.0;
+}
+
+double OscillatorVoice::nextNoise()
+{
+    const double w = nextWhite();
+    switch (patch_.noiseColor) {
+    case NoiseColor::White:
+        return w;
+    case NoiseColor::Pink: {
+        // Paul Kellet's refined pink filter: -3 dB per octave within
+        // 0.05 dB above 1/4800 of the draw rate (9.2 Hz at 44.1 kHz).
+        // 0.1638 brings its RMS to half of white's.
+        double *b = pink_;
+        b[0] = 0.99886 * b[0] + w * 0.0555179;
+        b[1] = 0.99332 * b[1] + w * 0.0750759;
+        b[2] = 0.96900 * b[2] + w * 0.1538520;
+        b[3] = 0.86650 * b[3] + w * 0.3104856;
+        b[4] = 0.55000 * b[4] + w * 0.5329522;
+        b[5] = -0.7616 * b[5] - w * 0.0168980;
+        const double pink = b[0] + b[1] + b[2] + b[3] + b[4] + b[5] + b[6] + w * 0.5362;
+        b[6] = w * 0.115926;
+        return std::clamp(pink * 0.1638, -1.0, 1.0);
+    }
+    case NoiseColor::Brown:
+        // A leaky integrator: -6 dB per octave above 1/1250 of the draw
+        // rate (35 Hz at 44.1 kHz). Gain 0.05 brings its RMS to half of white's.
+        brown_ = 0.995 * brown_ + 0.05 * w;
+        return std::clamp(brown_, -1.0, 1.0);
+    }
+    return w;
 }
 
 void OscillatorVoice::onNoteOff(int64_t atFrame)
@@ -120,13 +170,12 @@ double OscillatorVoice::renderSample(int64_t frame)
         wave = 2.0 * phase_ - 1.0;
         break;
     case Waveform::Noise:
-        noiseSeed_ ^= noiseSeed_ << 13;
-        noiseSeed_ ^= noiseSeed_ >> 17;
-        noiseSeed_ ^= noiseSeed_ << 5;
-        wave = static_cast<double>(noiseSeed_) /
-                   static_cast<double>(0xFFFFFFFFu) *
-                   2.0 -
-               1.0;
+        // A clocked noise holds its value until the phase wraps.
+        if (patch_.noiseRate == NoiseRate::Sample || noiseDraw_) {
+            noiseHeld_ = nextNoise();
+            noiseDraw_ = false;
+        }
+        wave = noiseHeld_;
         break;
     }
 
@@ -147,7 +196,15 @@ double OscillatorVoice::renderSample(int64_t frame)
     }
 
     phase_ += effFreq / static_cast<double>(sampleRate_);
-    if (phase_ >= 1.0) phase_ -= 1.0;
+    if (phase_ >= 1.0) {
+        // Above the sample rate a clocked noise draws every sample.
+        if (patch_.waveform == Waveform::Noise) {
+            phase_ -= std::floor(phase_);
+            noiseDraw_ = true;
+        } else {
+            phase_ -= 1.0;
+        }
+    }
 
     if (patch_.filterType != FilterType::Off)
         wave = filter(wave, t, duration);
