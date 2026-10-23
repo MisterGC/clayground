@@ -58,6 +58,7 @@ void SampleVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
     velocity_   = ev.velocity;
     srcPos_     = 0.0;
     exhausted_  = false;
+    driveCrush_.start(patch_.driveCrush, sampleRate);
 
     if (!source_ || source_->sampleRate <= 0) {
         srcStep_ = 1.0;
@@ -177,7 +178,11 @@ void SampleVoice::render(float* buffer, int frames, int64_t bufferStartFrame)
         const int idx = static_cast<int>(f - bufferStartFrame);
         const double s = sampleAtPos(srcPos_);
         const double envGate = hasEnvelope ? envelopeAt(f) : 1.0;
-        buffer[idx] += static_cast<float>(s * velocity_ * envGate);
+        // Without drive or crush in the order it always had, so the
+        // samples stay those it rendered before the two existed.
+        buffer[idx] += static_cast<float>(patch_.driveCrush.active()
+            ? driveCrush_.process(s * envGate) * velocity_
+            : s * velocity_ * envGate);
 
         srcPos_ += srcStep_;
         if (!patch_.looping && srcPos_ >= static_cast<double>(n - 1)) {

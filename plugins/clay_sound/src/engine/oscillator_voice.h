@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "drive_crush.h"
 #include "voice.h"
 #include <cstdint>
 
@@ -131,6 +132,10 @@ public:
         // sum and the difference of the two, each at half the level, and
         // neither of them. ringRatio 0, the default, is no ring.
         double ringRatio = 0.0;
+
+        // Drive and crush after the envelope, before the velocity
+        // (drive_crush.h). Off by default.
+        DriveCrush driveCrush;
     };
 
     void setPatch(const Patch& p) { patch_ = p; }
@@ -169,6 +174,7 @@ private:
     double   lfoTo_        = 0.0;        // and of the next one
     double   filterIc1_    = 0.0;        // SVF integrator states
     double   filterIc2_    = 0.0;
+    DriveCrushState driveCrush_;
 };
 
 } // namespace clay::sound
