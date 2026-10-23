@@ -279,6 +279,8 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.filterDecayCurve   = n.get(P::FilterDecayCurve);
             patch.filterReleaseCurve = n.get(P::FilterReleaseCurve);
             patch.noiseSeed  = n.noiseSeed;
+            patch.noiseColor = layer.noiseColor;
+            patch.noiseRate  = layer.noiseRate;
             inst->pushPatch(engine.schedule(ev), patch);
             ended(offset + ev.durationFrames,
                   std::min(ev.durationFrames, msToFrames(n.get(P::Release), rate)));

@@ -109,8 +109,8 @@ int paramFromPath(const QString &path)
 bool isLayerField(const QString &field)
 {
     static const QStringList named = {"name", "role", "source", "sample", "interpolation",
-                                      "filter.type", "lfo.target",
-                                      "envelope", "pitch", "filter", "lfo", "burst",
+                                      "filter.type", "lfo.target", "noise.color", "noise.rate",
+                                      "envelope", "pitch", "filter", "lfo", "noise", "burst",
                                       "burst.jitter", "vary"};
     if (named.contains(field) || paramFromPath(field) >= 0) return true;
     return field.startsWith(QLatin1String("vary.")) && paramFromPath(field.mid(5)) >= 0;
