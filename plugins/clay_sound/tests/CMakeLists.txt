@@ -360,6 +360,30 @@ set_tests_properties(clay_sound_sfx PROPERTIES
 )
 
 # ----------------------------------------------------------------------
+# Effect design files (#446): a template and a design file compile to a
+# recipe through the engine library alone - no QML, no audio device.
+# ----------------------------------------------------------------------
+
+add_executable(tst_clay_sound_sfx_design tst_sfx_design.cpp)
+
+set_target_properties(tst_clay_sound_sfx_design PROPERTIES AUTOMOC ON)
+
+target_compile_definitions(tst_clay_sound_sfx_design PRIVATE
+    CLAY_SOUND_DEMO_SFX_DIR="${CMAKE_CURRENT_SOURCE_DIR}/../demo/sfx"
+)
+
+target_link_libraries(tst_clay_sound_sfx_design PRIVATE
+    ClaySoundEngine
+    Qt6::Core
+    Qt6::Test
+)
+
+add_test(NAME clay_sound_sfx_design COMMAND tst_clay_sound_sfx_design)
+set_tests_properties(clay_sound_sfx_design PROPERTIES
+    LABELS "clay_sound;unit"
+)
+
+# ----------------------------------------------------------------------
 # The engine outside QML (#429): a program built against
 # Clayground::SoundEngine alone renders the demo recipe and song to wav,
 # and the QML players' offline renders hold the same samples.

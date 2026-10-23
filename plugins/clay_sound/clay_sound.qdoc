@@ -569,6 +569,10 @@
     and dB - plus a variation spec: a random range per layer field, a
     seed and a round-robin pool size. The plugin README documents the
     format; the parser rejects an unknown field by its name and path.
+    A recipe can also be compiled from a design file - a template, its
+    macro values and overrides (\c .sfx.design.json) - by the engine
+    library; the player reads only the compiled recipe (README, "Design
+    files").
 
     \code
     SfxPlayer {

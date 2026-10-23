@@ -1,0 +1,57 @@
+{
+  "version": 1,
+  "template": { "id": "wheel-detent", "version": 1 },
+  "name": "wheel-detent",
+  "variation": { "seed": 1, "pool": 6 },
+  "layers": [
+    {
+      "name": "tick", "role": "transient", "source": "noise",
+      "length": 6, "gain": -10.46,
+      "envelope": { "attack": 0.5, "decay": 9, "sustain": 0, "release": 4 }
+    },
+    {
+      "name": "body", "role": "body", "source": "triangle",
+      "freq": 783.99, "length": 40, "gain": -10.03,
+      "envelope": { "attack": 0.5, "decay": 55, "sustain": 0, "release": 20 },
+      "pitch": { "start": 12, "end": 0, "time": 12 },
+      "vary": { "detune": [-1, 1] }
+    },
+    {
+      "name": "glint", "role": "tail", "source": "sine",
+      "freq": 2793.83, "length": 50, "gain": -21.94,
+      "envelope": { "attack": 0.5, "decay": 70, "sustain": 0, "release": 30 },
+      "vary": { "detune": [-1, 1] }
+    },
+    {
+      "name": "weight", "role": "body", "source": "sine",
+      "freq": 123.47, "length": 45, "gain": -13,
+      "envelope": { "attack": 1, "decay": 55, "sustain": 0, "release": 20 },
+      "pitch": { "start": 7, "end": 0, "time": 20 }
+    }
+  ],
+  "macros": [
+    {
+      "id": "weight", "label": "Weight", "range": [0, 1], "default": 0.5,
+      "drives": [
+        { "path": "layers[body].freq", "from": 1108.73, "to": 554.37, "curve": "exp" },
+        { "path": "layers[weight].freq", "from": 174.61, "to": 87.31, "curve": "exp" },
+        { "path": "layers[weight].gain", "from": -19, "to": -7 }
+      ]
+    },
+    {
+      "id": "click", "label": "Click", "range": [0, 1], "default": 0.5,
+      "drives": [
+        { "path": "layers[tick].gain", "from": -16.46, "to": -4.46 },
+        { "path": "layers[glint].gain", "from": -27.94, "to": -15.94 }
+      ]
+    },
+    {
+      "id": "ring", "label": "Ring", "range": [0, 1], "default": 0.5,
+      "drives": [
+        { "path": "layers[body].envelope.decay", "from": 27.5, "to": 110, "curve": "exp" },
+        { "path": "layers[glint].envelope.decay", "from": 35, "to": 140, "curve": "exp" }
+      ]
+    }
+  ],
+  "meta": { "from": "wheel-detent.sfx.json" }
+}
