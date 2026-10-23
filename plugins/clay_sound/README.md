@@ -327,6 +327,8 @@ below), `layers` (required, at least one). A layer:
 | `pulseWidth` | 0.05..0.95 | 0.5 | `square` only |
 | `lfo` | `target`; `rate` Hz; `depth` semitones (pitch) or 0..1 (volume) | -, 0, 0 | `pitch` or `volume` |
 | `noise` | `color`: `white`, `pink`, `brown`; `rate`: `sample`, `freq` | `white`, `sample` | `noise` only (see "Noise") |
+| `fm` | `ratio` 0.01..64; `index` radians, 0..32; `attack`, `decay`, `release` ms; `sustain` 0..1; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | required, required; 0, 0, 0; 1; 0, 0, 0 | two-operator FM with an index envelope (see "FM and ring"); oscillator layers only |
+| `ring` | `ratio` 0.01..64 | required | ring modulation (see "FM and ring"); oscillator layers only, not with `fm` |
 | `sample`, `interpolation` | path; `nearest`, `linear`, `gaussian` | -, `linear` | the WAV of a `sample` layer, relative to the recipe file |
 | `burst` | `count` 1..256; `duration` ms; `density` 0.01..100; `jitter`: `time` 0..1, `gain` dB, `cutoff` octaves, `freq` semitones, `length` ms | required, required, 1; 0, 0, 0, 0, 0 | the layer plays as `count` short grains inside `duration` (see "Bursts"); not on a `sample` layer |
 | `vary` | `{"<field>": [min, max]}` | - | per play, `min..max` is added to the field |
@@ -366,6 +368,46 @@ existed, and ignores `freq`.
   sweep (a falling hiss). A clock above the sample rate draws every sample.
 - The colour is shaped at the clock: the colour filters run once per drawn
   value, so pink and brown keep their slope below a clock of any rate.
+
+FM and ring: metal hits, bells and sparkle have partials that are not
+whole multiples of one pitch, and one oscillator through a filter cannot
+make them. A layer without an `fm` or a `ring` group sounds as layers did
+before the groups existed. Both run inside the layer's voice - a modulator
+of the layer, not one layer modulating another - and both follow the
+layer's pitch: `freq` raised by `detune`, the `pitch` sweep and a pitch
+`lfo`, so a play's `detune` moves the partials with it.
+
+```json
+{ "name": "bell", "source": "sine", "freq": 500, "length": 1800,
+  "envelope": { "decay": 1800, "sustain": 0, "decayCurve": 1 },
+  "fm": { "ratio": 2.76, "index": 6, "decay": 1200, "sustain": 0.1, "decayCurve": 1 } }
+```
+
+- `fm`: a sine modulator at `ratio` times the layer's pitch moves the
+  phase the wave is read at by up to `index` radians. On a sine that puts
+  sidebands at `freq + n * ratio * freq` for every whole `n`, the `n`-th
+  pair at `|J_n(index)|` of the plain sine's level; the ones below 0 Hz
+  fold back (at 500 Hz and 1:2.76: 500, 880, 1880, 2260, 3260, ... Hz).
+  `index` 0 is the plain wave; 1 gives the first pair at 0.44, 2 at 0.58
+  and the second pair at 0.35. A whole `ratio` keeps the partials
+  harmonic, another one makes them inharmonic. On square, triangle and
+  sawtooth the same phase shift is applied to the richer wave.
+- The index has an envelope of its own, an ADSR as the cutoff's: `index`
+  is its peak, `sustain` a fraction of it, the times in ms with their
+  curves. Without `attack` and `decay` and with `sustain` 1, the defaults,
+  the index holds. A decaying index narrows the spectrum as it falls - the
+  power-weighted spread around the carrier is `index * ratio * freq /
+  sqrt(2)` Hz - which is how a struck bar or bell loses its brightness
+  before its level.
+- `ring`: the layer's wave times a sine at `ratio` times its pitch, before
+  the filter. On a sine that leaves the sum and the difference of the two,
+  each at half the level, and neither of them (500 Hz and 1:2.76: 880 and
+  1880 Hz).
+- Nothing is band-limited: sidebands above half the sample rate fold back
+  as aliases, so a high `index` on a high `freq` sounds grainy.
+- A layer takes one of the two, on `sine`, `square`, `triangle` or
+  `sawtooth`; `noise` and `sample` take neither. `vary` and macros reach
+  every number of both (`vary: {"fm.index": [-1, 1]}`).
 
 Bursts: crumble, gravel, crackle and debris are many tiny grains with
 random timing. A layer with a `burst` plays as `count` grains instead of one
@@ -410,7 +452,7 @@ against it and are never cut. A recipe with a cap needs a burst.
 
 `vary` names a numeric field by its path: `detune`, `gain`, `envelope.decay`,
 `envelope.decayCurve`, `filter.cutoff`, `pitch.start`, `pitch.curve`,
-`burst.count`, `burst.jitter.time`, ...
+`fm.index`, `ring.ratio`, `burst.count`, `burst.jitter.time`, ...
 Every value a range can reach must be a valid value of that field. The
 parser rejects an unknown field by name and path (`layers[1].envelope:
 unknown field 'decya'`), and so does a hot reload, which keeps playing the
