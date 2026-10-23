@@ -9,6 +9,7 @@
 #include <QJsonValue>
 #include <QStringList>
 
+#include <algorithm>
 #include <cmath>
 
 namespace clay::sound {
@@ -103,6 +104,15 @@ QString notApplicable(SfxParam p, const SfxLayer &l)
         if (isSample(l)) return QStringLiteral("does not apply to a sample layer");
         if (l.lfoTarget == 0) return QStringLiteral("needs an 'lfo' with a 'target'");
         return {};
+    case P::BurstCount: case P::BurstDuration: case P::BurstDensity: case P::JitterTime:
+    case P::JitterGain: case P::JitterFreq: case P::JitterLength:
+        if (!l.burst) return QStringLiteral("needs a 'burst'");
+        return {};
+    case P::JitterCutoff:
+        if (!l.burst) return QStringLiteral("needs a 'burst'");
+        if (l.filterType == OscillatorVoice::FilterType::Off)
+            return QStringLiteral("needs a 'filter' with a 'type'");
+        return {};
     default:
         return {};
     }
@@ -178,7 +188,7 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
 {
     if (!requireKeysOnly(o, {"name", "role", "source", "sample", "interpolation",
                              "freq", "detune", "gain", "pan", "offset", "length",
-                             "envelope", "pitch", "filter", "pulseWidth", "lfo", "vary"}, path))
+                             "envelope", "pitch", "filter", "pulseWidth", "lfo", "burst", "vary"}, path))
         return false;
 
     for (int i = 0; i < kSfxParamCount; ++i) l.value[i] = kSfxParams[i].def;
@@ -216,11 +226,13 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         if (!o.contains("length")) return fail(path, QStringLiteral("needs a 'length' in ms"));
     }
 
-    // The filter type and the lfo target first: they decide which of
-    // the numbers below have a meaning.
-    QJsonObject filter, lfo;
+    // The filter type, the lfo target and whether there is a burst first:
+    // they decide which of the numbers below have a meaning.
+    QJsonObject filter, lfo, burst, jitter;
     const QString fp = join(path, "filter");
     const QString lp = join(path, "lfo");
+    const QString bp = join(path, "burst");
+    const QString jp = join(bp, "jitter");
     if (o.contains("filter")) {
         if (isSample(l)) return fail(fp, QStringLiteral("does not apply to a sample layer"));
         if (!objectAt(o, "filter", path, filter)
@@ -245,6 +257,19 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         if (text == QLatin1String("pitch"))       l.lfoTarget = 1;
         else if (text == QLatin1String("volume")) l.lfoTarget = 2;
         else return fail(join(lp, "target"), QStringLiteral("unknown target '%1' (pitch, volume)").arg(text));
+    }
+    if (o.contains("burst")) {
+        if (isSample(l)) return fail(bp, QStringLiteral("does not apply to a sample layer"));
+        if (!objectAt(o, "burst", path, burst)
+            || !requireKeysOnly(burst, {"count", "duration", "density", "jitter"}, bp))
+            return false;
+        for (const char *key : {"count", "duration"})
+            if (!burst.contains(key)) return fail(bp, QStringLiteral("needs a '%1'").arg(key));
+        if (burst.contains("jitter")
+            && (!objectAt(burst, "jitter", bp, jitter)
+                || !requireKeysOnly(jitter, {"time", "gain", "cutoff", "freq", "length"}, jp)))
+            return false;
+        l.burst = true;
     }
 
     if (!numbers(o, path, l, {{"freq", P::Freq}, {"detune", P::Detune}, {"gain", P::Gain},
@@ -287,6 +312,13 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
     if (!lfo.isEmpty()
         && !numbers(lfo, lp, l, {{"rate", P::LfoRate}, {"depth", P::LfoDepth}}))
         return false;
+    if (l.burst
+        && (!numbers(burst, bp, l, {{"count", P::BurstCount}, {"duration", P::BurstDuration},
+                                    {"density", P::BurstDensity}})
+            || !numbers(jitter, jp, l, {{"time", P::JitterTime}, {"gain", P::JitterGain},
+                                        {"cutoff", P::JitterCutoff}, {"freq", P::JitterFreq},
+                                        {"length", P::JitterLength}})))
+        return false;
 
     if (o.contains("vary")) {
         QJsonObject vary;
@@ -309,7 +341,7 @@ bool parseRecipe(const QByteArray &json, SfxRecipe &r)
         return fail({}, QStringLiteral("JSON error at offset %1: %2").arg(perr.offset).arg(perr.errorString()));
     if (!doc.isObject()) return fail({}, QStringLiteral("a recipe must be a JSON object"));
     const QJsonObject root = doc.object();
-    if (!requireKeysOnly(root, {"version", "name", "variation", "layers"}, {})) return false;
+    if (!requireKeysOnly(root, {"version", "name", "variation", "maxVoices", "layers"}, {})) return false;
 
     if (root.contains("version")) {
         const QJsonValue v = root.value("version");
@@ -339,6 +371,14 @@ bool parseRecipe(const QByteArray &json, SfxRecipe &r)
         }
     }
 
+    if (root.contains("maxVoices")) {
+        const QJsonValue v = root.value("maxVoices");
+        const double n = v.toDouble(-1.0);
+        if (!v.isDouble() || n < 0.0 || n > 256.0 || n != std::floor(n))
+            return fail(QStringLiteral("maxVoices"), QStringLiteral("must be an integer in 0..256"));
+        r.maxVoices = static_cast<int>(n);
+    }
+
     if (!root.contains("layers")) return fail({}, QStringLiteral("a recipe needs 'layers'"));
     const QJsonValue lv = root.value("layers");
     if (!lv.isArray() || lv.toArray().isEmpty())
@@ -351,6 +391,10 @@ bool parseRecipe(const QByteArray &json, SfxRecipe &r)
         if (!parseLayer(layers.at(i).toObject(), lp, layer)) return false;
         r.layers.append(layer);
     }
+    // The cap is on grains alone, so without a burst it would cap nothing.
+    if (r.maxVoices > 0
+        && std::none_of(r.layers.cbegin(), r.layers.cend(), [](const SfxLayer &l) { return l.burst; }))
+        return fail(QStringLiteral("maxVoices"), QStringLiteral("caps the grains of a 'burst', and no layer has one"));
     return true;
 }
 
