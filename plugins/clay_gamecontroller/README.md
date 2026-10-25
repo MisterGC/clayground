@@ -17,9 +17,9 @@ import Clayground.GameController
 ## Layouts
 
 `layout` decides which inputs a `GameController` has. The sources - keyboard,
-touchscreen and the dojo's agent input - set only those; every other input
-stays at its neutral value (0 or `false`). `inputs` lists the layout's input
-names, and `inputValue(name)` reads one by its name.
+touchscreen, a physical gamepad and the dojo's agent input - set only those;
+every other input stays at its neutral value (0 or `false`). `inputs` lists
+the layout's input names, and `inputValue(name)` reads one by its name.
 
 | Input | Property | Range | `nes` | `full` |
 |---|---|---|---|---|
@@ -69,12 +69,95 @@ CharacterController {
   offset from where it touched down over the stick's radius, so it reaches 1
   half a stick's width away; a trigger reads 1 while touched. Sticks and pads
   each follow their own finger.
+- **Gamepad**: `selectGamepad(i)` reads the pad at `gamepads[i]` - see
+  [Physical gamepads](#physical-gamepads) for which pad button drives which
+  input.
 - **Dojo**: the inspector's `input` action takes every input name in its
   `gamepad` object, e.g.
   `{"action": "input", "gamepad": {"axisRightX": 1, "buttonL1": true}}`; a
   `nes` controller reads only its stick and A/B of it.
 - Changing `layout` at run time sets the inputs it drops to neutral, and the
   keyboard and dojo sources set the ones it adds from what they hold.
+
+## Physical gamepads
+
+On Linux (the Steam Deck included), Windows and macOS a `GameController` reads
+physical gamepads through SDL3's gamepad part, linked into the plugin. The
+WebAssembly, iOS and Android builds read none yet: there `gamepads` stays
+empty and `numConnectedGamepads` 0, and keyboard, touch and the dojo work as
+everywhere.
+
+```qml
+GameController {
+    id: controller
+    layout: "full"
+    // Take the first pad while one is plugged in, the keyboard otherwise
+    function pickSource() {
+        if (numConnectedGamepads > 0) selectGamepad(0)
+        else selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D,
+                            Qt.Key_Space, Qt.Key_Return)
+    }
+    Component.onCompleted: pickSource()
+    onNumConnectedGamepadsChanged: pickSource()
+}
+
+Text { text: controller.gamepad ? controller.gamepad.name : "keyboard" }
+```
+
+- `numConnectedGamepads` follows pads being plugged in and out; `gamepads`
+  lists them, in the order they were connected. Each has a `name` (e.g.
+  "Xbox Series X Controller"), a `type` (`xbox360`, `xboxone`, `ps4`, `ps5`,
+  `switchpro`, `steam`, ... or `standard`), the `buttons` and `axes` it has,
+  their live `values`, and `labels` saying what its face buttons are printed
+  with (`{south: "Cross", ...}` on a PlayStation pad).
+- `selectGamepad(i)` selects `gamepads[i]`; `gamepad` is then that pad and
+  `gamepadSelected` is true. Selecting the keyboard or the touchscreen lets go
+  of it. When the selected pad is unplugged every input goes neutral and
+  `gamepadSelected` turns false - pick a new source in
+  `onNumConnectedGamepadsChanged`, as above.
+- Buttons count by position, not by what is printed on them:
+
+  | Pad | Input |
+  |---|---|
+  | bottom face button (Xbox A, PlayStation Cross, Switch B) | `buttonA` |
+  | right face button (Xbox B, Circle, Switch A) | `buttonB` |
+  | left face button (Xbox X, Square, Switch Y) | `buttonX` |
+  | top face button (Xbox Y, Triangle, Switch X) | `buttonY` |
+  | left stick and d-pad | `axisX`, `axisY` - the d-pad wins while pressed |
+  | right stick | `axisRightX`, `axisRightY` |
+  | shoulder buttons | `buttonL1`, `buttonR1` |
+  | triggers | `triggerL2`, `triggerR2`, analog 0..1 |
+  | start, back (Xbox view, PlayStation share or create, Switch minus) | `buttonStart`, `buttonSelect` |
+
+  The guide button, stick clicks, back paddles and other extra buttons have no
+  input in either layout; the demo still shows them, from `gamepad.values`.
+- The sticks have a round dead zone of 0.2 of their range and read 0 to 1
+  beyond it. `selectGamepad(i, false)` leaves the left stick out: only the
+  d-pad moves `axisX`/`axisY`.
+
+What SDL handles:
+
+- **Controller database.** SDL ships a database of pad models, so a pad it
+  knows reports the standard buttons and axes whatever its raw button
+  numbers. A pad it does not know gets a mapping in the format of SDL's
+  `gamecontrollerdb.txt` through the environment: `SDL_GAMECONTROLLERCONFIG`
+  holds mapping lines, `SDL_GAMECONTROLLERCONFIG_FILE` names a file of them.
+  Both are read when the first `GameController` starts.
+- **Drivers.** SDL's HIDAPI drivers read the Steam Deck's built-in controls
+  and PlayStation and Switch pads directly, past the system's own driver.
+- **Steam's virtual pad.** Steam Input presents a game with a virtual pad of
+  its own. SDL hides that virtual pad unless the environment allows it
+  (`SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD`, which Steam sets when it
+  starts a game with Steam Input on, together with
+  `SDL_GAMECONTROLLER_IGNORE_DEVICES` for the physical pads behind it), and
+  then names it after the pad it stands for. Started from Steam, a game sees
+  one pad per controller, as Steam Input configures it; started outside it,
+  the game reads the controllers themselves.
+- `SDL_GAMECONTROLLER_IGNORE_DEVICES` (a list of `0xVID/0xPID`) hides pads by
+  hand.
+
+The build option `CLAY_GAMEPAD_SDL` (on for desktop builds) turns SDL off; SDL
+is fetched at configure time, pinned to a release.
 
 ## Core Components
 
@@ -83,7 +166,8 @@ CharacterController {
 - **InputAction** - One action read as a tap, a hold or a buffered press, timed on the game clock
 - **KeyboardGamepad** - Internal keyboard-to-controller mapping
 - **TouchscreenGamepad** - Virtual on-screen gamepad for touch devices
-- **GamepadWrapper** - Qt Gamepad API wrapper (currently disabled in Qt6)
+- **PhysicalGamepad** - Internal mapping from a physical pad to the controller
+- **GamepadHub** - Internal list of the connected pads, read through SDL3
 
 ## Usage Examples
 
@@ -103,7 +187,7 @@ Item {
         Component.onCompleted: {
             // Try gamepad first, fallback to keyboard
             if (numConnectedGamepads > 0)
-                selectGamepad(0, true)  // Use analog sticks
+                selectGamepad(0)  // Left stick and d-pad
             else
                 selectKeyboard(
                     Qt.Key_W,      // Up
@@ -150,7 +234,7 @@ Row {
         id: player1Controller
         Component.onCompleted: {
             if (numConnectedGamepads > 0)
-                selectGamepad(0, false)  // Use D-pad
+                selectGamepad(0, false)  // D-pad only
             else
                 selectKeyboard(
                     Qt.Key_Up, Qt.Key_Down,
@@ -309,7 +393,7 @@ ClayWorld2d {
 
 1. **Input Priority**: Always check for gamepads first, then fall back to keyboard or touch controls.
 
-2. **Dead Zones**: The gamepad implementation includes a 0.2 dead zone for analog sticks to prevent drift.
+2. **Dead Zones**: A physical pad's sticks have a round 0.2 dead zone against drift, and read 0 to 1 beyond it.
 
 3. **Platform Detection**: Use Qt.platform.os to automatically select appropriate input methods.
 
@@ -330,5 +414,4 @@ The GameController plugin implements:
 - **Visual Feedback**: Built-in debug visualization
 - **Touch Adaptation**: Virtual joystick with visual feedback for touch screens
 - **Two layouts**: `nes`, a stick and two buttons, and `full`, the inputs of a modern gamepad
-
-Note: Physical gamepad support is currently disabled due to Qt6 compatibility issues but the architecture supports it for future versions.
+- **Physical gamepads**: SDL3's gamepad part behind one backend interface (`gamepadbackend.h`), pumped from a timer at 125 Hz, without a window of its own; the browser and iOS get backends of their own behind the same interface
