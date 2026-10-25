@@ -90,3 +90,9 @@ endif()
 include(claytest)
 clay_add_qml_test(gamecontroller_qml IMPORTS_BUILT_MODULE
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)
+
+# The browser backend outside the browser: a test feeds it the slots
+# navigator.getGamepads() would return
+if(NOT EMSCRIPTEN)
+    add_subdirectory(tests/cpp)
+endif()
