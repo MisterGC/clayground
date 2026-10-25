@@ -27,6 +27,11 @@ struct BrowserPadState
 // gamepad's button and axis indices; any other is read by them as well, and
 // its type says "unmapped". The browser shows a pad to the page only after
 // it was pressed with the page in front - until then there is none.
+//
+// Firefox is not read yet: it reports buttons pressed and a stick moved on an
+// untouched pad (a Switch Pro Controller on macOS, Firefox 158), so a pad
+// there is listed with type "unsupported" and no inputs, and drives nothing
+// until #474 lifts that.
 class BrowserGamepadBackend : public GamepadBackend
 {
     Q_OBJECT
@@ -52,6 +57,9 @@ protected:
     // poll() reports how they differ from the last ones.
     virtual QList<BrowserPadState> sample();
 
+    // navigator.userAgent, read once, on the first poll()
+    virtual QString userAgent() const;
+
 private:
     struct Pad {
         int deviceId = -1;
@@ -68,6 +76,8 @@ private:
     QHash<int, Pad> pads_;
     QHash<int, BrowserPadState> virtual_; // by deviceId
     int nextDeviceId_ = 1;
+    bool checkedBrowser_ = false;
+    bool unsupported_ = false; // Firefox, see above
 };
 
 #endif // GAMEPADBACKEND_BROWSER_H

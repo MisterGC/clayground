@@ -7,6 +7,7 @@
 
 #ifdef Q_OS_WASM
 #include <emscripten/html5.h>
+#include <emscripten/val.h>
 #endif
 
 namespace {
@@ -88,8 +89,21 @@ QList<BrowserPadState> BrowserGamepadBackend::sample()
     return pads;
 }
 
+QString BrowserGamepadBackend::userAgent() const
+{
+#ifdef Q_OS_WASM
+    const emscripten::val ua = emscripten::val::global("navigator")["userAgent"];
+    if (ua.isString()) return QString::fromStdString(ua.as<std::string>());
+#endif
+    return {};
+}
+
 void BrowserGamepadBackend::poll()
 {
+    if (!checkedBrowser_) {
+        checkedBrowser_ = true;
+        unsupported_ = userAgent().contains(QStringLiteral("Firefox/"));
+    }
     const QList<BrowserPadState> browser = sample();
 
     // A slot that emptied, or holds another pad now, lets go of its pad
@@ -125,6 +139,17 @@ void BrowserGamepadBackend::open(int slot, const BrowserPadState &state, int dev
     // is read as if it were mapped; its buttons may then carry other names.
     info.type = state.mapping == QStringLiteral("standard") ?
         QStringLiteral("standard") : QStringLiteral("unmapped");
+
+    if (unsupported_) {
+        // Listed, so the game can say why it does not move: no inputs at all
+        info.type = QStringLiteral("unsupported");
+        Pad pad;
+        pad.deviceId = deviceId;
+        pad.id = state.id;
+        pads_.insert(slot, pad);
+        emit padAdded(info);
+        return;
+    }
 
     // Every input the pad has, in the order of the common vocabulary
     const int numButtons = int(state.buttonValues.size());
