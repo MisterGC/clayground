@@ -8,8 +8,9 @@ import Clayground.GameController
 // InputAction reads tap, hold and buffered press on the physics clock (#416).
 // The World is stepped by hand (running: false + step()), which is what the
 // dojo's pause and single step do to a ClayWorld2d: wall time passing without
-// a step must not move any reading. Every timing test runs twice, once with
-// the action bound to a key and once fed by a MouseArea, and expects the same.
+// a step must not move any reading. Every timing test runs three times, with
+// the action bound to a key, fed by a MouseArea and bound to a controller
+// button (#466), and expects the same.
 Item {
     id: root
     width: 200; height: 200
@@ -39,13 +40,31 @@ Item {
         id: player
         anchors.fill: parent
         focus: true
-        Keys.forwardTo: [keyAction, bothAction, ctrl]
+        Keys.forwardTo: [keyAction, bothAction, keyPadAction, ctrl]
         GameController { id: ctrl }
         CountingAction { id: keyAction; key: Qt.Key_J }
         CountingAction { id: mouseAction; mouseButton: Qt.LeftButton }
         CountingAction { id: bothAction; key: Qt.Key_K; mouseButton: Qt.LeftButton }
         CountingAction { id: wallAction; world: null }
+        CountingAction { id: padAction; controller: padCtrl; controllerButton: "buttonX" }
+        CountingAction { id: keyPadAction; key: Qt.Key_L; controller: padCtrl; controllerButton: "buttonA" }
     }
+
+    // The controller button is pressed through the dojo's synthetic source,
+    // driven the way the inspector's gamepad input drives ClayInputCtrl.
+    QtObject {
+        id: agent
+        property bool active: false
+        property var gamepad: ({})
+        signal stateChanged()
+        function set(state) {
+            gamepad = state;
+            active = true;
+            stateChanged();
+        }
+    }
+    GameController { id: padCtrl; layout: "full" }
+    SyntheticGamepad { gameController: padCtrl; source: agent }
 
     // The game's own MouseArea feeds the mouse-bound actions.
     MouseArea {
@@ -70,9 +89,14 @@ Item {
             ctrl.selectKeyboard(Qt.Key_W, Qt.Key_S, Qt.Key_A, Qt.Key_D,
                                 Qt.Key_Space, Qt.Key_Shift);
             area.target = mouseAction;
+            padCtrl.layout = "full";
+            padAction.controller = padCtrl;
+            padAction.controllerButton = "buttonX";
+            agent.set({});
             player.forceActiveFocus();
             verify(player.activeFocus);
-            for (const a of [keyAction, mouseAction, bothAction, wallAction]) {
+            for (const a of [keyAction, mouseAction, bothAction, wallAction,
+                             padAction, keyPadAction]) {
                 verify(!a.pressed);
                 a.taps = 0;
                 a.holds = 0;
@@ -87,21 +111,27 @@ Item {
             mouseAction.release();
             bothAction.release();
             wallAction.release();
+            agent.set({});
+            keyRelease(Qt.Key_L);
         }
 
         function sources() {
-            return [{tag: "key", source: "key"}, {tag: "mouse", source: "mouse"}];
+            return [{tag: "key", source: "key"}, {tag: "mouse", source: "mouse"},
+                    {tag: "controller", source: "controller"}];
         }
         function action(data) {
-            return data.source === "key" ? keyAction : mouseAction;
+            return data.source === "key" ? keyAction
+                 : data.source === "mouse" ? mouseAction : padAction;
         }
         function down(data) {
             if (data.source === "key") keyPress(Qt.Key_J);
-            else mousePress(area, 10, 10, Qt.LeftButton);
+            else if (data.source === "mouse") mousePress(area, 10, 10, Qt.LeftButton);
+            else agent.set({buttonX: true});
         }
         function up(data) {
             if (data.source === "key") keyRelease(Qt.Key_J);
-            else mouseRelease(area, 10, 10, Qt.LeftButton);
+            else if (data.source === "mouse") mouseRelease(area, 10, 10, Qt.LeftButton);
+            else agent.set({});
         }
         function step(n) {
             for (let i = 0; i < n; ++i) physicsWorld.step();
@@ -250,6 +280,83 @@ Item {
             compare(bothAction.releases.length, 1);
             near(bothAction.releases[0], 100, "one press from first down to last up");
             compare(bothAction.taps, 1);
+        }
+
+        function test_only_its_controller_button_counts() {
+            agent.set({buttonA: true, buttonY: true, axisX: 1, triggerR2: 1});
+            verify(!padAction.pressed, "other inputs of the controller");
+            agent.set({buttonA: true, buttonX: true});
+            verify(padAction.pressed);
+            agent.set({buttonA: true});
+            verify(!padAction.pressed);
+            compare(padAction.taps, 1);
+        }
+
+        function test_a_button_the_layout_lacks_stays_up() {
+            padCtrl.layout = "nes";
+            agent.set({buttonX: true});
+            verify(!padCtrl.buttonXPressed);
+            verify(!padAction.pressed);
+            agent.set({});
+            compare(padAction.releases.length, 0);
+        }
+
+        function test_a_stick_or_trigger_is_no_button() {
+            ignoreWarning("InputAction: 'triggerR2' is no controller button");
+            padAction.controllerButton = "triggerR2";
+            agent.set({triggerR2: 1});
+            verify(!padAction.pressed);
+        }
+
+        function test_key_and_controller_button_hold_one_press() {
+            keyPress(Qt.Key_L);
+            step(3);
+            agent.set({buttonA: true});
+            keyRelease(Qt.Key_L);
+            verify(keyPadAction.pressed, "the button still holds it");
+            step(3);
+            agent.set({});
+            verify(!keyPadAction.pressed);
+            compare(keyPadAction.releases.length, 1);
+            near(keyPadAction.releases[0], 100, "one press from first down to last up");
+            compare(keyPadAction.taps, 1);
+        }
+
+        function test_rebinding_releases_a_held_button_without_a_tap() {
+            agent.set({buttonX: true, buttonY: true});
+            verify(padAction.pressed);
+            padAction.controllerButton = "buttonY";
+            verify(!padAction.pressed, "rebinding releases the held press");
+            compare(padAction.releases.length, 1);
+            compare(padAction.taps, 0, "the player did not let go");
+
+            // buttonY was down already when it was bound: it waits for its
+            // next press.
+            agent.set({buttonX: true});
+            agent.set({buttonY: true});
+            verify(padAction.pressed);
+
+            padAction.controller = null;
+            verify(!padAction.pressed);
+            compare(padAction.taps, 0);
+        }
+
+        function test_a_disabled_action_ignores_its_controller_button() {
+            padAction.enabled = false;
+            agent.set({buttonX: true});
+            verify(!padAction.pressed);
+            padAction.enabled = true;
+            verify(!padAction.pressed, "a button down while disabled waits");
+            agent.set({});
+            compare(padAction.releases.length, 0);
+
+            agent.set({buttonX: true});
+            verify(padAction.pressed);
+            padAction.enabled = false;
+            verify(!padAction.pressed, "disabling drops the press");
+            compare(padAction.taps, 0);
+            agent.set({});
+            padAction.enabled = true;
         }
 
         function test_keys_go_on_to_the_controller() {
