@@ -1,5 +1,5 @@
 [
- {"connect": "054c-0ce6-DualSense Wireless Controller", "button": 0, "expect": "gamepad: selected DualSense Wireless Controller (standard, 15 buttons, 6 axes)"},
+ {"connect": "DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)", "button": 0, "expect": "gamepad: selected DualSense Wireless Controller (standard, 15 buttons, 6 axes)"},
  {"button": 0, "value": 0, "expect": "PAD buttonA=false"},
  {"button": 0, "expect": "PAD buttonA=true"},
  {"button": 0, "value": 0, "expect": "PAD buttonA=false"},

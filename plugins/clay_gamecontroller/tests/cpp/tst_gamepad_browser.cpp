@@ -81,6 +81,13 @@ private slots:
                                        << "Xbox 360 Controller";
         QTest::newRow("chrome unmapped") << "8BitDo Zero 2 (Vendor: 2dc8 Product: 9018)"
                                          << "8BitDo Zero 2";
+        // What emscripten delivers of those: 63 bytes and its terminator
+        QTest::newRow("chrome cut") << "DualSense Wireless Controller (STANDARD GAMEPAD Vendor: 054c Pr"
+                                    << "DualSense Wireless Controller";
+        QTest::newRow("chrome cut xbox") << "Xbox Wireless Controller (STANDARD GAMEPAD Vendor: 045e Product"
+                                         << "Xbox Wireless Controller";
+        QTest::newRow("chrome cut ps4") << "Wireless Controller (STANDARD GAMEPAD Vendor: 054c Product: 09c"
+                                        << "Wireless Controller";
         QTest::newRow("firefox") << "054c-0ce6-DualSense Wireless Controller"
                                  << "DualSense Wireless Controller";
         QTest::newRow("plain") << "Steam Deck (Rev 2)" << "Steam Deck (Rev 2)";
