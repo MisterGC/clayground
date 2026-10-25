@@ -178,6 +178,17 @@ Rectangle {
                         color: root.textColor
                     }
 
+                    // Firefox reports an untouched pad as pressed (#474), so
+                    // the backend lists it and reads nothing of it
+                    Text {
+                        objectName: "unsupportedHint"
+                        visible: thePadView.pad.type === "unsupported"
+                        text: "Gamepad found, but Firefox isn't supported yet - please play in Chrome"
+                        font.family: root.monoFont
+                        font.pixelSize: 12
+                        color: "#f0a050"
+                    }
+
                     Flow {
                         width: parent.width
                         spacing: 4
