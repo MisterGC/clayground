@@ -86,9 +86,9 @@ CharacterController {
 
 ## Physical gamepads
 
-On Linux (the Steam Deck included), Windows and macOS a `GameController` reads
-physical gamepads through SDL3's gamepad part, linked into the plugin. The
-WebAssembly, iOS and Android builds read none yet: there `gamepads` stays
+On Linux (the Steam Deck included), Windows, macOS and iOS a `GameController`
+reads physical gamepads through SDL3's gamepad part, linked into the plugin.
+The WebAssembly and Android builds read none yet: there `gamepads` stays
 empty and `numConnectedGamepads` 0, and keyboard, touch and the dojo work as
 everywhere.
 
@@ -148,8 +148,9 @@ What SDL handles:
   `gamecontrollerdb.txt` through the environment: `SDL_GAMECONTROLLERCONFIG`
   holds mapping lines, `SDL_GAMECONTROLLERCONFIG_FILE` names a file of them.
   Both are read when the first `GameController` starts.
-- **Drivers.** SDL's HIDAPI drivers read the Steam Deck's built-in controls
-  and PlayStation and Switch pads directly, past the system's own driver.
+- **Drivers.** On the desktop SDL's HIDAPI drivers read the Steam Deck's
+  built-in controls and PlayStation and Switch pads directly, past the
+  system's own driver.
 - **Steam's virtual pad.** Steam Input presents a game with a virtual pad of
   its own. SDL hides that virtual pad unless the environment allows it
   (`SDL_GAMECONTROLLER_ALLOW_STEAM_VIRTUAL_GAMEPAD`, which Steam sets when it
@@ -161,8 +162,29 @@ What SDL handles:
 - `SDL_GAMECONTROLLER_IGNORE_DEVICES` (a list of `0xVID/0xPID`) hides pads by
   hand.
 
-The build option `CLAY_GAMEPAD_SDL` (on for desktop builds) turns SDL off; SDL
-is fetched at configure time, pinned to a release.
+On iOS SDL reads the pads iOS pairs itself - MFi pads and Xbox, PlayStation
+and Switch Pro controllers - through Apple's GameController framework, while
+Qt keeps the app's `main()`. SDL's HIDAPI drivers are not in the iOS build:
+the Steam Controller is not read there, and an app needs no Bluetooth usage
+text in its `Info.plist`. A phone has no keyboard, so touch is the default
+there and a pad connected mid-session takes over:
+
+```qml
+GameController {
+    function pickSource() {
+        if (numConnectedGamepads > 0) selectGamepad(0)
+        else selectTouchscreenGamepad()
+    }
+    Component.onCompleted: pickSource()
+    onNumConnectedGamepadsChanged: pickSource()
+}
+```
+
+The demo does this on a phone or tablet. `examples/gamecontroller` builds it
+as an app of its own, for a device without the Dojo.
+
+The build option `CLAY_GAMEPAD_SDL` (on for desktop and iOS builds) turns SDL
+off; SDL is fetched at configure time, pinned to a release.
 
 ## Core Components
 
@@ -268,9 +290,11 @@ GameController {
     id: mobileController
     anchors.fill: parent
 
-    Component.onCompleted: {
-        // Auto-select input based on platform
-        if (Qt.platform.os === "android" || Qt.platform.os === "ios") {
+    // A pad while one is connected, else touch on a phone, keys elsewhere
+    function pickSource() {
+        if (numConnectedGamepads > 0) {
+            selectGamepad(0)
+        } else if (Qt.platform.os === "android" || Qt.platform.os === "ios") {
             selectTouchscreenGamepad()
         } else {
             selectKeyboard(
@@ -280,6 +304,8 @@ GameController {
             )
         }
     }
+    Component.onCompleted: pickSource()
+    onNumConnectedGamepadsChanged: pickSource()
 }
 ```
 
@@ -419,7 +445,7 @@ The GameController plugin implements:
 - **Visual Feedback**: Built-in debug visualization
 - **Touch Adaptation**: Virtual joystick with visual feedback for touch screens
 - **Two layouts**: `nes`, a stick and two buttons, and `full`, the inputs of a modern gamepad
-- **Physical gamepads**: SDL3's gamepad part behind one backend interface (`gamepadbackend.h`), pumped from a timer at 125 Hz, without a window of its own; the browser and iOS get backends of their own behind the same interface
+- **Physical gamepads**: SDL3's gamepad part behind one backend interface (`gamepadbackend.h`), pumped from a timer at 125 Hz, without a window of its own, on the desktop and on iOS; the browser gets a backend of its own behind the same interface
 
 ## API Reference
 

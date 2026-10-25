@@ -84,7 +84,7 @@
     \list
     \li \b Keyboard - Map any keys to directions and buttons
     \li \b Gamepad - Physical game controllers (Xbox, PlayStation, Switch,
-         the Steam Deck), read through SDL3 on Linux, Windows and macOS
+         the Steam Deck), read through SDL3 on Linux, Windows, macOS and iOS
     \li \b Touchscreen - Virtual on-screen gamepad overlay
     \endlist
 
@@ -197,8 +197,8 @@
     \qmlproperty var GameController::gamepads
     \readonly
     The physical gamepads connected to the machine, in the order they were
-    connected; empty on WebAssembly, iOS and Android builds, which read no
-    pads yet. Each pad has these properties:
+    connected; empty on WebAssembly and Android builds, which read no pads
+    yet. Each pad has these properties:
 
     \list
     \li \c deviceId - unique while the pad is connected
@@ -283,7 +283,7 @@
     \brief Internal singleton listing the connected physical gamepads.
 
     GamepadHub reads physical pads through one backend - SDL3 on Linux,
-    Windows and macOS - polled 125 times a second, and lists them. Games use
+    Windows, macOS and iOS - polled 125 times a second, and lists them. Games use
     GameController.gamepads, numConnectedGamepads and selectGamepad() rather
     than the hub.
 
