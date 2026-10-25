@@ -937,8 +937,6 @@ void TestInspectorUnit::testGamepadInputSetsEveryInput()
     QCOMPARE(state["triggerR2"].toDouble(), 0.0);
     QCOMPARE(state["buttonStart"].toBool(), true);
     QCOMPARE(state["buttonSelect"].toBool(), false);
-    QCOMPARE(inputCtrl.axisX(), -1.0);
-    QCOMPARE(inputCtrl.buttonA(), true);
 
     // A second request replaces the state rather than merging into it.
     QJsonObject req2{{"action", "input"}, {"id", "g2"},

@@ -53,10 +53,6 @@ class ClayInputControl : public QObject
     Q_OBJECT
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
     Q_PROPERTY(QVariantMap gamepad READ gamepad NOTIFY stateChanged)
-    Q_PROPERTY(double axisX READ axisX NOTIFY stateChanged)
-    Q_PROPERTY(double axisY READ axisY NOTIFY stateChanged)
-    Q_PROPERTY(bool buttonA READ buttonA NOTIFY stateChanged)
-    Q_PROPERTY(bool buttonB READ buttonB NOTIFY stateChanged)
 
 public:
     explicit ClayInputControl(QObject* parent = nullptr);
@@ -68,10 +64,6 @@ public:
 
     bool active() const { return m_active; }
     QVariantMap gamepad() const { return m_gamepad; }
-    double axisX() const { return m_gamepad.value("axisX").toDouble(); }
-    double axisY() const { return m_gamepad.value("axisY").toDouble(); }
-    bool buttonA() const { return m_gamepad.value("buttonA").toBool(); }
-    bool buttonB() const { return m_gamepad.value("buttonB").toBool(); }
 
     // Replaces the whole state: an input missing from state is neutral, a
     // name that is no input is dropped. durationMs > 0 resets to neutral

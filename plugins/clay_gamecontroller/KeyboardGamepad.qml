@@ -12,29 +12,23 @@
     \qmlproperty bool KeyboardGamepad::enabled
     \brief Whether keyboard input handling is active.
 
-    \qmlproperty var KeyboardGamepad::upKey
-    \brief Qt.Key value for up direction.
+    \qmlproperty var KeyboardGamepad::keys
+    \brief Map from input name (as GameController.inputs names it) to the
+    Qt.Key that sets it.
 
-    \qmlproperty var KeyboardGamepad::downKey
-    \brief Qt.Key value for down direction.
-
-    \qmlproperty var KeyboardGamepad::leftKey
-    \brief Qt.Key value for left direction.
-
-    \qmlproperty var KeyboardGamepad::rightKey
-    \brief Qt.Key value for right direction.
-
-    \qmlproperty var KeyboardGamepad::buttonAKey
-    \brief Qt.Key value for button A.
-
-    \qmlproperty var KeyboardGamepad::buttonBKey
-    \brief Qt.Key value for button B.
+    A button or a trigger takes one key; an axis takes
+    [negative key, positive key], so \c {axisY: [Qt.Key_S, Qt.Key_W]} is down
+    and up. Inputs the controller's layout lacks are ignored.
 
     \qmlproperty GameController KeyboardGamepad::gameController
     \brief Reference to the parent GameController.
 
     \qmlmethod void KeyboardGamepad::configure(var uk, var dk, var lk, var rk, var bA, var bB)
-    \brief Configures all key mappings at once.
+    \brief Maps the stick and two buttons, as GameController.selectKeyboard()
+    always has: the key \a bA presses B, the key \a bB presses A.
+
+    \qmlmethod void KeyboardGamepad::configureKeys(var keys)
+    \brief Sets \l keys and releases every key.
 
     \qmlmethod void KeyboardGamepad::releaseAll()
     \brief Forgets every held key and writes neutral axes and released buttons.
@@ -52,26 +46,35 @@ Item
     id: theKeyboard
 
     enabled: false
-    property var upKey: null
-    property var downKey: null
-    property var leftKey: null
-    property var rightKey: null
-    property var buttonAKey: null
-    property var buttonBKey: null
+    property var keys: ({})
     property var gameController: null
 
     // Held keys as key code -> true. Axes are derived from it rather than set
     // per event: setting on press and clearing on release lost the opposite
     // key still held (hold A, tap D, release D -> axisX 0).
     property var _held: ({})
+    // Key code -> true for every key in keys
+    property var _mapped: ({})
 
+    // The fifth key has always pressed B and the sixth A; games rely on it.
     function configure(uk, dk, lk, rk, bA, bB) {
-        upKey = uk;
-        downKey = dk;
-        leftKey = lk;
-        rightKey = rk;
-        buttonAKey = bA;
-        buttonBKey = bB;
+        configureKeys({axisX: [lk, rk], axisY: [dk, uk],
+                       buttonA: bB, buttonB: bA});
+    }
+
+    function configureKeys(k) {
+        const mapped = {};
+        for (const name in k) {
+            const key = k[name];
+            if (Array.isArray(key)) {
+                if (name.startsWith("button"))
+                    console.warn("KeyboardGamepad: " + name + " takes one key");
+                for (const one of key) mapped[one] = true;
+            }
+            else mapped[key] = true;
+        }
+        keys = k;
+        _mapped = mapped;
         releaseAll();
     }
 
@@ -86,18 +89,22 @@ Item
         if (Object.keys(_held).length > 0) releaseAll();
     }
 
-    function _isMapped(key) {
-        return key === upKey || key === downKey || key === leftKey ||
-               key === rightKey || key === buttonAKey || key === buttonBKey;
-    }
+    function _isMapped(key) { return !!_mapped[key]; }
 
     function _apply() {
         if (!enabled || !gameController) return;
         const h = _held;
-        gameController.axisX = (h[rightKey] ? 1 : 0) - (h[leftKey] ? 1 : 0);
-        gameController.axisY = (h[upKey] ? 1 : 0) - (h[downKey] ? 1 : 0);
-        gameController.buttonBPressed = !!h[buttonAKey];
-        gameController.buttonAPressed = !!h[buttonBKey];
+        for (const name in keys) {
+            const key = keys[name];
+            let value;
+            if (Array.isArray(key))
+                value = (h[key[1]] ? 1 : 0) - (h[key[0]] ? 1 : 0);
+            else if (name.startsWith("button"))
+                value = !!h[key];
+            else
+                value = h[key] ? 1 : 0;
+            gameController._write(name, value);
+        }
     }
 
     onEnabledChanged: _held = {}
@@ -112,6 +119,12 @@ Item
         function onActiveChanged() {
             if (!theKeyboard.Window.window.active) theKeyboard._releaseHeld();
         }
+    }
+
+    // Keys held while the layout changes set the inputs it now has.
+    Connections {
+        target: theKeyboard.gameController
+        function onLayoutChanged() { theKeyboard._apply(); }
     }
 
     Keys.onPressed: (event)=> {
