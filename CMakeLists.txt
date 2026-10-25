@@ -19,6 +19,16 @@ project (Clayground
          HOMEPAGE_URL "https://github.com/MisterGC/clayground"
          LANGUAGES CXX)
 
+# SDL3, linked statically into Clayground.GameController for physical pads
+# (#82), compiles Objective-C on Apple. CMake wants a language enabled in the
+# highest directory whose targets compile it or link it; SDL enables it only
+# in its own, below the plugin that links it. A game that adds Clayground with
+# add_subdirectory() failed to generate ("Missing variable
+# CMAKE_OBJC_COMPILE_OBJECT") until it enabled OBJC itself.
+if(APPLE)
+    enable_language(OBJC)
+endif()
+
 # Initializes global context that Clayground relies on
 # Must be after project() so platform detection (EMSCRIPTEN, etc.) works
 include("${CMAKE_CURRENT_LIST_DIR}/cmake/clayinit.cmake")
