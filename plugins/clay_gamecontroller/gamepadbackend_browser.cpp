@@ -46,8 +46,10 @@ BrowserGamepadBackend::BrowserGamepadBackend(QObject *parent)
 
 QString BrowserGamepadBackend::padName(const QString &id)
 {
+    // emscripten hands the id over in 64 bytes, so Chrome's suffix often
+    // arrives cut off before its closing parenthesis
     static const QRegularExpression chrome(
-        QStringLiteral("\\s*\\([^()]*(?:STANDARD GAMEPAD|Vendor:)[^()]*\\)\\s*$"));
+        QStringLiteral("\\s*\\([^()]*(?:STANDARD GAMEPAD|Vendor:)[^()]*\\)?\\s*$"));
     static const QRegularExpression firefox(
         QStringLiteral("^[0-9a-fA-F]{1,4}-[0-9a-fA-F]{1,4}-"));
     QString name = id;
