@@ -164,6 +164,13 @@ In the browser - the WebAssembly build, the WebDojo included - pads come from
 `navigator.getGamepads()`, read 125 times a second like SDL on the desktop.
 What the browser decides:
 
+- **Firefox is not supported yet.** Firefox 158 on macOS reported an untouched
+  Switch Pro Controller with buttons pressed and its stick moving, while
+  Chrome on the same Mac read it clean. So in Firefox a pad is listed, with
+  `type` `unsupported` and no buttons or axes, and drives no input; the demo
+  asks the player to use Chrome. Lifting this where Firefox delivers clean
+  input is [#474](https://github.com/MisterGC/clayground/issues/474).
+
 - **A pad shows up only after it is pressed.** A browser hides the pads from
   a page until someone presses a button or moves a stick on one while the
   page is in front; in Firefox, once one pad has been used, the others show

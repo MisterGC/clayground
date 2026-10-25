@@ -207,8 +207,8 @@
     \li \c name - the pad's name, e.g. "Xbox Series X Controller"
     \li \c type - \c xbox360, \c xboxone, \c ps3, \c ps4, \c ps5,
          \c switchpro, \c steam, ... or \c standard; in the browser
-         \c standard, or \c unmapped for a pad the browser does not map to
-         its standard gamepad
+         \c standard, \c unmapped for a pad the browser does not map to
+         its standard gamepad, or \c unsupported in Firefox
     \li \c buttons - the buttons it has, by position: \c south, \c east,
          \c west, \c north, \c back, \c guide, \c start, \c leftStick,
          \c rightStick, \c leftShoulder, \c rightShoulder, \c dpadUp,
@@ -233,7 +233,10 @@
     browser maps to its standard gamepad reports its standard buttons and
     axes; one it does not map is read by the same numbering, and its buttons
     may come up under other names. The browser names no make and no face
-    button labels, so \c labels is empty there. A game in an iframe whose
+    button labels, so \c labels is empty there. Firefox is not supported
+    yet: it reported an untouched pad with buttons pressed, so there a pad is
+    listed with type \c unsupported and no buttons or axes, and drives no
+    input (clayground#474). A game in an iframe whose
     embedding page restricts \c gamepad in its Permissions-Policy needs
     \c {allow="gamepad"} on the iframe.
 
