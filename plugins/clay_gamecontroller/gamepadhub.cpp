@@ -6,6 +6,9 @@
 #ifdef CLAY_GAMEPAD_SDL
 #include "gamepadbackend_sdl.h"
 #endif
+#ifdef Q_OS_WASM
+#include "gamepadbackend_browser.h"
+#endif
 
 namespace {
 
@@ -63,6 +66,9 @@ GamepadHub::GamepadHub(QObject *parent)
     auto *sdl = new SdlGamepadBackend(this);
     if (sdl->isValid()) backend_ = sdl;
     else delete sdl;
+#endif
+#ifdef Q_OS_WASM
+    backend_ = new BrowserGamepadBackend(this);
 #endif
     if (!backend_) return;
 
