@@ -142,7 +142,7 @@ jobs:
         path: |
           build/_deps/*-src
           build/_deps/*-subbuild
-        key: fetchcontent-${{ matrix.os }}-${{ hashFiles('plugins/clay_network/CMakeLists.txt', 'plugins/clay_network/patches/**', 'plugins/clay_ai/CMakeLists.txt') }}
+        key: fetchcontent-${{ matrix.os }}-${{ hashFiles('plugins/clay_network/CMakeLists.txt', 'plugins/clay_network/patches/**', 'plugins/clay_ai/CMakeLists.txt', 'plugins/clay_gamecontroller/CMakeLists.txt') }}
 
     # clay-dev-server's signaling relay needs wsproto; with it, configure
     # registers the net gym's Cloud run (network_sync_gym_cloud, #301)
@@ -515,7 +515,7 @@ jobs:
         path: |
           build/_deps/*-src
           build/_deps/*-subbuild
-        key: fetchcontent-ubuntu-latest-${{ hashFiles('plugins/clay_network/CMakeLists.txt', 'plugins/clay_network/patches/**', 'plugins/clay_ai/CMakeLists.txt') }}
+        key: fetchcontent-ubuntu-latest-${{ hashFiles('plugins/clay_network/CMakeLists.txt', 'plugins/clay_network/patches/**', 'plugins/clay_ai/CMakeLists.txt', 'plugins/clay_gamecontroller/CMakeLists.txt') }}
 
     - name: Build the Loader
       run: |

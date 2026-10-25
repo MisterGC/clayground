@@ -4,7 +4,8 @@ import QtQuick
 import QtTest
 import Clayground.GameController
 
-// GameControllerDV shows every input of the layout, live (#463).
+// GameControllerDV shows every input of the layout, live (#463), and the
+// selected pad by name (#82).
 Item {
     id: root
     width: 800; height: 400
@@ -52,6 +53,21 @@ Item {
         function test_full_shows_every_input() {
             ctrl.layout = "full";
             exercise();
+        }
+
+        // #82
+        function test_names_the_selected_gamepad() {
+            if (GamepadHub.backend !== "sdl")
+                skip("this build reads no physical pads (" + GamepadHub.backend + ")");
+            const id = GamepadHub.attachVirtualGamepad("Clay Test Pad");
+            verify(id > 0);
+            let index = -1;
+            for (let i = 0; i < ctrl.gamepads.length; ++i)
+                if (ctrl.gamepads[i].deviceId === id) index = i;
+            ctrl.selectGamepad(index);
+            compare(indicator("source").text, ctrl.layout + " · Clay Test Pad");
+            GamepadHub.detachVirtualGamepad(id);
+            compare(indicator("source").text, ctrl.layout + " · None");
         }
     }
 }
