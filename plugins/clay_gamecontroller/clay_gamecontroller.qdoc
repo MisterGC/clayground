@@ -85,6 +85,7 @@
     \li \b Keyboard - Map any keys to directions and buttons
     \li \b Gamepad - Physical game controllers (Xbox, PlayStation, Switch,
          the Steam Deck), read through SDL3 on Linux, Windows and macOS
+         and through the Gamepad API in the browser
     \li \b Touchscreen - Virtual on-screen gamepad overlay
     \endlist
 
@@ -197,14 +198,17 @@
     \qmlproperty var GameController::gamepads
     \readonly
     The physical gamepads connected to the machine, in the order they were
-    connected; empty on WebAssembly, iOS and Android builds, which read no
-    pads yet. Each pad has these properties:
+    connected; empty on iOS and Android builds, which read no pads yet. In
+    the browser a pad is listed only once it was pressed with the page in
+    front. Each pad has these properties:
 
     \list
     \li \c deviceId - unique while the pad is connected
     \li \c name - the pad's name, e.g. "Xbox Series X Controller"
     \li \c type - \c xbox360, \c xboxone, \c ps3, \c ps4, \c ps5,
-         \c switchpro, \c steam, ... or \c standard
+         \c switchpro, \c steam, ... or \c standard; in the browser
+         \c standard, or \c unmapped for a pad the browser does not map to
+         its standard gamepad
     \li \c buttons - the buttons it has, by position: \c south, \c east,
          \c west, \c north, \c back, \c guide, \c start, \c leftStick,
          \c rightStick, \c leftShoulder, \c rightShoulder, \c dpadUp,
@@ -224,6 +228,14 @@
     file of them, \c SDL_GAMECONTROLLERCONFIG_FILE. Under Steam Input a game
     sees Steam's virtual pad, named after the pad it stands for, instead of
     the physical one.
+
+    In the browser the pads come from \c navigator.getGamepads(). A pad the
+    browser maps to its standard gamepad reports its standard buttons and
+    axes; one it does not map is read by the same numbering, and its buttons
+    may come up under other names. The browser names no make and no face
+    button labels, so \c labels is empty there. A game in an iframe whose
+    embedding page restricts \c gamepad in its Permissions-Policy needs
+    \c {allow="gamepad"} on the iframe.
 
     \qmlproperty var GameController::gamepad
     \readonly
@@ -283,7 +295,8 @@
     \brief Internal singleton listing the connected physical gamepads.
 
     GamepadHub reads physical pads through one backend - SDL3 on Linux,
-    Windows and macOS - polled 125 times a second, and lists them. Games use
+    Windows and macOS, the browser's Gamepad API on WebAssembly - polled 125
+    times a second, and lists them. Games use
     GameController.gamepads, numConnectedGamepads and selectGamepad() rather
     than the hub.
 
@@ -291,8 +304,8 @@
 
     \qmlproperty string GamepadHub::backend
     \readonly
-    The backend reading the pads: \c sdl, or \c none where the build reads
-    no pads.
+    The backend reading the pads: \c sdl, \c browser, or \c none where
+    the build reads no pads.
 
     \qmlproperty list GamepadHub::gamepads
     \readonly
