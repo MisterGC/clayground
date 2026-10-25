@@ -31,13 +31,19 @@ a player.
 and keyboard events, and requires the page to print "TYPED:<text>" - for a
 TextInput that has to get the keys a person types (#405).
 
+--gamepad replaces the page's navigator.getGamepads() with pads the harness
+drives, and plays a JSON list of steps on them once the page has loaded:
+each step plugs a pad in, presses a button, moves an axis or unplugs it, and
+may name a console line the page must print next (#464). Until the first
+step there is no pad, as in a browser before anyone pressed a button.
+
 Usage:
     python3 wasm_smoke_test.py <starter-dir> [--screenshot out.png] [--timeout 180]
                                [--overlay dir] [--expect "marker"] [--click]
                                [--audio-probe] [--require-audible p1,p2]
                                [--site-example src[:name]] [--site-entry Sandbox.qml]
                                [--site-gate file.qml] [--reload-expect "marker"]
-                               [--type "x,y:text"]
+                               [--type "x,y:text"] [--gamepad steps.json]
 
 Requires: pip install playwright
 Uses the system Chrome when available, otherwise a Playwright-managed
@@ -45,6 +51,7 @@ Chromium (python -m playwright install chromium).
 """
 import argparse
 import functools
+import json
 import http.server
 import os
 import shutil
@@ -144,6 +151,36 @@ AUDIO_PROBE_JS = r"""
   };
 })();
 """
+# Stands in for navigator.getGamepads() (--gamepad): four empty slots, as
+# Chrome reports them, filled and changed by window.__clayPadStep(step).
+# A pad is shaped like the browser's standard gamepad - 17 buttons, 4 axes.
+GAMEPAD_JS = r"""
+(() => {
+  const slots = [null, null, null, null];
+  navigator.getGamepads = () => slots.slice();
+  window.__clayPadStep = (step) => {
+    const i = step.slot || 0;
+    if (step.connect !== undefined) {
+      slots[i] = {
+        id: step.connect, index: i, connected: true,
+        mapping: step.mapping !== undefined ? step.mapping : "standard",
+        timestamp: performance.now(),
+        axes: [0, 0, 0, 0],
+        buttons: Array.from({length: 17}, () => ({pressed: false, touched: false, value: 0})),
+      };
+    }
+    if (step.disconnect) { slots[i] = null; return; }
+    const pad = slots[i];
+    if (!pad) throw new Error("no pad in slot " + i);
+    if (step.button !== undefined) {
+      const v = step.value !== undefined ? step.value : 1;
+      pad.buttons[step.button] = {pressed: v > 0, touched: v > 0, value: v};
+    }
+    if (step.axis !== undefined) pad.axes[step.axis] = step.value;
+    pad.timestamp = performance.now();
+  };
+})();
+"""
 
 
 class IsolatedHandler(http.server.SimpleHTTPRequestHandler):
@@ -222,6 +259,12 @@ def main():
                     help="after the page loaded and printed --expect, click it "
                          "at x,y and type text: \"x,y:text\"; the page must "
                          "then print TYPED:<text>")
+    ap.add_argument("--gamepad", default="",
+                    help="JSON list of steps played on a scripted gamepad once "
+                         "the page has loaded: {connect: id} | {button: i, value} "
+                         "| {axis: i, value} | {disconnect: true}, each with an "
+                         "optional slot, expect (console line the page must "
+                         "print next) and screenshot (file written after it)")
     args = ap.parse_args()
     if args.type and (args.site_example or args.reload_expect):
         print("FAIL: --type is not supported with --site-example or --reload-expect")
@@ -305,6 +348,15 @@ def run(args, serve_dir):
     reloaded_ok = not args.reload_expect
     type_at, _, type_text = args.type.partition(":")
     typed_ok = not args.type
+    steps = []
+    if args.gamepad:
+        with open(args.gamepad) as f:
+            steps = json.load(f)
+    # Every console line, so a step can look for its line among those that
+    # came after it - an input may read the same value more than once
+    lines = []
+    # The step that never got its line, None while there is none
+    failed_step = None
     errors = []
     phase = "start"
     # phase name -> {"rms": loudest sample, "samples": n, "state": last
@@ -320,6 +372,8 @@ def run(args, serve_dir):
         page = browser.new_page()
         if args.audio_probe:
             page.add_init_script(AUDIO_PROBE_JS)
+        if args.gamepad:
+            page.add_init_script(GAMEPAD_JS)
 
         def sample_audio():
             try:
@@ -340,6 +394,7 @@ def run(args, serve_dir):
             nonlocal reloaded_ok, typed_ok
             text = msg.text
             print(f"[console] {text}")
+            lines.append(text)
             if PHASE_MARKER in text:
                 phase = text.split(PHASE_MARKER, 1)[1].strip()
             if args.type and TYPED_MARKER in text \
@@ -433,6 +488,19 @@ def run(args, serve_dir):
                 page.wait_for_timeout(500)
                 page.keyboard.type(type_text, delay=100)
                 wait_until(lambda: typed_ok)
+        if steps and qml_loaded and marker_seen and not errors:
+            for n, step in enumerate(steps, 1):
+                seen = len(lines)
+                page.evaluate("s => window.__clayPadStep(s)", step)
+                expect = step.get("expect", "")
+                if expect and not wait_until(
+                        lambda: any(expect in l for l in lines[seen:])):
+                    failed_step = (n, step)
+                    break
+                if step.get("screenshot"):
+                    page.wait_for_timeout(500)
+                    page.screenshot(path=step["screenshot"])
+                    print(f"Screenshot written to {step['screenshot']}")
         page.wait_for_timeout(1500)  # let trailing errors and rendering arrive
         if args.screenshot:
             page.screenshot(path=args.screenshot)
@@ -489,6 +557,11 @@ def run(args, serve_dir):
         print(f"FAIL: typed {type_text!r} at {type_at}, the page never printed "
               f"{TYPED_MARKER + type_text!r} - the keys did not reach the field")
         return 1
+    if failed_step:
+        n, step = failed_step
+        print(f"FAIL: gamepad step {n} {json.dumps(step)} - the page never "
+              f"printed {step['expect']!r}")
+        return 1
     for name in (n.strip() for n in args.require_audible.split(",") if n.strip()):
         slot = audio.get(name)
         if not slot or not slot["samples"]:
@@ -510,6 +583,8 @@ def run(args, serve_dir):
         what += f", reloaded page printed {args.reload_expect!r}"
     if args.type:
         what += f", typed {type_text!r} into the page"
+    if steps:
+        what += f", {len(steps)} gamepad steps answered"
     print(f"PASS: runtime booted, {what}, all required QML modules available, "
           f"/game/ FS works")
     return 0

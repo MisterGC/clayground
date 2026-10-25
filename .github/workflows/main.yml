@@ -402,6 +402,20 @@ jobs:
             --timeout 90
         done
 
+    # GameController reads pads through navigator.getGamepads() on the web
+    # (#464). No runner has a pad, so the harness stands in for the browser's
+    # list: no pad until the first press, then every button and axis of the
+    # standard gamepad in turn, then unplugged - and the page has to report
+    # each input of the full layout as it changes.
+    - name: Gamepad Regression
+      if: matrix.group == 'pages'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/gamepad \
+          --expect "gamepad: ready backend=browser pads=0" \
+          --gamepad tools/webdojo/tests/pages/gamepad/steps.json \
+          --timeout 120
+
     - name: Music Regression
       if: matrix.group == 'pages'
       run: |
