@@ -602,6 +602,9 @@ Combine with snapshots/eval to inspect frozen moments frame by frame.
 `gamepad` drives every GameController through a synthetic source
 (imperative like keyboard input — human and agent input coexist);
 `durationMs` auto-neutralizes, giving you "hold right for 600 ms".
+It takes every input of the `full` layout (`axisRightX`, `buttonX`,
+`buttonL1`, `triggerR2`, `buttonStart`, …); a `nes` controller reads only
+`axisX`, `axisY`, `buttonA`, `buttonB`, and a misspelt name fails.
 `key` synthesizes window key events; `click` addresses window pixels
 (`x`/`y`), world units (`xWu`/`yWu`, canvas apps only), or an item by
 `objectName`. Combine with `trace` (`stopWhen`) for closed-loop

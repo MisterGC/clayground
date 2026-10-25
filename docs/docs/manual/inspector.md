@@ -356,8 +356,13 @@ Three channels, combinable in one request:
 
 - **gamepad** — feeds a synthetic source in every `GameController`
   (imperative writes, exactly like keyboard input, so human and agent input
-  coexist). `durationMs` auto-resets to neutral — the "hold right for 600 ms"
-  primitive.
+  coexist). It takes every input name of the `full` layout: `axisX`, `axisY`,
+  `axisRightX`, `axisRightY`, `triggerL2`, `triggerR2` as numbers, `buttonA`,
+  `buttonB`, `buttonX`, `buttonY`, `buttonL1`, `buttonR1`, `buttonStart`,
+  `buttonSelect` as booleans; a controller with the `nes` layout reads only
+  `axisX`, `axisY`, `buttonA` and `buttonB`. An input not given is neutral,
+  and a name that is no input fails the request. `durationMs` auto-resets to
+  neutral — the "hold right for 600 ms" primitive.
 - **key** — synthesizes a key press/release on the window
   (`press`/`release` booleans, default both).
 - **click** — addressed by window pixels (`x`/`y`, works in any QML app),
