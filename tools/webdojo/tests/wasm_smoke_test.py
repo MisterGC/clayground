@@ -34,8 +34,10 @@ TextInput that has to get the keys a person types (#405).
 --gamepad replaces the page's navigator.getGamepads() with pads the harness
 drives, and plays a JSON list of steps on them once the page has loaded:
 each step plugs a pad in, presses a button, moves an axis or unplugs it, and
-may name a console line the page must print next (#464). Until the first
-step there is no pad, as in a browser before anyone pressed a button.
+may name a console line the page must print next (#464) or one it must not
+have printed since the steps began (absent). Until the first step there is
+no pad, as in a browser before anyone pressed a button. --user-agent makes
+the page see another browser's navigator.userAgent.
 
 Usage:
     python3 wasm_smoke_test.py <starter-dir> [--screenshot out.png] [--timeout 180]
@@ -264,7 +266,11 @@ def main():
                          "the page has loaded: {connect: id} | {button: i, value} "
                          "| {axis: i, value} | {disconnect: true}, each with an "
                          "optional slot, expect (console line the page must "
-                         "print next) and screenshot (file written after it)")
+                         "print next), absent (a line it must not have printed "
+                         "since the steps began) and screenshot (file written "
+                         "after it)")
+    ap.add_argument("--user-agent", default="",
+                    help="the navigator.userAgent the page sees")
     args = ap.parse_args()
     if args.type and (args.site_example or args.reload_expect):
         print("FAIL: --type is not supported with --site-example or --reload-expect")
@@ -369,7 +375,7 @@ def run(args, serve_dir):
             print("FAIL: no Chromium available (try: python -m playwright install chromium)")
             return 2
 
-        page = browser.new_page()
+        page = browser.new_page(user_agent=args.user_agent or None)
         if args.audio_probe:
             page.add_init_script(AUDIO_PROBE_JS)
         if args.gamepad:
@@ -489,13 +495,18 @@ def run(args, serve_dir):
                 page.keyboard.type(type_text, delay=100)
                 wait_until(lambda: typed_ok)
         if steps and qml_loaded and marker_seen and not errors:
+            first = len(lines)
             for n, step in enumerate(steps, 1):
                 seen = len(lines)
                 page.evaluate("s => window.__clayPadStep(s)", step)
                 expect = step.get("expect", "")
                 if expect and not wait_until(
                         lambda: any(expect in l for l in lines[seen:])):
-                    failed_step = (n, step)
+                    failed_step = (n, step, f"never printed {expect!r}")
+                    break
+                absent = step.get("absent", "")
+                if absent and any(absent in l for l in lines[first:]):
+                    failed_step = (n, step, f"printed {absent!r}")
                     break
                 if step.get("screenshot"):
                     page.wait_for_timeout(500)
@@ -558,9 +569,8 @@ def run(args, serve_dir):
               f"{TYPED_MARKER + type_text!r} - the keys did not reach the field")
         return 1
     if failed_step:
-        n, step = failed_step
-        print(f"FAIL: gamepad step {n} {json.dumps(step)} - the page never "
-              f"printed {step['expect']!r}")
+        n, step, why = failed_step
+        print(f"FAIL: gamepad step {n} {json.dumps(step)} - the page {why}")
         return 1
     for name in (n.strip() for n in args.require_audible.split(",") if n.strip()):
         slot = audio.get(name)

@@ -4,7 +4,9 @@
 // bundle by wasm_smoke_test.py --gamepad steps.json. The harness stands in
 // for navigator.getGamepads(); this page selects the first pad that shows up
 // and prints every input of the full layout as it changes, so each step of
-// steps.json can name the line it has to produce.
+// steps.json can name the line it has to produce. steps-firefox.json, run
+// with a Firefox user agent, plays Firefox's noise on a pad that must drive
+// nothing.
 
 import QtQuick
 import Clayground.GameController
@@ -35,9 +37,13 @@ Rectangle {
         }
     }
 
-    // Every input that changed since the last frame, one line each
+    // Every input that changed since the last frame, one line each. Ready
+    // only after the first frame has printed them all, so every PAD line
+    // after it is a change.
     FrameAnimation {
+        id: watcher
         running: true
+        property bool ready: false
         onTriggered: {
             for (const name of controller.inputs) {
                 const v = controller.inputValue(name);
@@ -45,9 +51,10 @@ Rectangle {
                 controller._last[name] = v;
                 console.log("PAD " + name + "=" + controller._text(v));
             }
+            if (ready) return;
+            ready = true;
+            console.log("gamepad: ready backend=" + GamepadHub.backend +
+                        " pads=" + controller.numConnectedGamepads);
         }
     }
-
-    Component.onCompleted: console.log("gamepad: ready backend=" + GamepadHub.backend +
-                                       " pads=" + controller.numConnectedGamepads)
 }
