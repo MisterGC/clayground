@@ -6,7 +6,8 @@
     \brief One game action - swing, block, jump - read as a tap, a hold or a
     buffered press, timed on the game clock.
 
-    An InputAction is bound to a key, a mouse button or both, and measures
+    An InputAction is bound to a key, a mouse button, a controller button
+    or any of them together, and measures
     how its button is used: how long it is held (\l heldMs), how long ago it
     was pressed or released (\l pressedAgoMs, \l releasedAgoMs), whether a
     press was a tap or a hold (\l tapped, \l holdStarted, \l released), and
@@ -23,7 +24,10 @@
     \c Keys.forwardTo of the focused item. It leaves key events unaccepted,
     so the items after it in the list see them too. Mouse buttons stay with
     the game's own MouseArea, which keeps aiming and hit testing: the area
-    hands its events to press() and release().
+    hands its events to press() and release(). A controller button is read
+    from a GameController: name it in \l controllerButton, and whichever
+    source drives the controller - keyboard, touchscreen, the dojo's
+    synthetic pad - presses the action.
 
     \qml
     import QtQuick
@@ -74,6 +78,9 @@
     release, so a key press counts as released (without \l tapped) when the
     window's focus item changes or the window becomes inactive. A mouse
     press is the MouseArea's to end - pass its \c onCanceled to release().
+    A controller button press ends when the controller reports the button
+    up; changing \l controller or \l controllerButton while it is held
+    releases it without a tap.
     A disabled action ignores input and drops a press it holds.
 
     \sa GameController, PhysicsTimer
@@ -110,6 +117,25 @@ Item {
     property int mouseButton: Qt.NoButton
 
     /*!
+        \qmlproperty GameController InputAction::controller
+        \brief The GameController whose \l controllerButton presses the
+        action; null (default) for none.
+    */
+    property var controller: null
+
+    /*!
+        \qmlproperty string InputAction::controllerButton
+        \brief The controller button that presses the action, named as
+        GameController::inputs names it - \c "buttonA", \c "buttonX",
+        \c "buttonL1", \c "buttonStart"; empty (default) for none.
+
+        Only buttons count: a stick or trigger name presses nothing and
+        warns. A button the controller's layout lacks stays up, as the
+        controller keeps it.
+    */
+    property string controllerButton: ""
+
+    /*!
         \qmlproperty real InputAction::holdThresholdMs
         \brief Milliseconds from which a press is a hold, not a tap.
 
@@ -129,13 +155,14 @@ Item {
     /*!
         \qmlproperty bool InputAction::pressed
         \readonly
-        \brief True while the key or the mouse button holds the action.
+        \brief True while the key, the mouse button or the controller
+        button holds the action.
 
-        The action is pressed while either of them is down; it is released
+        The action is pressed while any of them is down; it is released
         when the last one goes up. In \c onPressedChanged for a press,
         \l releasedAgoMs still tells how long the action was up before it.
     */
-    readonly property bool pressed: _keyDown || _otherDown
+    readonly property bool pressed: _keyDown || _otherDown || _padDown
 
     /*!
         \qmlproperty real InputAction::heldMs
@@ -196,7 +223,7 @@ Item {
     */
     function press(mouse) {
         if (!_counts(mouse)) return false;
-        _setDown(false, true);
+        _setDown("other", true);
         return true;
     }
 
@@ -209,7 +236,7 @@ Item {
     */
     function release(mouse) {
         if (!_counts(mouse)) return false;
-        _setDown(false, false);
+        _setDown("other", false);
         return true;
     }
 
@@ -240,6 +267,7 @@ Item {
     property bool _claimed: true
     property bool _keyDown: false
     property bool _otherDown: false
+    property bool _padDown: false
     property bool _holdEmitted: false
 
     // timeStep is a float: twelve steps of 1/60 s sum to 199.99999 ms, not
@@ -262,9 +290,27 @@ Item {
         }
     }
 
-    // A release by focus loss or disabling is no tap: the player did not
-    // let go.
-    function _setDown(isKey, down, noTap) {
+    // The controller button as the controller holds it. The binding
+    // follows the controller's property whichever source writes it.
+    readonly property bool _padButton: controller !== null
+        && controllerButton.startsWith("button")
+        && !!controller.inputValue(controllerButton)
+
+    function _isDown(source) {
+        return source === "key" ? _keyDown
+             : source === "pad" ? _padDown : _otherDown;
+    }
+
+    function _othersDown(source) {
+        return (source !== "key" && _keyDown)
+            || (source !== "other" && _otherDown)
+            || (source !== "pad" && _padDown);
+    }
+
+    // source is "key", "pad" (the controller button) or "other" (mouse and
+    // press()). A release by focus loss, disabling or rebinding is no tap:
+    // the player did not let go.
+    function _setDown(source, down, noTap) {
         _tick();
         const was = pressed;
         if (!was && down) {
@@ -272,12 +318,14 @@ Item {
             _holdEmitted = false;
             _claimed = false;
         }
-        else if (was && !down && (isKey ? !_otherDown : !_keyDown)) {
+        else if (was && !down && !_othersDown(source)) {
             _checkHold();
             _releaseAt = _now;
         }
         const held = _now - _pressAt;
-        if (isKey) _keyDown = down; else _otherDown = down;
+        if (source === "key") _keyDown = down;
+        else if (source === "pad") _padDown = down;
+        else _otherDown = down;
         if (was && !pressed) {
             released(held);
             if (!noTap && !_holdEmitted) tapped();
@@ -285,14 +333,47 @@ Item {
     }
 
     function _releaseAll() {
-        if (_keyDown) _setDown(true, false, true);
-        if (_otherDown) _setDown(false, false, true);
+        for (const source of ["key", "other", "pad"])
+            if (_isDown(source)) _setDown(source, false, true);
+    }
+
+    // Presses come from the button's edges, read against the controller
+    // and button they were seen on: rebinding while held releases without
+    // a tap, and a button already down when it is bound, or when a
+    // disabled action is enabled again, waits for its next press.
+    property var _padCtrl: null
+    property string _padName: ""
+    property bool _padLast: false
+    function _syncPad() {
+        const now = _padButton;
+        if (_padCtrl !== controller || _padName !== controllerButton) {
+            _padCtrl = controller;
+            _padName = controllerButton;
+            if (_padDown) _setDown("pad", false, true);
+        }
+        else if (now && !_padLast && enabled) _setDown("pad", true);
+        else if (!now && _padDown) _setDown("pad", false);
+        _padLast = now;
+    }
+    on_PadButtonChanged: _syncPad()
+    onControllerChanged: _syncPad()
+    onControllerButtonChanged: {
+        if (controllerButton !== "" && !controllerButton.startsWith("button"))
+            console.warn("InputAction: '" + controllerButton +
+                         "' is no controller button");
+        _syncPad();
+    }
+    Component.onCompleted: {
+        _padCtrl = controller;
+        _padName = controllerButton;
+        _padLast = _padButton;
     }
 
     onEnabledChanged: if (!enabled) _releaseAll()
     onWorldChanged: {
         _keyDown = false;
         _otherDown = false;
+        _padDown = false;
         _pressAt = -Infinity;
         _releaseAt = -Infinity;
         _claimed = true;
@@ -323,11 +404,11 @@ Item {
     Connections {
         target: _action.Window.window
         function onActiveFocusItemChanged() {
-            if (_action._keyDown) _action._setDown(true, false, true);
+            if (_action._keyDown) _action._setDown("key", false, true);
         }
         function onActiveChanged() {
             if (!_action.Window.window.active && _action._keyDown)
-                _action._setDown(true, false, true);
+                _action._setDown("key", false, true);
         }
     }
 
@@ -335,13 +416,13 @@ Item {
         event.accepted = false;
         if (!enabled || key === 0 || event.key !== key || event.isAutoRepeat)
             return;
-        _setDown(true, true);
+        _setDown("key", true);
     }
 
     Keys.onReleased: (event) => {
         event.accepted = false;
         if (!enabled || key === 0 || event.key !== key || event.isAutoRepeat)
             return;
-        _setDown(true, false);
+        _setDown("key", false);
     }
 }
