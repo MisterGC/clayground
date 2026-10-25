@@ -38,13 +38,15 @@
         focus: true
         Keys.forwardTo: [swing, controller]
 
-        GameController { id: controller }
+        GameController { id: controller; layout: "full" }
 
         InputAction {
             id: swing
             world: theWorld.physics     // held by pause and a physics hit stop
             key: Qt.Key_J
             mouseButton: Qt.LeftButton
+            controller: controller      // and the pad's X, from any source
+            controllerButton: "buttonX"
             holdThresholdMs: 200
             onPressedChanged: if (pressed) trySwing()
             onReleased: (heldMs) => { if (heldMs >= 600) player.heavySwing() }
