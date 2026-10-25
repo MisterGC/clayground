@@ -8,10 +8,38 @@ class FakeBrowser : public BrowserGamepadBackend
 {
 public:
     QList<BrowserPadState> pads;
+    QString ua;
 
 protected:
     QList<BrowserPadState> sample() override { return pads; }
+    QString userAgent() const override { return ua; }
 };
+
+static const char *kFirefox =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:158.0) Gecko/20100101 Firefox/158.0";
+static const char *kChrome =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36";
+
+// A Switch Pro Controller as Firefox 158 on macOS reported it untouched:
+// buttons 1-8 and 15-17 read pressed in a share of the samples and axis 0
+// swung from -1 to 0.99. Frame n of that noise.
+static BrowserPadState noisyProController(const QString &id, int n)
+{
+    BrowserPadState s;
+    s.present = true;
+    s.id = id;
+    s.mapping = QStringLiteral("standard");
+    s.axes = {n % 2 ? .99 : -1.0, 0, 0, 0};
+    s.buttonValues.fill(0, 18);
+    s.buttonPressed.fill(false, 18);
+    for (int b : {1, 2, 3, 4, 5, 6, 7, 8, 15, 16, 17}) {
+        const bool on = (n + b) % 2;
+        s.buttonPressed[b] = on;
+        s.buttonValues[b] = on ? 1 : 0;
+    }
+    return s;
+}
 
 // A pad the browser maps to its standard gamepad: 17 buttons, 4 axes
 static BrowserPadState standardPad(const QString &id)
@@ -236,6 +264,46 @@ private slots:
         pollOnce();
         QCOMPARE(removed_.size(), 2);
         QVERIFY(removed_.contains(b));
+    }
+
+    void firefox_lists_a_pad_and_reads_nothing_of_it()
+    {
+        backend_->ua = kFirefox;
+        backend_->pads = {noisyProController("057e-2009-Pro Controller", 0)};
+        pollOnce();
+        QCOMPARE(added_.size(), 1);
+        QCOMPARE(added_.first().name, QStringLiteral("Pro Controller"));
+        QCOMPARE(added_.first().type, QStringLiteral("unsupported"));
+        QVERIFY(added_.first().buttons.isEmpty());
+        QVERIFY(added_.first().axes.isEmpty());
+        QVERIFY(changes_.isEmpty());
+
+        for (int n = 1; n < 20; ++n) {
+            backend_->pads = {noisyProController("057e-2009-Pro Controller", n)};
+            pollOnce();
+            QVERIFY2(changes_.isEmpty(), "Firefox's noise drives no input");
+            QVERIFY(added_.isEmpty());
+        }
+
+        // Unplugging still counts
+        backend_->pads.clear();
+        pollOnce();
+        QCOMPARE(removed_.size(), 1);
+    }
+
+    void chrome_reads_the_same_pad()
+    {
+        backend_->ua = kChrome;
+        const QString id = "Pro Controller (STANDARD GAMEPAD Vendor: 057e Product: 2009)";
+        backend_->pads = {noisyProController(id, 0)};
+        pollOnce();
+        QCOMPARE(added_.first().name, QStringLiteral("Pro Controller"));
+        QCOMPARE(added_.first().type, QStringLiteral("standard"));
+        QCOMPARE(added_.first().axes.size(), 6);
+        backend_->pads = {noisyProController(id, 1)};
+        pollOnce();
+        QVERIFY2(!changes_.isEmpty(), "outside Firefox every reading counts");
+        QCOMPARE(changed().value("leftX"), .99);
     }
 
     void virtual_pads_stand_in_for_the_browser()
