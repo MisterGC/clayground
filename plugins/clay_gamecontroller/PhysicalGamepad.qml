@@ -58,6 +58,11 @@ Item {
     property bool useStick: true
     property real deadzone: .2
 
+    // Input name -> the value last written. A pad reports raw changes all the
+    // time - a resting stick drifts inside its dead zone - and rewriting every
+    // input on each of them erased what the Dojo's agent input had set.
+    property var _written: ({})
+
     function select(index, useStick) {
         const pads = GamepadHub.gamepads;
         if (index < 0 || index >= pads.length) return false;
@@ -69,6 +74,7 @@ Item {
     function deselect() {
         if (deviceId === -1) return;
         deviceId = -1;
+        _written = {};
         _writeNeutral();
     }
 
@@ -103,24 +109,35 @@ Item {
         const dx = on("dpadRight") - on("dpadLeft");
         const dy = on("dpadUp") - on("dpadDown");
         const right = _stick(num("rightX"), -num("rightY"));
-        const c = gameController;
-        c._write("axisX", dx !== 0 ? dx : left[0]);
-        c._write("axisY", dy !== 0 ? dy : left[1]);
-        c._write("axisRightX", right[0]);
-        c._write("axisRightY", right[1]);
-        c._write("buttonA", on("south"));
-        c._write("buttonB", on("east"));
-        c._write("buttonX", on("west"));
-        c._write("buttonY", on("north"));
-        c._write("buttonL1", on("leftShoulder"));
-        c._write("buttonR1", on("rightShoulder"));
-        c._write("triggerL2", num("leftTrigger"));
-        c._write("triggerR2", num("rightTrigger"));
-        c._write("buttonStart", on("start"));
-        c._write("buttonSelect", on("back"));
+        // Only what the pad changed, so other sources' writes stand
+        const w = (name, value) => {
+            if (_written[name] === value) return;
+            _written[name] = value;
+            gameController._write(name, value);
+        };
+        w("axisX", dx !== 0 ? dx : left[0]);
+        w("axisY", dy !== 0 ? dy : left[1]);
+        w("axisRightX", right[0]);
+        w("axisRightY", right[1]);
+        w("buttonA", on("south"));
+        w("buttonB", on("east"));
+        w("buttonX", on("west"));
+        w("buttonY", on("north"));
+        w("buttonL1", on("leftShoulder"));
+        w("buttonR1", on("rightShoulder"));
+        w("triggerL2", num("leftTrigger"));
+        w("triggerR2", num("rightTrigger"));
+        w("buttonStart", on("start"));
+        w("buttonSelect", on("back"));
     }
 
-    onPadChanged: _apply()
+    // A newly selected pad and a new layout write every input once
+    function _applyAll() {
+        _written = {};
+        _apply();
+    }
+
+    onPadChanged: _applyAll()
     onUseStickChanged: _apply()
 
     // Not from onPadChanged: changing deviceId there re-enters pad's binding
@@ -136,6 +153,6 @@ Item {
 
     Connections {
         target: thePad.gameController
-        function onLayoutChanged() { thePad._apply(); }
+        function onLayoutChanged() { thePad._applyAll(); }
     }
 }

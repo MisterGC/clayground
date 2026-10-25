@@ -160,6 +160,26 @@ Item {
             fuzzyCompare(ctrl.axisX, -1, .01);
         }
 
+        // Another source's write stands until the pad changes that input
+        function test_pad_writes_only_the_inputs_it_changes() {
+            const id = attach("Clay Test Pad");
+            ctrl.selectGamepad(indexOf(id));
+            // As the Dojo's agent input writes
+            ctrl._write("buttonB", true);
+            ctrl._write("axisRightX", .5);
+            // Drift inside the dead zone and another input moving
+            set(id, "rightX", .05);
+            set(id, "leftX", .1);
+            set(id, "south", 1);
+            verify(ctrl.buttonAPressed);
+            verify(ctrl.buttonBPressed, "buttonB written by another source");
+            compare(ctrl.axisRightX, .5, "axisRightX written by another source");
+            // The pad takes an input over once it changes it
+            set(id, "east", 1);
+            set(id, "east", 0);
+            verify(!ctrl.buttonBPressed);
+        }
+
         function test_unplugging_the_selected_pad_releases_everything() {
             const id = attach("Clay Test Pad");
             ctrl.selectGamepad(indexOf(id));
