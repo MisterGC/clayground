@@ -21,6 +21,10 @@ Rectangle {
     // F1 or a tap on the layout line switches both controllers
     property string layout: "nes"
 
+    // A phone or tablet has no keyboard: there touch is the default and a
+    // connected pad takes over
+    readonly property bool mobile: Qt.platform.os === "ios" || Qt.platform.os === "android"
+
     // One map for both layouts: nes uses only the stick and A/B of it
     readonly property var keys: ({
         axisX: [Qt.Key_Left, Qt.Key_Right], axisY: [Qt.Key_Down, Qt.Key_Up],
@@ -63,7 +67,8 @@ Rectangle {
         }
 
         Text {
-            text: root.layout === "nes" ?
+            text: root.mobile ? "Left and right: touch" :
+                  root.layout === "nes" ?
                       "Left: keyboard - arrows, A, B  |  Right: touch" :
                       "Left: keyboard - arrows, IJKL, A B X Y, Q E (L1 R1), " +
                       "1 3 (L2 R2), Backspace Return (select start)  |  Right: touch"
@@ -100,6 +105,8 @@ Rectangle {
             function updateCtrl() {
                 if (numConnectedGamepads > 0)
                     selectGamepad(0);
+                else if (root.mobile)
+                    selectTouchscreenGamepad();
                 else
                     selectKeyboard(root.keys);
             }
