@@ -142,9 +142,13 @@ Rectangle {
             width: parent.width - 16
             spacing: 8
 
+            // A browser shows the page a pad only once it was pressed
             Text {
+                objectName: "noPadHint"
                 visible: controller1.numConnectedGamepads === 0
-                text: "No gamepad connected - plug one in, it shows up here"
+                text: Qt.platform.os === "wasm" ?
+                          "No gamepad yet - press any button on your pad, the browser shows it only then" :
+                          "No gamepad connected - plug one in, it shows up here"
                 font.family: root.monoFont
                 font.pixelSize: 12
                 color: root.dimTextColor
