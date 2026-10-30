@@ -72,6 +72,24 @@ Rectangle {
             color: root.dimTextColor
         }
 
+        // Button A of the left controller as a game reads it
+        Text {
+            property string last: "-"
+            text: "InputAction on left A: " + (aAction.pressed ?
+                      "held " + Math.round(aAction.heldMs) + " ms" : "up") +
+                  "  |  last: " + last
+            font.family: root.monoFont
+            font.pixelSize: 11
+            color: root.textColor
+            InputAction {
+                id: aAction
+                controller: controller1
+                controllerButton: "buttonA"
+                onTapped: parent.last = "tap"
+                onHoldStarted: parent.last = "hold"
+            }
+        }
+
         Text {
             text: "Connected gamepads: " + controller1.numConnectedGamepads
             font.family: root.monoFont
@@ -82,7 +100,7 @@ Rectangle {
 
     Row {
         anchors.fill: parent
-        anchors.topMargin: 90
+        anchors.topMargin: 110
 
         GameController {
             id: controller1

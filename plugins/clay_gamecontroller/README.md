@@ -242,13 +242,15 @@ ClayWorld2d {
         // Actions first: they leave key events unaccepted for the controller.
         Keys.forwardTo: [swing, controller]
 
-        GameController { id: controller }
+        GameController { id: controller; layout: "full" }
 
         InputAction {
             id: swing
             world: theWorld.physics
             key: Qt.Key_J
             mouseButton: Qt.LeftButton
+            controller: controller   // and the pad's X, from any source
+            controllerButton: "buttonX"
             holdThresholdMs: 200     // shorter is a tap, longer a hold
             bufferMs: 150            // a press stays claimable this long
             onPressedChanged: if (pressed) trySwing()
@@ -302,6 +304,12 @@ ClayWorld2d {
   `bufferMs` old - also for several presses made while the clock stands.
 - `press()` / `release()` without an event press the action from anything
   else - a touch button, a script.
+- `controller` and `controllerButton` bind it to a button of a
+  `GameController`, named as `inputs` names it (`"buttonA"` ... `"buttonSelect"`).
+  Whatever drives the controller - keyboard, touchscreen, the dojo's synthetic
+  pad - presses it, with the same tap, hold and buffer as a key. A stick or
+  trigger is no button; a button the layout lacks stays up. Rebinding while it
+  is held releases without a tap.
 - A key press counts as released (with no tap) when the focus item changes or
   the window becomes inactive, as the keyboard gamepad does.
 
