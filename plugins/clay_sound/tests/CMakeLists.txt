@@ -437,3 +437,59 @@ set_tests_properties(clay_sound_outside PROPERTIES
     LABELS "clay_sound;unit"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
 )
+
+# ----------------------------------------------------------------------
+# CLAY_SOUND_MUTE (#478): every output opens at volume 0 while the
+# players still play and offline renders stay the same.
+# ----------------------------------------------------------------------
+
+add_executable(tst_clay_sound_mute
+    tst_sound_mute.cpp
+    ../src/audio_devices.cpp
+    ../src/audio_devices.h
+    ../src/audio_output.cpp
+    ../src/audio_output.h
+    ../src/music.cpp
+    ../src/music.h
+    ../src/sample_instrument.cpp
+    ../src/sample_instrument.h
+    ../src/sfx_player.cpp
+    ../src/sfx_player.h
+    ../src/softsynth.cpp
+    ../src/softsynth.h
+    ../src/song_player.cpp
+    ../src/song_player.h
+    ../src/sound.cpp
+    ../src/sound.h
+    ../src/source_url.cpp
+    ../src/source_url.h
+    ../src/synth_instrument.cpp
+    ../src/synth_instrument.h
+)
+
+set_target_properties(tst_clay_sound_mute PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_clay_sound_mute PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(tst_clay_sound_mute PRIVATE
+    CLAY_SOUND_DEMO_WAV="${CMAKE_CURRENT_SOURCE_DIR}/../demo/sound.wav"
+    CLAY_SOUND_DEMO_SFX="${CMAKE_CURRENT_SOURCE_DIR}/../demo/sfx/wheel-detent.sfx.json"
+    CLAY_SOUND_DEMO_ADAPTIVE="${CMAKE_CURRENT_SOURCE_DIR}/../demo/songs/adaptive.song.json"
+)
+
+target_link_libraries(tst_clay_sound_mute PRIVATE
+    ClaySoundEngine
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    Qt6::Multimedia
+)
+
+add_test(NAME clay_sound_mute COMMAND tst_clay_sound_mute)
+set_tests_properties(clay_sound_mute PROPERTIES
+    LABELS "clay_sound;unit"
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+)
