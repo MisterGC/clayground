@@ -150,6 +150,7 @@ void SoftSynth::play()
     }
 
     audioSink_->setBufferSize(SAMPLE_RATE * sizeof(float) / 5); // 200ms
+    if (clay::sound::outputMuted()) audioSink_->setVolume(0.0);
 
     playing_ = true;
     renderTimer_.start(BUFFER_MS);
