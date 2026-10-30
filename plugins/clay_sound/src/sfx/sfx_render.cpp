@@ -33,6 +33,9 @@ uint32_t mix(uint32_t a, uint32_t b) { return hash32(a ^ hash32(b + 0x9e3779b9u)
 constexpr uint32_t kNoiseSalt = 0x6e6f6973u;
 // Salt of a layer's grains, apart from the noise and every parameter.
 constexpr uint32_t kGrainSalt = 0x6772616eu;
+// Salt of a layer's random LFO, apart from the noise, the grains and
+// every parameter.
+constexpr uint32_t kLfoSalt = 0x6c666f73u;
 
 // 24 bits of a hash: u in [0, 1), exact in a double.
 double unit(uint32_t h) { return (h >> 8) / 16777216.0; }
@@ -76,6 +79,7 @@ void addGrains(const SfxNote &note, uint32_t layerSeed, std::vector<SfxNote> &no
         g.at(P::Detune)  = inRange(P::Detune, note.get(P::Detune) + note.get(P::JitterFreq) * spread(3));
         g.at(P::Length)  = std::max(0.0, note.get(P::Length) + note.get(P::JitterLength) * spread(4));
         g.noiseSeed = mix(grainSeed, kNoiseSalt) | 1u;
+        g.lfoSeed = mix(grainSeed, kLfoSalt) | 1u;
         notes.push_back(g);
     }
 }
@@ -125,6 +129,7 @@ std::vector<SfxNote> realizeSfx(const SfxRecipe &recipe, uint32_t seed, double d
             n.value[p] += r.lo + (r.hi - r.lo) * u;
         }
         n.noiseSeed = mix(layerSeed, kNoiseSalt) | 1u;
+        n.lfoSeed = mix(layerSeed, kLfoSalt) | 1u;
         if (layer.burst) addGrains(n, layerSeed, notes);
         else notes.push_back(n);
     }
@@ -267,6 +272,8 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.lfoTarget  = layer.lfoTarget;
             patch.lfoRate    = n.get(P::LfoRate);
             patch.lfoDepth   = n.get(P::LfoDepth);
+            patch.lfoShape   = layer.lfoShape;
+            patch.lfoSeed    = n.lfoSeed;
             patch.filterType = layer.filterType;
             patch.cutoff     = n.get(P::Cutoff);
             patch.resonance  = n.get(P::Resonance);

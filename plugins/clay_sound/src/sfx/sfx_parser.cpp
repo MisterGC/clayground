@@ -260,13 +260,26 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
     }
     if (o.contains("lfo")) {
         if (isSample(l)) return fail(lp, QStringLiteral("does not apply to a sample layer"));
-        if (!objectAt(o, "lfo", path, lfo) || !requireKeysOnly(lfo, {"target", "rate", "depth"}, lp))
+        if (!objectAt(o, "lfo", path, lfo) || !requireKeysOnly(lfo, {"target", "shape", "rate", "depth"}, lp))
             return false;
         if (!lfo.contains("target")) return fail(lp, QStringLiteral("needs a 'target'"));
         if (!stringAt(lfo, "target", lp, text)) return false;
         if (text == QLatin1String("pitch"))       l.lfoTarget = 1;
         else if (text == QLatin1String("volume")) l.lfoTarget = 2;
-        else return fail(join(lp, "target"), QStringLiteral("unknown target '%1' (pitch, volume)").arg(text));
+        else if (text == QLatin1String("cutoff")) l.lfoTarget = 3;
+        else return fail(join(lp, "target"), QStringLiteral("unknown target '%1' (pitch, volume, cutoff)").arg(text));
+        if (l.lfoTarget == 3 && l.filterType == OscillatorVoice::FilterType::Off)
+            return fail(join(lp, "target"), QStringLiteral("a cutoff lfo needs a 'filter' with a 'type'"));
+        if (lfo.contains("shape")) {
+            if (!stringAt(lfo, "shape", lp, text)) return false;
+            using S = OscillatorVoice::LfoShape;
+            if (text == QLatin1String("sine"))               l.lfoShape = S::Sine;
+            else if (text == QLatin1String("square"))        l.lfoShape = S::Square;
+            else if (text == QLatin1String("sample_hold"))   l.lfoShape = S::SampleHold;
+            else if (text == QLatin1String("smooth_random")) l.lfoShape = S::SmoothRandom;
+            else return fail(join(lp, "shape"),
+                             QStringLiteral("unknown shape '%1' (sine, square, sample_hold, smooth_random)").arg(text));
+        }
     }
     if (o.contains("noise")) {
         const QString np = join(path, "noise");
