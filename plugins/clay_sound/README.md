@@ -725,6 +725,19 @@ SoundMixer.voiceVolume = 0.8
 `Music` (the `QMediaPlayer`-based type) does not play on the engine, but it
 follows the music bus: it plays at its `volume` times `SoundMixer.musicVolume`.
 
+### Muting a process: `CLAY_SOUND_MUTE`
+
+With `CLAY_SOUND_MUTE=1` in the environment, every output clay_sound opens
+plays at volume 0: the shared sink that `Sound`, `SampleInstrument`,
+`SynthInstrument`, `SongPlayer` and `SfxPlayer` play through, `SoftSynth`'s
+sink and `Music`'s audio output. Everything still plays - voices start,
+`SongPlayer.playing` turns true, `SfxPlayer.play()` returns its seed - and an
+offline render does not change. Use it for tests, benches and flow checks
+that should not play through the speakers. A sink reads the variable when it
+opens, so set it before the first sound plays; `Music` reads it whenever its
+volume is applied. `SoundMixer` and the players' `volume` properties keep
+reading what was set.
+
 ### Echo and reverb per bus
 
 Every bus has an echo and a small reverb, both off by default; a bus with
