@@ -83,6 +83,28 @@ clay_plugin(Sound
 
 target_include_directories(ClaySound PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
+# Qt before 6.11.1 resumes and closes a throwaway AudioContext per audio
+# device and drops resume()'s promise; Chrome 156 rejects it, uncaught, on
+# every page that has not had a click yet (#480). The pre-js hands those
+# promises a handler. INTERFACE, because it is an option of the final link -
+# every app that links this plugin, not the plugin's own static library.
+if(EMSCRIPTEN AND Qt6Multimedia_VERSION VERSION_LESS 6.11.1)
+    set(_clay_sound_prejs ${CMAKE_CURRENT_SOURCE_DIR}/wasm/resume.pre.js)
+    target_link_options(ClaySound INTERFACE "SHELL:--pre-js ${_clay_sound_prejs}")
+    # The pre-js is no input of any build step, so editing it would relink
+    # nothing; rebuilding this plugin's library makes every app relink.
+    set_source_files_properties(src/audio_devices.cpp PROPERTIES
+        OBJECT_DEPENDS ${_clay_sound_prejs})
+endif()
+    foreach(_prejs IN LISTS _clay_sound_prejs)
+        target_link_options(ClaySound INTERFACE "SHELL:--pre-js ${_prejs}")
+    endforeach()
+    # A pre-js is no input of any build step, so editing it would relink
+    # nothing; rebuilding this plugin's library makes every app relink.
+    set_source_files_properties(src/audio_devices.cpp PROPERTIES
+        OBJECT_DEPENDS "${_clay_sound_prejs}")
+endif()
+
 if(NOT EMSCRIPTEN)
     add_subdirectory(tests)
 endif()
