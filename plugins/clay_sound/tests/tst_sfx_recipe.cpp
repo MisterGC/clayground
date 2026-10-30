@@ -8,6 +8,10 @@
 // looped recipe plays on pass after pass with no gap and no jump at the
 // seam, live as offline (#442), an exponential decay renders a straight
 // line in dB and an exponential pitch sweep settles into its end (#447),
+// a burst of 40 grains starts 40 times inside its duration, the same seed
+// on the same grains and another seed on others, and the recipe's voice
+// cap bounds the grains that ring at once and no other layer, and a
+// grain's jitter keeps it inside its fields' ranges (#448),
 // and the values other seeds play with stay inside the declared ranges
 // - drawn and measured on the render (pitch by zero crossings, gain by
 // RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
@@ -129,6 +133,11 @@ private slots:
     void segmentCurvesAreLayerNumbers();
     void exponentialDecayIsAStraightLineInDb();
     void exponentialPitchSweepSettlesIntoItsEnd();
+    void burstIsALayerGroup();
+    void burstOf40GrainsStarts40TimesInsideItsDuration();
+    void sameSeedPlaysTheSameGrains();
+    void voiceCapBoundsTheGrainsThatRingAtOnce();
+    void grainsStayInsideTheFieldRanges();
     void seededNoiseIgnoresTheStartFrame();
     void sameSeedRendersSameSamples();
     void otherSeedsStayInsideTheDeclaredRanges();
@@ -185,6 +194,12 @@ void SfxRecipeTest::rejectsAnUnknownFieldByName_data()
                             << "layers[0].filter: unknown field 'cutof'";
     QTest::newRow("vary") << QByteArray(R"({"layers": [{)" + layer + R"(, "vary": {"detnue": [0, 1]}}]})")
                           << "layers[0].vary: unknown field 'detnue'";
+    QTest::newRow("burst") << QByteArray(R"({"layers": [{)" + layer
+                                         + R"(, "burst": {"count": 4, "duration": 50, "rate": 2}}]})")
+                           << "layers[0].burst: unknown field 'rate'";
+    QTest::newRow("jitter") << QByteArray(R"({"layers": [{)" + layer
+                                          + R"(, "burst": {"count": 4, "duration": 50, "jitter": {"pitch": 2}}}]})")
+                            << "layers[0].burst.jitter: unknown field 'pitch'";
 }
 
 void SfxRecipeTest::rejectsAnUnknownFieldByName()
@@ -232,6 +247,23 @@ void SfxRecipeTest::rejectsValuesOutsideTheirRange_data()
     QTest::newRow("filter curve without filter") << QByteArray(R"("source": "sine", "length": 10,
                                                                  "vary": {"filter.decayCurve": [0, 0.5]})")
                                                  << "layers[0].vary.filter.decayCurve: needs a 'filter' with a 'type'";
+    QTest::newRow("burst on a sample") << QByteArray(R"("source": "sample", "sample": "a.wav",
+                                                       "burst": {"count": 4, "duration": 50})")
+                                       << "layers[0].burst: does not apply to a sample layer";
+    QTest::newRow("burst without duration") << QByteArray(R"("source": "noise", "length": 2, "burst": {"count": 4})")
+                                            << "layers[0].burst: needs a 'duration'";
+    QTest::newRow("no grains") << QByteArray(R"("source": "noise", "length": 2, "burst": {"count": 0, "duration": 50})")
+                               << "layers[0].burst.count: 0 is outside 1..256";
+    QTest::newRow("density 0") << QByteArray(R"("source": "noise", "length": 2,
+                                               "burst": {"count": 4, "duration": 50, "density": 0})")
+                               << "layers[0].burst.density: 0 is outside 0.01..100";
+    QTest::newRow("cutoff jitter without filter") << QByteArray(R"("source": "noise", "length": 2,
+                                                                  "burst": {"count": 4, "duration": 50,
+                                                                            "jitter": {"cutoff": 1}})")
+                                                  << "layers[0].burst.jitter.cutoff: needs a 'filter' with a 'type'";
+    QTest::newRow("burst number without burst") << QByteArray(R"("source": "noise", "length": 2,
+                                                                "vary": {"burst.count": [0, 4]})")
+                                                << "layers[0].vary.burst.count: needs a 'burst'";
 }
 
 void SfxRecipeTest::rejectsValuesOutsideTheirRange()
@@ -322,6 +354,173 @@ void SfxRecipeTest::exponentialPitchSweepSettlesIntoItsEnd()
 
     const double after = zeroCrossingFreq(exp, kRate * 250 / 1000, kRate / 10);
     QVERIFY2(std::abs(after / 1000.0 - 1.0) < 0.002, qPrintable(QString::number(after)));
+}
+
+void SfxRecipeTest::burstIsALayerGroup()
+{
+    const auto r = parseOk(R"({ "maxVoices": 6, "layers": [
+      { "source": "noise", "length": 3, "filter": { "type": "bandpass", "cutoff": 1400 },
+        "burst": { "count": 23, "duration": 420, "density": 0.2,
+                   "jitter": { "time": 1, "gain": 3, "cutoff": 0.5, "freq": 2, "length": 1 } },
+        "vary": { "burst.count": [-3, 3], "burst.jitter.gain": [0, 2] } },
+      { "source": "sine", "length": 100 } ] })");
+    QCOMPARE(r.maxVoices, 6);
+    const auto &l = r.layers[0];
+    QVERIFY(l.burst);
+    QCOMPARE(l.get(P::BurstCount), 23.0);
+    QCOMPARE(l.get(P::BurstDuration), 420.0);
+    QCOMPARE(l.get(P::BurstDensity), 0.2);
+    QCOMPARE(l.get(P::JitterTime), 1.0);
+    QCOMPARE(l.get(P::JitterGain), 3.0);
+    QCOMPARE(l.get(P::JitterCutoff), 0.5);
+    QCOMPARE(l.get(P::JitterFreq), 2.0);
+    QCOMPARE(l.get(P::JitterLength), 1.0);
+    QVERIFY(l.vary[int(P::BurstCount)].on);
+    QVERIFY(l.vary[int(P::JitterGain)].on);
+    // A layer without one plays as one note, as before.
+    QVERIFY(!r.layers[1].burst);
+    QCOMPARE(cs::realizeSfx(r, 1).size(), size_t(cs::realizeSfx(r, 1)[0].get(P::BurstCount) + 0.5) + 1);
+
+    // The cap is the grains'; with no burst there is nothing to cap.
+    auto res = cs::SfxParser::parse(R"({"maxVoices": 4, "layers": [{"source": "sine", "length": 10}]})");
+    QVERIFY(!res.ok);
+    QVERIFY2(res.error.startsWith("maxVoices: caps the grains of a 'burst'"), qPrintable(res.error));
+    res = cs::SfxParser::parse(R"({"maxVoices": 2.5, "layers": [{"source": "sine", "length": 10}]})");
+    QVERIFY(!res.ok);
+    QVERIFY2(res.error.startsWith("maxVoices: must be an integer in 0..256"), qPrintable(res.error));
+}
+
+// Grains of white noise: 40 within 600 ms after a 50 ms offset, each
+// 1.5 to 2.5 ms long, placed anywhere in the middle half of its slot, the
+// grain rate at the end a quarter of the one at the start. The slots are
+// at least 8 ms wide, so there is silence before every grain.
+static const char *kGritRecipe = R"({"variation": {"seed": 11}, "layers": [
+  {"name": "grit", "source": "noise", "offset": 50, "length": 2, "gain": -6,
+   "envelope": {"decay": 2, "sustain": 0},
+   "burst": {"count": 40, "duration": 600, "density": 0.25,
+             "jitter": {"time": 0.5, "gain": 6, "length": 0.5}}}]})";
+
+// The frames where sound starts after at least `gap` frames of silence.
+static std::vector<size_t> onsets(const std::vector<float> &mono, size_t gap)
+{
+    std::vector<size_t> out;
+    size_t quiet = gap;
+    for (size_t f = 0; f < mono.size(); ++f) {
+        if (mono[f] == 0.0f) { ++quiet; continue; }
+        if (quiet >= gap) out.push_back(f);
+        quiet = 0;
+    }
+    return out;
+}
+
+void SfxRecipeTest::burstOf40GrainsStarts40TimesInsideItsDuration()
+{
+    const auto recipe = parseOk(kGritRecipe);
+    const uint32_t seed = cs::sfxVariationSeed(recipe, 0);
+    const auto notes = cs::realizeSfx(recipe, seed);
+    QCOMPARE(notes.size(), size_t(40));
+    QVERIFY(std::all_of(notes.cbegin(), notes.cend(), [](const cs::SfxNote &n) { return n.grain; }));
+
+    const auto mono = cs::renderSfx(recipe, {}, seed, 1.0f, 1.0f, 0.0f, kRate, false);
+    const auto found = onsets(mono, kRate / 2000);    // 0.5 ms of silence before each
+    QCOMPARE(found.size(), size_t(40));
+    const size_t begin = std::llround(0.050 * kRate), end = std::llround(0.650 * kRate);
+    int firstHalf = 0;
+    for (size_t i = 0; i < found.size(); ++i) {
+        QVERIFY2(found[i] >= begin && found[i] < end, qPrintable(QString::number(found[i])));
+        // Where the grain was placed, to the frame.
+        const auto at = size_t(std::llround(notes[i].get(P::Offset) * kRate / 1000.0));
+        QVERIFY2(found[i] >= at && found[i] <= at + 1, qPrintable(QString("%1 vs %2").arg(found[i]).arg(at)));
+        if (found[i] < (begin + end) / 2) ++firstHalf;
+    }
+    qInfo("%zu onsets in %zu..%zu frames, %d of them in the first half", found.size(), begin, end, firstHalf);
+    // A falling density: two thirds of an even spread in the first half.
+    QVERIFY2(firstHalf >= 24 && firstHalf <= 30, qPrintable(QString::number(firstHalf)));
+}
+
+void SfxRecipeTest::sameSeedPlaysTheSameGrains()
+{
+    const auto recipe = parseOk(kGritRecipe);
+    const auto render = [&recipe](uint32_t seed) {
+        return cs::renderSfx(recipe, {}, seed, 1.0f, 1.0f, 0.0f, kRate, true);
+    };
+    const auto offsets = [&recipe](uint32_t seed) {
+        std::vector<double> o;
+        for (const auto &n : cs::realizeSfx(recipe, seed)) o.push_back(n.get(P::Offset));
+        return o;
+    };
+    for (uint32_t seed : {1u, 2u, 0x7fffffffu}) {
+        QCOMPARE(offsets(seed), offsets(seed));
+        QCOMPARE(render(seed), render(seed));
+    }
+    // Another seed: the grains start elsewhere and sound otherwise.
+    const auto a = offsets(1), b = offsets(2);
+    QCOMPARE(a.size(), b.size());
+    int moved = 0;
+    for (size_t i = 0; i < a.size(); ++i)
+        if (std::abs(a[i] - b[i]) > 0.1) ++moved;
+    QVERIFY2(moved > 30, qPrintable(QString::number(moved)));
+    QVERIFY(render(1) != render(2));
+
+    // Without time jitter the grains sit in the middle of their slots,
+    // the same for every seed.
+    auto even = recipe;
+    even.layers[0].at(P::JitterTime) = 0.0;
+    const auto e1 = cs::realizeSfx(even, 1), e2 = cs::realizeSfx(even, 2);
+    for (size_t i = 0; i < e1.size(); ++i) QCOMPARE(e1[i].get(P::Offset), e2[i].get(P::Offset));
+}
+
+// 40 grains of 200 ms within 100 ms under a low hum: with a cap of 4,
+// four grains ring at most, and the hum rings beside them throughout.
+// Without the cap all 40 would ring at once.
+void SfxRecipeTest::voiceCapBoundsTheGrainsThatRingAtOnce()
+{
+    auto recipe = parseOk(R"({"maxVoices": 4, "layers": [
+      {"name": "hum", "source": "sine", "freq": 80, "length": 500},
+      {"name": "grit", "source": "noise", "length": 200, "burst": {"count": 40, "duration": 100}}]})");
+    const auto mostAtOnce = [](const cs::SfxRecipe &r, size_t *atLastGrain) {
+        cs::Engine eng(kRate);
+        cs::SfxVoices voices;
+        voices.attach(eng, r, {});
+        voices.play(eng, cs::realizeSfx(r, 1), 0, 1.0f);
+        std::vector<float> buf(2 * 32);
+        size_t most = 0;
+        for (int64_t f = 0; f < kRate * 2 / 5; f += 32) {
+            eng.renderStereo(buf.data(), 32);
+            most = std::max(most, eng.activeVoices());
+            if (f <= kRate * 3 / 20 && f + 32 > kRate * 3 / 20) *atLastGrain = eng.activeVoices();
+        }
+        voices.detach(eng);
+        return most;
+    };
+    size_t at150 = 0;
+    qInfo("cap 4: at most %zu voices at once", mostAtOnce(recipe, &at150));
+    QCOMPARE(mostAtOnce(recipe, &at150), size_t(4 + 1));
+    QCOMPARE(at150, size_t(4 + 1));     // after the last grain started: the hum still rings
+    recipe.maxVoices = 0;
+    QCOMPARE(mostAtOnce(recipe, &at150), size_t(40 + 1));
+}
+
+// A layer at the top of its gain and far up in detune, with jitters
+// that reach past both: every grain is held to the field's range, so
+// none plays louder than 12 dB or further than 48 semitones up.
+void SfxRecipeTest::grainsStayInsideTheFieldRanges()
+{
+    const auto recipe = parseOk(R"({"layers": [{"source": "sine", "freq": 440, "length": 5,
+      "gain": 12, "detune": 40, "burst": {"count": 200, "duration": 100,
+                                          "jitter": {"gain": 48, "freq": 48}}}]})");
+    const auto notes = cs::realizeSfx(recipe, 1);
+    QCOMPARE(notes.size(), size_t(200));
+    double gainHi = -1e9, gainLo = 1e9, detuneHi = -1e9;
+    for (const auto &n : notes) {
+        gainHi = std::max(gainHi, n.get(P::Gain));
+        gainLo = std::min(gainLo, n.get(P::Gain));
+        detuneHi = std::max(detuneHi, n.get(P::Detune));
+    }
+    qInfo("grain gain %.2f..%.2f dB, detune up to %.2f semitones", gainLo, gainHi, detuneHi);
+    QCOMPARE(gainHi, 12.0);         // grains that drew above it play at it
+    QVERIFY(gainLo < -30.0);        // and the jitter still reaches down
+    QCOMPARE(detuneHi, 48.0);
 }
 
 void SfxRecipeTest::seededNoiseIgnoresTheStartFrame()
