@@ -861,7 +861,16 @@ argued in `.github/workflows/main.yml`.
 ## Technical Notes
 
 - Audio is fully preloaded before playback (no streaming)
-- **WASM**: Web Audio API requires user gesture to start AudioContext
+- **WASM**: Web Audio API requires user gesture to start AudioContext. An
+  AudioContext created before the first click is resumed on that click by
+  `wasm/gesture.pre.js`: emscripten's own listeners wait for a `mousedown`
+  the browser never sends for a click on a Qt window, and a page whose
+  sound started before the click stayed silent (#480)
+- **WASM, Qt before 6.11.1**: Qt resumes and closes a throwaway AudioContext
+  for every audio device and drops the promise `resume()` returns; before a
+  click, Chrome 156 rejects it ("AudioContext closed before a pending resume()
+  could complete"). `wasm/resume.pre.js`, linked into every app on such a Qt,
+  catches exactly those rejections (#480)
 - **WASM**: Remote URLs must be CORS-enabled
 - **Desktop**: Uses `QAudioSink` for all in-engine types, `QMediaPlayer` for `Music`
 - **Hot-reload**: `SongPlayer` and `SfxPlayer` watch their source file; drop
