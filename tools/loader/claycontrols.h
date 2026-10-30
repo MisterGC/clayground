@@ -3,6 +3,7 @@
 
 #include <QObject>
 #include <QTimer>
+#include <QVariantMap>
 
 // Exposed to QML as the context property ClayTimeCtrl. The Clayground
 // singleton bridges it into Clayground.timeScale / Clayground.paused so
@@ -43,28 +44,32 @@ private:
 // (Clayground.GameController) mirrors this state into its GameController,
 // writing imperatively just like KeyboardGamepad does — so human input and
 // agent input coexist without binding fights.
+//
+// The state holds every input of GameController's "full" layout, named as
+// GameController.inputs names them; a "nes" controller reads only axisX,
+// axisY, buttonA and buttonB of it.
 class ClayInputControl : public QObject
 {
     Q_OBJECT
     Q_PROPERTY(bool active READ active NOTIFY activeChanged)
-    Q_PROPERTY(double axisX READ axisX NOTIFY stateChanged)
-    Q_PROPERTY(double axisY READ axisY NOTIFY stateChanged)
-    Q_PROPERTY(bool buttonA READ buttonA NOTIFY stateChanged)
-    Q_PROPERTY(bool buttonB READ buttonB NOTIFY stateChanged)
+    Q_PROPERTY(QVariantMap gamepad READ gamepad NOTIFY stateChanged)
 
 public:
     explicit ClayInputControl(QObject* parent = nullptr);
 
-    bool active() const { return m_active; }
-    double axisX() const { return m_axisX; }
-    double axisY() const { return m_axisY; }
-    bool buttonA() const { return m_buttonA; }
-    bool buttonB() const { return m_buttonB; }
+    // The input names, in GameController's order. A name starting with
+    // "button" is a bool, every other one a number.
+    static const QStringList& inputNames();
+    static bool isButton(const QString& input);
 
-    // durationMs > 0 resets to neutral (axes 0, buttons released) after the
-    // given time — the "hold right for 600ms" primitive.
-    void setGamepadState(double axisX, double axisY,
-                         bool buttonA, bool buttonB, int durationMs = 0);
+    bool active() const { return m_active; }
+    QVariantMap gamepad() const { return m_gamepad; }
+
+    // Replaces the whole state: an input missing from state is neutral, a
+    // name that is no input is dropped. durationMs > 0 resets to neutral
+    // (axes 0, buttons released) after the given time — the "hold right for
+    // 600ms" primitive.
+    void setGamepadState(const QVariantMap& state, int durationMs = 0);
     void resetToNeutral();
 
 signals:
@@ -72,10 +77,9 @@ signals:
     void stateChanged();
 
 private:
+    static QVariantMap neutral();
+
     bool m_active = false;
-    double m_axisX = 0.0;
-    double m_axisY = 0.0;
-    bool m_buttonA = false;
-    bool m_buttonB = false;
+    QVariantMap m_gamepad = neutral();
     QTimer m_neutralTimer;
 };

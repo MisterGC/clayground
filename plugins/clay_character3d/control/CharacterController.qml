@@ -25,13 +25,14 @@ import ".."
 
     GameController {
         id: gamepad
+        layout: "full"
     }
 
     CharacterController {
         character: hero
-        axisX: gamepad.axisLeftX
-        axisY: gamepad.axisLeftY
-        sprinting: gamepad.buttonL1
+        axisX: gamepad.axisX
+        axisY: gamepad.axisY
+        sprinting: gamepad.buttonL1Pressed
     }
     \endqml
 

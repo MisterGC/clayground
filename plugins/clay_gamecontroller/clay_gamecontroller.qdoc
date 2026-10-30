@@ -5,9 +5,11 @@
     \title Clayground GameController Module
     \brief Unified input system supporting keyboard, gamepad, and touch.
 
-    The GameController module provides a simple NES-style controller abstraction
-    with directional axis controls and two action buttons. It supports multiple
-    input sources that can be switched at runtime.
+    The GameController module provides one controller abstraction in two
+    layouts: \c nes, a stick and two action buttons, and \c full, two sticks,
+    A/B/X/Y, shoulders, triggers and start/select. It supports multiple input
+    sources that can be switched at runtime; each sets the inputs of the
+    chosen layout.
 
     \section1 Usage
 
@@ -44,6 +46,24 @@
     }
     \endqml
 
+    \section2 Full Layout
+
+    \qml
+    GameController {
+        id: controller
+        layout: "full"
+        Component.onCompleted: selectKeyboard({
+            axisX: [Qt.Key_A, Qt.Key_D], axisY: [Qt.Key_S, Qt.Key_W],
+            axisRightX: [Qt.Key_J, Qt.Key_L], axisRightY: [Qt.Key_K, Qt.Key_I],
+            buttonA: Qt.Key_Space, buttonB: Qt.Key_Shift,
+            buttonX: Qt.Key_F, buttonY: Qt.Key_R,
+            buttonL1: Qt.Key_Q, buttonR1: Qt.Key_E,
+            triggerL2: Qt.Key_1, triggerR2: Qt.Key_3,
+            buttonSelect: Qt.Key_Tab, buttonStart: Qt.Key_Return
+        })
+    }
+    \endqml
+
     \section1 Input Sources
 
     \list
@@ -60,11 +80,34 @@
     \inqmlmodule Clayground.GameController
     \brief A unified game input system supporting keyboard, gamepad, and touchscreen.
 
-    GameController provides a simple NES-style controller abstraction with
-    directional axis controls and two action buttons. It supports multiple
-    input sources that can be switched at runtime.
+    GameController provides one controller abstraction in two layouts, picked
+    with \l layout: \c nes, a stick and two action buttons, and \c full, two
+    sticks, A/B/X/Y, shoulders, triggers and start/select. It supports
+    multiple input sources that can be switched at runtime. Every source -
+    keyboard, touchscreen, the Dojo's agent input - sets only the inputs of
+    the layout; the others stay neutral, 0 or false.
+
+    Each input has a name, listed by \l inputs: \c axisX, \c axisY,
+    \c axisRightX, \c axisRightY, \c triggerL2 and \c triggerR2 are
+    properties of that name; a button \c buttonA is the property
+    \c buttonAPressed.
 
     \section1 Properties
+
+    \qmlproperty string GameController::layout
+    Which inputs the controller has: \c "nes" (the default) for axisX, axisY,
+    buttonA and buttonB, or \c "full" for all fourteen inputs. Any other value
+    warns and acts as \c nes. Changing it sets the inputs the new layout lacks
+    to neutral; the keyboard and Dojo sources set the ones it gains from what
+    they hold.
+
+    \qmlproperty var GameController::inputs
+    \readonly
+    The input names of the layout, in a fixed order:
+    \c {["axisX", "axisY", "buttonA", "buttonB"]} for \c nes, and for
+    \c full axisX, axisY, axisRightX, axisRightY, buttonA, buttonB, buttonX,
+    buttonY, buttonL1, buttonR1, triggerL2, triggerR2, buttonStart,
+    buttonSelect.
 
     \qmlproperty real GameController::axisX
     Horizontal directional axis value in range [-1, 1].
@@ -73,12 +116,51 @@
     \qmlproperty real GameController::axisY
     Vertical directional axis value in range [-1, 1].
     Negative values indicate down, positive values indicate up.
+    With the \c full layout axisX and axisY are the left stick.
+
+    \qmlproperty real GameController::axisRightX
+    Horizontal axis of the right stick in range [-1, 1], right positive.
+    \c full layout only.
+
+    \qmlproperty real GameController::axisRightY
+    Vertical axis of the right stick in range [-1, 1], up positive.
+    \c full layout only.
 
     \qmlproperty bool GameController::buttonAPressed
     True when the primary action button (A) is pressed.
 
     \qmlproperty bool GameController::buttonBPressed
     True when the secondary action button (B) is pressed.
+
+    \qmlproperty bool GameController::buttonXPressed
+    True when button X is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::buttonYPressed
+    True when button Y is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::buttonL1Pressed
+    True when the left shoulder button is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::buttonR1Pressed
+    True when the right shoulder button is pressed. \c full layout only.
+
+    \qmlproperty real GameController::triggerL2
+    How far the left trigger is pulled, in range [0, 1]; a key or a touch
+    reads 1 while held. \c full layout only.
+
+    \qmlproperty real GameController::triggerR2
+    How far the right trigger is pulled, in range [0, 1]; a key or a touch
+    reads 1 while held. \c full layout only.
+
+    \qmlproperty bool GameController::buttonStartPressed
+    True when start is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::buttonSelectPressed
+    True when select is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::syntheticActive
+    \readonly
+    True once the Dojo inspector has sent agent input to this session.
 
     \qmlproperty bool GameController::showDebugOverlay
     Shows a visual debug overlay displaying current controller state.
@@ -117,8 +199,20 @@
 
     \qmlmethod void GameController::selectKeyboard(var upKey, var downKey, var leftKey, var rightKey, var buttonAKey, var buttonBKey)
     Configures keyboard as the input source with specified key mappings.
-    All parameters are Qt.Key values for the respective directions and buttons.
+    All parameters are Qt.Key values for the respective directions and buttons;
+    \a buttonAKey presses B and \a buttonBKey presses A, as they always have.
+
+    Alternatively \a upKey is one map from input name to key, which can set
+    every input of the \c full layout: a button or a trigger takes one key, an
+    axis takes [negative key, positive key], e.g.
+    \c {selectKeyboard({axisX: [Qt.Key_A, Qt.Key_D], buttonL1: Qt.Key_Q})}.
+    Inputs the layout lacks are ignored.
+
+    \qmlmethod var GameController::inputValue(string name)
+    Returns the current value of the input \a name, as \l inputs names it:
+    a number for an axis or a trigger, a bool for a button.
 
     \qmlmethod void GameController::selectTouchscreenGamepad()
-    Enables the touchscreen virtual gamepad overlay for touch input.
+    Enables the touchscreen virtual gamepad overlay for touch input. It shows
+    a stick and a pad for every input of the layout; see TouchscreenGamepad.
 */
