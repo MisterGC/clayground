@@ -175,6 +175,8 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.interpolation = layer.interpolation;
             patch.attack  = n.get(P::Attack) / 1000.0;
             patch.release = n.get(P::Release) / 1000.0;
+            patch.attackCurve  = n.get(P::AttackCurve);
+            patch.releaseCurve = n.get(P::ReleaseCurve);
             s.inst->pushPatch(engine.schedule(ev), patch);
             ended(offset + ev.durationFrames,
                   std::min(ev.durationFrames, msToFrames(n.get(P::Release), rate)));
@@ -190,9 +192,13 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.decay      = n.get(P::Decay) / 1000.0;
             patch.sustain    = n.get(P::Sustain);
             patch.release    = n.get(P::Release) / 1000.0;
+            patch.attackCurve  = n.get(P::AttackCurve);
+            patch.decayCurve   = n.get(P::DecayCurve);
+            patch.releaseCurve = n.get(P::ReleaseCurve);
             patch.pitchStart = n.get(P::PitchStart);
             patch.pitchEnd   = n.get(P::PitchEnd);
             patch.pitchTime  = n.get(P::PitchTime) / 1000.0;
+            patch.pitchCurve = n.get(P::PitchCurve);
             patch.lfoTarget  = layer.lfoTarget;
             patch.lfoRate    = n.get(P::LfoRate);
             patch.lfoDepth   = n.get(P::LfoDepth);
@@ -204,6 +210,9 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.filterSustain   = n.get(P::FilterSustain);
             patch.filterRelease   = n.get(P::FilterRelease) / 1000.0;
             patch.filterEnvAmount = n.get(P::FilterAmount);
+            patch.filterAttackCurve  = n.get(P::FilterAttackCurve);
+            patch.filterDecayCurve   = n.get(P::FilterDecayCurve);
+            patch.filterReleaseCurve = n.get(P::FilterReleaseCurve);
             patch.noiseSeed  = n.noiseSeed;
             osc_->pushPatch(engine.schedule(ev), patch);
             ended(offset + ev.durationFrames,

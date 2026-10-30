@@ -83,14 +83,15 @@ bool isSample(const SfxLayer &l) { return l.source == SfxSource::Sample; }
 QString notApplicable(SfxParam p, const SfxLayer &l)
 {
     switch (p) {
-    case P::Freq: case P::PitchStart: case P::PitchEnd: case P::PitchTime:
+    case P::Freq: case P::PitchStart: case P::PitchEnd: case P::PitchTime: case P::PitchCurve:
         if (isSample(l)) return QStringLiteral("does not apply to a sample layer (use 'detune')");
         return {};
-    case P::Decay: case P::Sustain:
+    case P::Decay: case P::Sustain: case P::DecayCurve:
         if (isSample(l)) return QStringLiteral("does not apply to a sample layer (only attack and release do)");
         return {};
     case P::Cutoff: case P::Resonance: case P::FilterAttack: case P::FilterDecay:
     case P::FilterSustain: case P::FilterRelease: case P::FilterAmount:
+    case P::FilterAttackCurve: case P::FilterDecayCurve: case P::FilterReleaseCurve:
         if (isSample(l)) return QStringLiteral("does not apply to a sample layer");
         if (l.filterType == OscillatorVoice::FilterType::Off)
             return QStringLiteral("needs a 'filter' with a 'type'");
@@ -224,7 +225,8 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         if (isSample(l)) return fail(fp, QStringLiteral("does not apply to a sample layer"));
         if (!objectAt(o, "filter", path, filter)
             || !requireKeysOnly(filter, {"type", "cutoff", "resonance", "attack", "decay",
-                                         "sustain", "release", "amount"}, fp))
+                                         "sustain", "release", "amount", "attackCurve",
+                                         "decayCurve", "releaseCurve"}, fp))
             return false;
         if (!filter.contains("type")) return fail(fp, QStringLiteral("needs a 'type'"));
         if (!stringAt(filter, "type", fp, text)) return false;
@@ -256,9 +258,12 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         const QString ep = join(path, "envelope");
         QJsonObject env;
         if (!objectAt(o, "envelope", path, env)
-            || !requireKeysOnly(env, {"attack", "decay", "sustain", "release"}, ep)
+            || !requireKeysOnly(env, {"attack", "decay", "sustain", "release", "attackCurve",
+                                      "decayCurve", "releaseCurve"}, ep)
             || !numbers(env, ep, l, {{"attack", P::Attack}, {"decay", P::Decay},
-                                     {"sustain", P::Sustain}, {"release", P::Release}}))
+                                     {"sustain", P::Sustain}, {"release", P::Release},
+                                     {"attackCurve", P::AttackCurve}, {"decayCurve", P::DecayCurve},
+                                     {"releaseCurve", P::ReleaseCurve}}))
             return false;
     }
     if (o.contains("pitch")) {
@@ -266,16 +271,18 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         if (isSample(l)) return fail(pp, notApplicable(P::PitchStart, l));
         QJsonObject pitch;
         if (!objectAt(o, "pitch", path, pitch)
-            || !requireKeysOnly(pitch, {"start", "end", "time"}, pp)
+            || !requireKeysOnly(pitch, {"start", "end", "time", "curve"}, pp)
             || !numbers(pitch, pp, l, {{"start", P::PitchStart}, {"end", P::PitchEnd},
-                                       {"time", P::PitchTime}}))
+                                       {"time", P::PitchTime}, {"curve", P::PitchCurve}}))
             return false;
     }
     if (!filter.isEmpty()
         && !numbers(filter, fp, l, {{"cutoff", P::Cutoff}, {"resonance", P::Resonance},
                                     {"attack", P::FilterAttack}, {"decay", P::FilterDecay},
                                     {"sustain", P::FilterSustain}, {"release", P::FilterRelease},
-                                    {"amount", P::FilterAmount}}))
+                                    {"amount", P::FilterAmount}, {"attackCurve", P::FilterAttackCurve},
+                                    {"decayCurve", P::FilterDecayCurve},
+                                    {"releaseCurve", P::FilterReleaseCurve}}))
         return false;
     if (!lfo.isEmpty()
         && !numbers(lfo, lp, l, {{"rate", P::LfoRate}, {"depth", P::LfoDepth}}))

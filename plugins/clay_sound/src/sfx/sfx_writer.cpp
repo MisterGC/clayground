@@ -43,10 +43,12 @@ const QStringList &varyKeys()
 const QStringList &groupKeys(const QString &group)
 {
     static const QStringList variation = {"seed", "pool"};
-    static const QStringList envelope = {"attack", "decay", "sustain", "release"};
-    static const QStringList pitch = {"start", "end", "time"};
+    static const QStringList envelope = {"attack", "decay", "sustain", "release", "attackCurve",
+                                         "decayCurve", "releaseCurve"};
+    static const QStringList pitch = {"start", "end", "time", "curve"};
     static const QStringList filter = {"type", "cutoff", "resonance", "attack", "decay",
-                                       "sustain", "release", "amount"};
+                                       "sustain", "release", "amount", "attackCurve",
+                                       "decayCurve", "releaseCurve"};
     static const QStringList lfo = {"target", "rate", "depth"};
     static const QStringList none;
     if (group == QLatin1String("variation")) return variation;

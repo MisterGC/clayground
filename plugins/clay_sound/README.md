@@ -207,7 +207,8 @@ needs. `demo/songs/adaptive.song.json` uses all of it:
   `envelope` in ms, `pitch`, `filter`, `pulseWidth`, `lfo`, `gain` in dB up
   to 0, `pan`) plus `bus` (default `music`) and `maxVoices`, with a recipe
   layer's defaults for what is left out: no attack, decay or release, full
-  sustain, 0 dB, centred. A sample
+  sustain, linear segments, 0 dB, centred. The segment curves are a
+  recipe's too (see "Segment curves" below). A sample
   instrument names its `sample` (a WAV relative to the song file), its
   `root` note, `interpolation` and `loop` (`true` or `{ "start", "end" }`
   as fractions). Every track plays a defined instrument; `instruments` on
@@ -320,19 +321,32 @@ one). A layer:
 | `pan` | -1..1 | 0 | added to the player's `pan` |
 | `offset` | ms, 0..10000 | 0 | start after `play()` |
 | `length` | ms, 0..10000 | required (oscillators) | the gate; the release runs inside it. A sample without one plays to its end |
-| `envelope` | `attack`, `decay`, `release` in ms; `sustain` 0..1 | 0, 0, 0; 1 | ADSR; a sample layer takes `attack` and `release` only |
-| `pitch` | `start`, `end` in semitones; `time` in ms | 0 | a linear sweep from `start` to `end` over `time` |
-| `filter` | `type`; `cutoff` Hz; `resonance` 0..1; `attack`, `decay`, `release` ms; `sustain` 0..1; `amount` octaves | -, 1000, 0, 0, 0, 0, 1, 0 | `lowpass`, `highpass` or `bandpass`, with a cutoff envelope that moves the cutoff by `amount` octaves at its peak |
+| `envelope` | `attack`, `decay`, `release` in ms; `sustain` 0..1; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | 0, 0, 0; 1; 0, 0, 0 | ADSR, each segment with its curve; a sample layer takes `attack` and `release` and their curves only |
+| `pitch` | `start`, `end` in semitones; `time` in ms; `curve` 0..1 | 0 | a sweep from `start` to `end` over `time` |
+| `filter` | `type`; `cutoff` Hz; `resonance` 0..1; `attack`, `decay`, `release` ms; `sustain` 0..1; `amount` octaves; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | -, 1000, 0, 0, 0, 0, 1, 0, 0, 0, 0 | `lowpass`, `highpass` or `bandpass`, with a cutoff envelope that moves the cutoff by `amount` octaves at its peak |
 | `pulseWidth` | 0.05..0.95 | 0.5 | `square` only |
 | `lfo` | `target`; `rate` Hz; `depth` semitones (pitch) or 0..1 (volume) | -, 0, 0 | `pitch` or `volume` |
 | `sample`, `interpolation` | path; `nearest`, `linear`, `gaussian` | -, `linear` | the WAV of a `sample` layer, relative to the recipe file |
 | `vary` | `{"<field>": [min, max]}` | - | per play, `min..max` is added to the field |
 
+Segment curves: every envelope segment - attack, decay and release of the
+amplitude and the cutoff envelope - and the pitch sweep has a curve from 0,
+linear (the default, as before curves existed), to 1, exponential.
+Exponential is how a struck object rings out: the distance left to the
+segment's target falls by 60 dB over the segment's time, a straight line in
+dB, so a decay or release to 0 ends at -60 dB and its time is its RT60. An
+attack rises fast and settles into the peak; a pitch sweep moves fast and
+settles into its `end`, a kick's or a hit's drop. Values between mix the two
+shapes. For an impact or a ring, `"decay": 400, "sustain": 0, "decayCurve": 1`
+falls evenly in dB over its 400 ms; a linear decay of the same time stays
+loud for most of it and drops off at the end.
+
 `vary` names a numeric field by its path: `detune`, `gain`, `envelope.decay`,
-`filter.cutoff`, `pitch.start`, ... Every value a range can reach must be a
-valid value of that field. The parser rejects an unknown field by name and
-path (`layers[1].envelope: unknown field 'decya'`), and so does a hot reload,
-which keeps playing the last good recipe.
+`envelope.decayCurve`, `filter.cutoff`, `pitch.start`, `pitch.curve`, ...
+Every value a range can reach must be a valid value of that field. The
+parser rejects an unknown field by name and path (`layers[1].envelope:
+unknown field 'decya'`), and so does a hot reload, which keeps playing the
+last good recipe.
 
 Variation: `variation.seed` (default 0) is the base of every variation seed,
 and `variation.pool` cycles `play()` through that many variations; without a

@@ -566,7 +566,8 @@
     A recipe is a stack of layers - each one voice with a source
     (oscillator, noise or a WAV sample), an envelope, a pitch curve, a
     filter curve, a start offset, a gain and a pan, in Hz, ms, semitones
-    and dB - plus a variation spec: a random range per layer field, a
+    and dB; each envelope segment and the pitch sweep linear or, up to
+    exponential, a straight line in dB - plus a variation spec: a random range per layer field, a
     seed and a round-robin pool size. The plugin README documents the
     format; the parser rejects an unknown field by its name and path.
     A recipe can also be compiled from a design file - a template, its

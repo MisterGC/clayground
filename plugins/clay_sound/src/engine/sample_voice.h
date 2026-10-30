@@ -38,6 +38,12 @@ public:
         double decay   = 0.0;
         double sustain = 1.0;
         double release = 0.0;
+
+        // Curve of each segment: 0 linear .. 1 exponential, a straight
+        // line in dB (segment_curve.h).
+        double attackCurve  = 0.0;
+        double decayCurve   = 0.0;
+        double releaseCurve = 0.0;
     };
 
     // Configure before onNoteOn(). Shared ownership of the source

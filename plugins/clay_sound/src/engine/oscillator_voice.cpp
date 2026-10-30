@@ -2,6 +2,7 @@
 
 #include "oscillator_voice.h"
 #include "note_event.h"
+#include "segment_curve.h"
 #include <algorithm>
 #include <cmath>
 
@@ -14,23 +15,25 @@ static constexpr double kPi = 3.14159265358979323846;
 
 // ADSR level at `t` seconds into a note gated for `duration` seconds.
 // The release runs inside the gate: it starts `release` seconds before
-// the note ends, from the sustain level.
+// the note ends, from the sustain level. Each segment follows its curve
+// (segment_curve.h).
 static double adsr(double t, double duration,
-                   double attack, double decay, double sustain, double release)
+                   double attack, double decay, double sustain, double release,
+                   double attackCurve, double decayCurve, double releaseCurve)
 {
     if (t < 0.0) return 0.0;
     const double releaseStart = duration - release;
     if (t < attack)
-        return (attack > 0.0) ? (t / attack) : 1.0;
+        return (attack > 0.0) ? segmentShape(t / attack, attackCurve) : 1.0;
     if (t < attack + decay) {
         const double p = (decay > 0.0) ? (t - attack) / decay : 1.0;
-        return 1.0 - (1.0 - sustain) * p;
+        return 1.0 - (1.0 - sustain) * segmentShape(p, decayCurve);
     }
     if (t < releaseStart)
         return sustain;
     if (t < duration) {
         const double p = (release > 0.0) ? (t - releaseStart) / release : 1.0;
-        return sustain * (1.0 - p);
+        return sustain * (1.0 - segmentShape(p, releaseCurve));
     }
     return 0.0;
 }
@@ -80,7 +83,8 @@ double OscillatorVoice::renderSample(int64_t frame)
 
     // --- Envelope -----------------------------------------------------
     double env = adsr(t, duration, patch_.attack, patch_.decay,
-                      patch_.sustain, patch_.release);
+                      patch_.sustain, patch_.release,
+                      patch_.attackCurve, patch_.decayCurve, patch_.releaseCurve);
 
     // Volume LFO shaping of envelope.
     if (patch_.lfoTarget == 2 && patch_.lfoRate > 0.0) {
@@ -129,7 +133,10 @@ double OscillatorVoice::renderSample(int64_t frame)
     // --- Advance phase (with pitch env + LFO pitch mod) ---------------
     double effFreq = freqHz_;
     if (patch_.pitchTime > 0.0) {
-        const double p = std::min(t / patch_.pitchTime, 1.0);
+        // Past the sweep the pitch is its end, not where an exponential
+        // curve stops short of it.
+        const double p = t < patch_.pitchTime
+            ? segmentShape(t / patch_.pitchTime, patch_.pitchCurve) : 1.0;
         const double semis =
             patch_.pitchStart + (patch_.pitchEnd - patch_.pitchStart) * p;
         effFreq *= std::pow(2.0, semis / 12.0);
@@ -155,7 +162,8 @@ double OscillatorVoice::filter(double in, double t, double duration)
     if (patch_.filterEnvAmount != 0.0) {
         const double fenv = adsr(t, duration, patch_.filterAttack,
                                  patch_.filterDecay, patch_.filterSustain,
-                                 patch_.filterRelease);
+                                 patch_.filterRelease, patch_.filterAttackCurve,
+                                 patch_.filterDecayCurve, patch_.filterReleaseCurve);
         fc *= std::pow(2.0, patch_.filterEnvAmount * fenv);
     }
     fc = std::clamp(fc, 20.0, 0.49 * sampleRate_);
