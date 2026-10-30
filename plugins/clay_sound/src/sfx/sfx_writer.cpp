@@ -26,7 +26,7 @@ const QStringList &layerKeys()
 {
     static const QStringList k = {"name", "role", "source", "sample", "interpolation",
                                   "freq", "detune", "gain", "pan", "offset", "length",
-                                  "envelope", "pitch", "filter", "pulseWidth", "lfo", "burst", "vary"};
+                                  "envelope", "pitch", "filter", "pulseWidth", "lfo", "noise", "burst", "vary"};
     return k;
 }
 
@@ -50,6 +50,7 @@ const QStringList &groupKeys(const QString &group)
                                        "sustain", "release", "amount", "attackCurve",
                                        "decayCurve", "releaseCurve"};
     static const QStringList lfo = {"target", "rate", "depth"};
+    static const QStringList noise = {"color", "rate"};
     static const QStringList burst = {"count", "duration", "density", "jitter"};
     static const QStringList jitter = {"time", "gain", "cutoff", "freq", "length"};
     static const QStringList none;
@@ -58,6 +59,7 @@ const QStringList &groupKeys(const QString &group)
     if (group == QLatin1String("pitch")) return pitch;
     if (group == QLatin1String("filter")) return filter;
     if (group == QLatin1String("lfo")) return lfo;
+    if (group == QLatin1String("noise")) return noise;
     if (group == QLatin1String("burst")) return burst;
     if (group == QLatin1String("jitter")) return jitter;
     if (group == QLatin1String("vary")) return varyKeys();

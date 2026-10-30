@@ -119,6 +119,9 @@ struct SfxLayer
 
     OscillatorVoice::FilterType filterType = OscillatorVoice::FilterType::Off;
     int lfoTarget = 0;              // as OscillatorVoice::Patch: 0 off, 1 pitch, 2 volume
+    // Noise layers: the colour, and whether `freq` clocks the noise.
+    OscillatorVoice::NoiseColor noiseColor = OscillatorVoice::NoiseColor::White;
+    OscillatorVoice::NoiseRate  noiseRate  = OscillatorVoice::NoiseRate::Sample;
     bool burst = false;             // plays as grains (the burst.* numbers), not as one note
 
     std::array<double, kSfxParamCount>   value{};

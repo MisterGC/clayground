@@ -188,7 +188,7 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
 {
     if (!requireKeysOnly(o, {"name", "role", "source", "sample", "interpolation",
                              "freq", "detune", "gain", "pan", "offset", "length",
-                             "envelope", "pitch", "filter", "pulseWidth", "lfo", "burst", "vary"}, path))
+                             "envelope", "pitch", "filter", "pulseWidth", "lfo", "noise", "burst", "vary"}, path))
         return false;
 
     for (int i = 0; i < kSfxParamCount; ++i) l.value[i] = kSfxParams[i].def;
@@ -257,6 +257,28 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         if (text == QLatin1String("pitch"))       l.lfoTarget = 1;
         else if (text == QLatin1String("volume")) l.lfoTarget = 2;
         else return fail(join(lp, "target"), QStringLiteral("unknown target '%1' (pitch, volume)").arg(text));
+    }
+    if (o.contains("noise")) {
+        const QString np = join(path, "noise");
+        if (l.source != SfxSource::Noise) return fail(np, QStringLiteral("applies to a noise layer only"));
+        QJsonObject noise;
+        if (!objectAt(o, "noise", path, noise) || !requireKeysOnly(noise, {"color", "rate"}, np))
+            return false;
+        using C = OscillatorVoice::NoiseColor;
+        using R = OscillatorVoice::NoiseRate;
+        if (noise.contains("color")) {
+            if (!stringAt(noise, "color", np, text)) return false;
+            if (text == QLatin1String("white"))      l.noiseColor = C::White;
+            else if (text == QLatin1String("pink"))  l.noiseColor = C::Pink;
+            else if (text == QLatin1String("brown")) l.noiseColor = C::Brown;
+            else return fail(join(np, "color"), QStringLiteral("unknown color '%1' (white, pink, brown)").arg(text));
+        }
+        if (noise.contains("rate")) {
+            if (!stringAt(noise, "rate", np, text)) return false;
+            if (text == QLatin1String("sample"))    l.noiseRate = R::Sample;
+            else if (text == QLatin1String("freq")) l.noiseRate = R::Freq;
+            else return fail(join(np, "rate"), QStringLiteral("unknown rate '%1' (sample, freq)").arg(text));
+        }
     }
     if (o.contains("burst")) {
         if (isSample(l)) return fail(bp, QStringLiteral("does not apply to a sample layer"));

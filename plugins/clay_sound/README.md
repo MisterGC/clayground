@@ -315,7 +315,7 @@ below), `layers` (required, at least one). A layer:
 |-------|------|---------|---------|
 | `source` | - | required | `sine`, `square`, `triangle`, `sawtooth`, `noise` or `sample` |
 | `name`, `role` | - | - | a label; `role` is `transient`, `body` or `tail` |
-| `freq` | Hz, 1..20000 | 440 | pitch of an oscillator layer |
+| `freq` | Hz, 1..20000 | 440 | pitch of an oscillator layer; the clock of a noise layer with `"rate": "freq"` |
 | `detune` | semitones, -48..48 | 0 | shifts `freq`, or a sample's pitch |
 | `gain` | dB, -96..12 | 0 | level of the layer |
 | `pan` | -1..1 | 0 | added to the player's `pan` |
@@ -326,6 +326,7 @@ below), `layers` (required, at least one). A layer:
 | `filter` | `type`; `cutoff` Hz; `resonance` 0..1; `attack`, `decay`, `release` ms; `sustain` 0..1; `amount` octaves; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | -, 1000, 0, 0, 0, 0, 1, 0, 0, 0, 0 | `lowpass`, `highpass` or `bandpass`, with a cutoff envelope that moves the cutoff by `amount` octaves at its peak |
 | `pulseWidth` | 0.05..0.95 | 0.5 | `square` only |
 | `lfo` | `target`; `rate` Hz; `depth` semitones (pitch) or 0..1 (volume) | -, 0, 0 | `pitch` or `volume` |
+| `noise` | `color`: `white`, `pink`, `brown`; `rate`: `sample`, `freq` | `white`, `sample` | `noise` only (see "Noise") |
 | `sample`, `interpolation` | path; `nearest`, `linear`, `gaussian` | -, `linear` | the WAV of a `sample` layer, relative to the recipe file |
 | `burst` | `count` 1..256; `duration` ms; `density` 0.01..100; `jitter`: `time` 0..1, `gain` dB, `cutoff` octaves, `freq` semitones, `length` ms | required, required, 1; 0, 0, 0, 0, 0 | the layer plays as `count` short grains inside `duration` (see "Bursts"); not on a `sample` layer |
 | `vary` | `{"<field>": [min, max]}` | - | per play, `min..max` is added to the field |
@@ -341,6 +342,30 @@ settles into its `end`, a kick's or a hit's drop. Values between mix the two
 shapes. For an impact or a ring, `"decay": 400, "sustain": 0, "decayCurve": 1`
 falls evenly in dB over its 400 ms; a linear decay of the same time stays
 loud for most of it and drops off at the end.
+
+Noise: a `noise` layer is white noise drawn every sample unless its `noise`
+group says otherwise - the default sounds as noise did before the group
+existed, and ignores `freq`.
+
+```json
+{ "name": "rumble", "source": "noise", "freq": 600, "length": 900,
+  "noise": { "color": "brown", "rate": "freq" } }
+```
+
+- `color`: `white` is flat, `pink` falls 3 dB per octave, `brown` 6 dB.
+  Pink and brown sit about 6 dB below white, so their peaks stay inside
+  -1..1 as white's do.
+- `rate`: `sample` draws a new value every sample. `freq` holds each value
+  for one period of the layer's pitch - `freq` raised by `detune`, the
+  `pitch` sweep and a pitch `lfo` - as the SNES noise clock does: the
+  spectrum is that of the colour laid over the clock, and a quarter of the
+  `freq` lays it two octaves lower. White noise clocked at 8000 Hz has half
+  of its power below about 2150 Hz, at 2000 Hz below about 540 Hz. Since
+  the clock is the pitch, everything that moves a pitch moves a clocked
+  noise: a play's `detune`, `vary.detune`, `burst.jitter.freq`, a pitch
+  sweep (a falling hiss). A clock above the sample rate draws every sample.
+- The colour is shaped at the clock: the colour filters run once per drawn
+  value, so pink and brown keep their slope below a clock of any rate.
 
 Bursts: crumble, gravel, crackle and debris are many tiny grains with
 random timing. A layer with a `burst` plays as `count` grains instead of one
