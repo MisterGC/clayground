@@ -544,7 +544,8 @@ receive the offers meant for them.
 |----------|---------------|-------------|
 | Desktop (Linux, macOS, Windows) | WebRTC via libdatachannel | ClayHttpClient |
 | WebAssembly (Browser) | WebRTC via PeerJS | ClayHttpClient |
-| Mobile (iOS, Android) | WebRTC via libdatachannel | ClayHttpClient |
+| Android | WebRTC via libdatachannel | ClayHttpClient |
+| iOS | not in iOS builds yet: libdatachannel needs an OpenSSL for iOS (#476) | - |
 
 ## ClayHttpClient
 

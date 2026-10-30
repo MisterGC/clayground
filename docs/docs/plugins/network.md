@@ -233,7 +233,8 @@ bearerToken: "file:///path/to/token.txt"
 |----------|-----------------|-------------|--------|
 | WebAssembly (Browser) | ClayMultiplayer (WebRTC) | ClayHttpClient | **Supported** |
 | Desktop (Linux, macOS, Windows) | ClayNetworkUser (TCP/UDP) | ClayHttpClient | **Supported** |
-| Mobile (iOS, Android) | - | ClayHttpClient | Partial |
+| Android | - | ClayHttpClient | Partial |
+| iOS | - | - | Not in iOS builds yet (#476) |
 
 ## Best Practices
 
