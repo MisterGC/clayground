@@ -47,6 +47,8 @@ void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
     freqHz_     = ev.freqHz;
     gain_       = ev.velocity;
     phase_      = 0.0;
+    fmPhase_    = 0.0;
+    ringPhase_  = 0.0;
     filterIc1_  = 0.0;
     filterIc2_  = 0.0;
     // Deterministic-per-voice noise seed. Derived from start frame so
@@ -143,31 +145,42 @@ double OscillatorVoice::renderSample(int64_t frame)
     }
 
     // --- Waveform (uses current phase) ---------------------------------
+    // FM moves the phase the wave is read at, not the phase itself, so
+    // the pitch stays the carrier's.
+    double ph = phase_;
+    if (patch_.fmRatio > 0.0) {
+        const double index = patch_.fmIndex *
+            adsr(t, duration, patch_.fmAttack, patch_.fmDecay, patch_.fmSustain,
+                 patch_.fmRelease, patch_.fmAttackCurve, patch_.fmDecayCurve,
+                 patch_.fmReleaseCurve);
+        ph += index * std::sin(2.0 * kPi * fmPhase_) / (2.0 * kPi);
+        ph -= std::floor(ph);
+    }
     double wave = 0.0;
     switch (patch_.waveform) {
     case Waveform::Sine:
-        wave = std::sin(2.0 * kPi * phase_);
+        wave = std::sin(2.0 * kPi * ph);
         break;
     case Waveform::Square: {
         const double edge = 0.02;
         const double pw   = std::clamp(patch_.pulseWidth, 0.05, 0.95);
-        if (phase_ < edge)
-            wave = phase_ / edge;
-        else if (phase_ < pw - edge)
+        if (ph < edge)
+            wave = ph / edge;
+        else if (ph < pw - edge)
             wave = 1.0;
-        else if (phase_ < pw + edge)
-            wave = 1.0 - 2.0 * (phase_ - (pw - edge)) / (2.0 * edge);
-        else if (phase_ < 1.0 - edge)
+        else if (ph < pw + edge)
+            wave = 1.0 - 2.0 * (ph - (pw - edge)) / (2.0 * edge);
+        else if (ph < 1.0 - edge)
             wave = -1.0;
         else
-            wave = -1.0 + (phase_ - (1.0 - edge)) / edge;
+            wave = -1.0 + (ph - (1.0 - edge)) / edge;
         break;
     }
     case Waveform::Triangle:
-        wave = 4.0 * std::abs(phase_ - 0.5) - 1.0;
+        wave = 4.0 * std::abs(ph - 0.5) - 1.0;
         break;
     case Waveform::Sawtooth:
-        wave = 2.0 * phase_ - 1.0;
+        wave = 2.0 * ph - 1.0;
         break;
     case Waveform::Noise:
         // A clocked noise holds its value until the phase wraps.
@@ -193,6 +206,16 @@ double OscillatorVoice::renderSample(int64_t frame)
     if (patch_.lfoRate > 0.0 && patch_.lfoDepth > 0.0 && patch_.lfoTarget == 1) {
         const double lfo = std::sin(2.0 * kPi * t * patch_.lfoRate);
         effFreq *= std::pow(2.0, lfo * patch_.lfoDepth / 12.0);
+    }
+
+    if (patch_.ringRatio > 0.0) {
+        wave *= std::sin(2.0 * kPi * ringPhase_);
+        ringPhase_ += patch_.ringRatio * effFreq / static_cast<double>(sampleRate_);
+        ringPhase_ -= std::floor(ringPhase_);
+    }
+    if (patch_.fmRatio > 0.0) {
+        fmPhase_ += patch_.fmRatio * effFreq / static_cast<double>(sampleRate_);
+        fmPhase_ -= std::floor(fmPhase_);
     }
 
     phase_ += effFreq / static_cast<double>(sampleRate_);

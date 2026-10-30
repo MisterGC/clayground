@@ -108,6 +108,13 @@ QString notApplicable(SfxParam p, const SfxLayer &l)
     case P::JitterGain: case P::JitterFreq: case P::JitterLength:
         if (!l.burst) return QStringLiteral("needs a 'burst'");
         return {};
+    case P::FmRatio: case P::FmIndex: case P::FmAttack: case P::FmDecay: case P::FmSustain:
+    case P::FmRelease: case P::FmAttackCurve: case P::FmDecayCurve: case P::FmReleaseCurve:
+        if (!l.fm) return QStringLiteral("needs an 'fm'");
+        return {};
+    case P::RingRatio:
+        if (!l.ring) return QStringLiteral("needs a 'ring'");
+        return {};
     case P::JitterCutoff:
         if (!l.burst) return QStringLiteral("needs a 'burst'");
         if (l.filterType == OscillatorVoice::FilterType::Off)
@@ -188,7 +195,8 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
 {
     if (!requireKeysOnly(o, {"name", "role", "source", "sample", "interpolation",
                              "freq", "detune", "gain", "pan", "offset", "length",
-                             "envelope", "pitch", "filter", "pulseWidth", "lfo", "noise", "burst", "vary"}, path))
+                             "envelope", "pitch", "filter", "pulseWidth", "lfo", "noise", "fm", "ring",
+                             "burst", "vary"}, path))
         return false;
 
     for (int i = 0; i < kSfxParamCount; ++i) l.value[i] = kSfxParams[i].def;
@@ -228,9 +236,11 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
 
     // The filter type, the lfo target and whether there is a burst first:
     // they decide which of the numbers below have a meaning.
-    QJsonObject filter, lfo, burst, jitter;
+    QJsonObject filter, lfo, fm, ring, burst, jitter;
     const QString fp = join(path, "filter");
     const QString lp = join(path, "lfo");
+    const QString mp = join(path, "fm");
+    const QString rp = join(path, "ring");
     const QString bp = join(path, "burst");
     const QString jp = join(bp, "jitter");
     if (o.contains("filter")) {
@@ -279,6 +289,26 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
             else if (text == QLatin1String("freq")) l.noiseRate = R::Freq;
             else return fail(join(np, "rate"), QStringLiteral("unknown rate '%1' (sample, freq)").arg(text));
         }
+    }
+    // Either one modulates an oscillator's phase or its wave: a noise or a
+    // sample layer has neither.
+    const bool oscillator = !isSample(l) && l.source != SfxSource::Noise;
+    if (o.contains("fm")) {
+        if (!oscillator) return fail(mp, QStringLiteral("applies to a sine, square, triangle or sawtooth layer only"));
+        if (!objectAt(o, "fm", path, fm)
+            || !requireKeysOnly(fm, {"ratio", "index", "attack", "decay", "sustain", "release",
+                                     "attackCurve", "decayCurve", "releaseCurve"}, mp))
+            return false;
+        if (!fm.contains("ratio")) return fail(mp, QStringLiteral("needs a 'ratio'"));
+        if (!fm.contains("index")) return fail(mp, QStringLiteral("needs an 'index'"));
+        l.fm = true;
+    }
+    if (o.contains("ring")) {
+        if (!oscillator) return fail(rp, QStringLiteral("applies to a sine, square, triangle or sawtooth layer only"));
+        if (l.fm) return fail(rp, QStringLiteral("a layer has an 'fm' or a 'ring', not both"));
+        if (!objectAt(o, "ring", path, ring) || !requireKeysOnly(ring, {"ratio"}, rp)) return false;
+        if (!ring.contains("ratio")) return fail(rp, QStringLiteral("needs a 'ratio'"));
+        l.ring = true;
     }
     if (o.contains("burst")) {
         if (isSample(l)) return fail(bp, QStringLiteral("does not apply to a sample layer"));
@@ -333,6 +363,15 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         return false;
     if (!lfo.isEmpty()
         && !numbers(lfo, lp, l, {{"rate", P::LfoRate}, {"depth", P::LfoDepth}}))
+        return false;
+    if (l.fm
+        && !numbers(fm, mp, l, {{"ratio", P::FmRatio}, {"index", P::FmIndex},
+                                {"attack", P::FmAttack}, {"decay", P::FmDecay},
+                                {"sustain", P::FmSustain}, {"release", P::FmRelease},
+                                {"attackCurve", P::FmAttackCurve}, {"decayCurve", P::FmDecayCurve},
+                                {"releaseCurve", P::FmReleaseCurve}}))
+        return false;
+    if (l.ring && !numbers(ring, rp, l, {{"ratio", P::RingRatio}}))
         return false;
     if (l.burst
         && (!numbers(burst, bp, l, {{"count", P::BurstCount}, {"duration", P::BurstDuration},

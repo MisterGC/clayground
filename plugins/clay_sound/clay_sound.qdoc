@@ -567,7 +567,8 @@
     (oscillator, noise - white, pink or brown, drawn every sample or
     clocked by the layer's pitch - or a WAV sample), an envelope, a pitch
     curve, a
-    filter curve, a start offset, a gain and a pan, in Hz, ms, semitones
+    filter curve, an oscillator's two-operator FM with an index envelope
+    or its ring modulation, a start offset, a gain and a pan, in Hz, ms, semitones
     and dB; each envelope segment and the pitch sweep linear or, up to
     exponential, a straight line in dB; a layer with a \c burst plays as
     many short seeded grains, \c maxVoices bounding how many ring at once -
