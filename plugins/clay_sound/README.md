@@ -330,6 +330,8 @@ below), `layers` (required, at least one). A layer:
 | `noise` | `color`: `white`, `pink`, `brown`; `rate`: `sample`, `freq` | `white`, `sample` | `noise` only (see "Noise") |
 | `fm` | `ratio` 0.01..64; `index` radians, 0..32; `attack`, `decay`, `release` ms; `sustain` 0..1; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | required, required; 0, 0, 0; 1; 0, 0, 0 | two-operator FM with an index envelope (see "FM and ring"); oscillator layers only |
 | `ring` | `ratio` 0.01..64 | required | ring modulation (see "FM and ring"); oscillator layers only, not with `fm` |
+| `drive` | dB, 0..48 | - (off) | saturates the layer through a tanh (see "Drive and crush"); any source |
+| `crush` | `bits` 1..24; `rate` Hz, 20..192000 | 24, 192000 (each off) | rounds the layer to `bits` and holds each value for one period of `rate` (see "Drive and crush"); any source; needs one of the two |
 | `sample`, `interpolation` | path; `nearest`, `linear`, `gaussian` | -, `linear` | the WAV of a `sample` layer, relative to the recipe file |
 | `burst` | `count` 1..256; `duration` ms; `density` 0.01..100; `jitter`: `time` 0..1, `gain` dB, `cutoff` octaves, `freq` semitones, `length` ms | required, required, 1; 0, 0, 0, 0, 0 | the layer plays as `count` short grains inside `duration` (see "Bursts"); not on a `sample` layer |
 | `vary` | `{"<field>": [min, max]}` | - | per play, `min..max` is added to the field |
@@ -440,6 +442,40 @@ it was before the field existed.
 - `vary` and macros reach `rate` and `depth`; a design file's override
   sets `layers[<layer>].lfo.shape`.
 
+Drive and crush: explosions and growls need saturation, chip sounds their
+grit. A layer without a `drive` or a `crush` sounds as layers did before
+the two existed. Both act on what the layer sounds after its envelope and
+before its `gain`, so `gain` stays the layer's output level and does not
+change how hard it is driven or how coarse its steps are; a play's
+velocity, too, only scales the result.
+
+```json
+{ "name": "growl", "source": "sawtooth", "freq": 90, "length": 900,
+  "filter": { "type": "lowpass", "cutoff": 700, "resonance": 0.4 },
+  "drive": 18, "crush": { "bits": 6, "rate": 8000 } }
+```
+
+- `drive`: the signal raised by `drive` dB into a `tanh`. On a sine that
+  adds odd harmonics and no even ones, and keeps every peak inside -1..1.
+  On a full-scale sine: 0 dB is already a soft clip, the third harmonic at
+  0.05 of the peak; 6 dB 0.19, 12 dB 0.34, 24 dB 0.42, the fifth at 0.04,
+  0.14, 0.24. There is no make-up gain: a quiet layer driven hard comes
+  out louder, so lower its `gain` to match.
+- `crush.bits` rounds every value to a step of `2^(1 - bits)` of full
+  scale: a full-scale sine at 4 bits takes the 17 levels -1, -0.875, ...,
+  1. `bits` may be fractional, so a macro moves it smoothly; 24, the
+  default, rounds nothing.
+- `crush.rate` holds each value for `1 / rate` seconds, as a lower sample
+  rate would: at 11025 Hz under a 44.1 kHz output every value four
+  samples, at 3000 Hz 14 or 15. The steps fold the layer back around
+  multiples of `rate`, unfiltered - the aliasing is the grit. A rate at or
+  above the output's, as the default 192000, holds nothing.
+- The order inside a layer is drive, then hold, then rounding. Nothing is
+  band-limited: the harmonics a high drive adds above half the sample rate
+  fold back too.
+- `vary` and macros reach `drive`, `crush.bits` and `crush.rate`
+  (`vary: {"drive": [-3, 3]}`).
+
 Bursts: crumble, gravel, crackle and debris are many tiny grains with
 random timing. A layer with a `burst` plays as `count` grains instead of one
 note, each grain the layer itself - its source, envelope, filter, `length`,
@@ -483,7 +519,8 @@ against it and are never cut. A recipe with a cap needs a burst.
 
 `vary` names a numeric field by its path: `detune`, `gain`, `envelope.decay`,
 `envelope.decayCurve`, `filter.cutoff`, `pitch.start`, `pitch.curve`,
-`fm.index`, `ring.ratio`, `burst.count`, `burst.jitter.time`, ...
+`fm.index`, `ring.ratio`, `drive`, `crush.bits`, `burst.count`,
+`burst.jitter.time`, ...
 Every value a range can reach must be a valid value of that field. The
 parser rejects an unknown field by name and path (`layers[1].envelope:
 unknown field 'decya'`), and so does a hot reload, which keeps playing the

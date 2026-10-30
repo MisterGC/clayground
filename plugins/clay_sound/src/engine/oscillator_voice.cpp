@@ -51,6 +51,7 @@ void OscillatorVoice::onNoteOn(const NoteEvent& ev, int sampleRate)
     ringPhase_  = 0.0;
     filterIc1_  = 0.0;
     filterIc2_  = 0.0;
+    driveCrush_.start(patch_.driveCrush, sampleRate);
     // Deterministic-per-voice noise seed. Derived from start frame so
     // two noise notes at different times produce different sequences,
     // unless the patch names a seed of its own.
@@ -277,7 +278,7 @@ double OscillatorVoice::renderSample(int64_t frame)
         wave = filter(wave, t, duration,
                       patch_.lfoTarget == 3 && patch_.lfoRate > 0.0 ? lfo * patch_.lfoDepth : 0.0);
 
-    return wave * env * gain_;
+    return driveCrush_.process(wave * env) * gain_;
 }
 
 double OscillatorVoice::filter(double in, double t, double duration, double lfoOctaves)

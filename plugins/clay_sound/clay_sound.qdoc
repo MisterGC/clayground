@@ -570,7 +570,8 @@
     filter curve, an oscillator's two-operator FM with an index envelope
     or its ring modulation, an LFO - sine, square, sample-and-hold or
     smooth random, seeded by the play - on the pitch, the volume or the
-    filter cutoff, a start offset, a gain and a pan, in Hz, ms, semitones
+    filter cutoff, a tanh drive and a bit and rate crush, a start
+    offset, a gain and a pan, in Hz, ms, semitones
     and dB; each envelope segment and the pitch sweep linear or, up to
     exponential, a straight line in dB; a layer with a \c burst plays as
     many short seeded grains, \c maxVoices bounding how many ring at once -

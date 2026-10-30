@@ -115,6 +115,12 @@ QString notApplicable(SfxParam p, const SfxLayer &l)
     case P::RingRatio:
         if (!l.ring) return QStringLiteral("needs a 'ring'");
         return {};
+    case P::Drive:
+        if (!l.drive) return QStringLiteral("needs a 'drive'");
+        return {};
+    case P::CrushBits: case P::CrushRate:
+        if (!l.crush) return QStringLiteral("needs a 'crush'");
+        return {};
     case P::JitterCutoff:
         if (!l.burst) return QStringLiteral("needs a 'burst'");
         if (l.filterType == OscillatorVoice::FilterType::Off)
@@ -196,7 +202,7 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
     if (!requireKeysOnly(o, {"name", "role", "source", "sample", "interpolation",
                              "freq", "detune", "gain", "pan", "offset", "length",
                              "envelope", "pitch", "filter", "pulseWidth", "lfo", "noise", "fm", "ring",
-                             "burst", "vary"}, path))
+                             "drive", "crush", "burst", "vary"}, path))
         return false;
 
     for (int i = 0; i < kSfxParamCount; ++i) l.value[i] = kSfxParams[i].def;
@@ -236,11 +242,12 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
 
     // The filter type, the lfo target and whether there is a burst first:
     // they decide which of the numbers below have a meaning.
-    QJsonObject filter, lfo, fm, ring, burst, jitter;
+    QJsonObject filter, lfo, fm, ring, crush, burst, jitter;
     const QString fp = join(path, "filter");
     const QString lp = join(path, "lfo");
     const QString mp = join(path, "fm");
     const QString rp = join(path, "ring");
+    const QString cp = join(path, "crush");
     const QString bp = join(path, "burst");
     const QString jp = join(bp, "jitter");
     if (o.contains("filter")) {
@@ -323,6 +330,13 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         if (!ring.contains("ratio")) return fail(rp, QStringLiteral("needs a 'ratio'"));
         l.ring = true;
     }
+    // Both act on whatever the layer sounds, a sample too.
+    l.drive = o.contains("drive");
+    if (o.contains("crush")) {
+        if (!objectAt(o, "crush", path, crush) || !requireKeysOnly(crush, {"bits", "rate"}, cp)) return false;
+        if (crush.isEmpty()) return fail(cp, QStringLiteral("needs a 'bits' or a 'rate'"));
+        l.crush = true;
+    }
     if (o.contains("burst")) {
         if (isSample(l)) return fail(bp, QStringLiteral("does not apply to a sample layer"));
         if (!objectAt(o, "burst", path, burst)
@@ -339,7 +353,7 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
 
     if (!numbers(o, path, l, {{"freq", P::Freq}, {"detune", P::Detune}, {"gain", P::Gain},
                               {"pan", P::Pan}, {"offset", P::Offset}, {"length", P::Length},
-                              {"pulseWidth", P::PulseWidth}}))
+                              {"pulseWidth", P::PulseWidth}, {"drive", P::Drive}}))
         return false;
     if (!isSample(l) && l.get(P::Length) <= 0.0)
         return fail(join(path, "length"), QStringLiteral("must be above 0"));
@@ -385,6 +399,8 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
                                 {"releaseCurve", P::FmReleaseCurve}}))
         return false;
     if (l.ring && !numbers(ring, rp, l, {{"ratio", P::RingRatio}}))
+        return false;
+    if (l.crush && !numbers(crush, cp, l, {{"bits", P::CrushBits}, {"rate", P::CrushRate}}))
         return false;
     if (l.burst
         && (!numbers(burst, bp, l, {{"count", P::BurstCount}, {"duration", P::BurstDuration},

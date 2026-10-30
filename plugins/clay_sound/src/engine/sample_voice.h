@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "drive_crush.h"
 #include "voice.h"
 #include <cstdint>
 #include <memory>
@@ -44,6 +45,10 @@ public:
         double attackCurve  = 0.0;
         double decayCurve   = 0.0;
         double releaseCurve = 0.0;
+
+        // Drive and crush after the envelope, before the velocity
+        // (drive_crush.h). Off by default.
+        DriveCrush driveCrush;
     };
 
     // Configure before onNoteOn(). Shared ownership of the source
@@ -72,6 +77,7 @@ private:
     double  srcPos_     = 0.0;         // current position in source samples
     double  srcStep_    = 1.0;         // per engine sample
     bool    exhausted_  = false;       // non-looping sample reached end
+    DriveCrushState driveCrush_;
 };
 
 } // namespace clay::sound

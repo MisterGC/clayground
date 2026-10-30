@@ -3,7 +3,8 @@
 // SfxRecipe — pure data of an effect recipe (*.sfx.json): a stack of
 // layers, each one voice with a source, an envelope, a pitch curve, a
 // filter curve, a start offset, a gain and a pan, all in physical units
-// (Hz, ms, semitones, dB), an oscillator layer FM or ring modulation, plus a variation spec: a random range per
+// (Hz, ms, semitones, dB), an oscillator layer FM or ring modulation,
+// any layer drive and crush, plus a variation spec: a random range per
 // layer parameter, a seed and a round-robin pool size. A layer with a
 // burst plays as many short seeded notes, its grains, and the recipe's
 // voice cap bounds how many of them ring at once.
@@ -40,6 +41,7 @@ enum class SfxParam : int {
     FmRatio, FmIndex, FmAttack, FmDecay, FmSustain, FmRelease,
     FmAttackCurve, FmDecayCurve, FmReleaseCurve,
     RingRatio,
+    Drive, CrushBits, CrushRate,
     Count
 };
 
@@ -110,6 +112,12 @@ inline constexpr std::array<SfxParamInfo, kSfxParamCount> kSfxParams = {{
     {"fm.releaseCurve",       0.0,     1.0,   0.0},
     // Ring modulation: the layer times a sine at `ratio` times its pitch.
     {"ring.ratio",            0.01,   64.0,   1.0},
+    // Drive: dB into a tanh saturation. Crush: rounding to `bits` (24
+    // rounds nothing) and holding each value for one period of `rate`
+    // (at or above the output's rate it holds nothing).
+    {"drive",                 0.0,    48.0,   0.0},   // dB
+    {"crush.bits",            1.0,    24.0,  24.0},
+    {"crush.rate",           20.0, 192000.0, 192000.0},   // Hz
 }};
 
 inline const SfxParamInfo &sfxParamInfo(SfxParam p) { return kSfxParams[static_cast<int>(p)]; }
@@ -142,6 +150,8 @@ struct SfxLayer
     bool burst = false;             // plays as grains (the burst.* numbers), not as one note
     bool fm = false;                // runs FM (the fm.* numbers)
     bool ring = false;              // runs ring modulation (ring.ratio)
+    bool drive = false;             // saturates by `drive` dB
+    bool crush = false;             // rounds and holds (the crush.* numbers)
 
     std::array<double, kSfxParamCount>   value{};
     std::array<SfxRange, kSfxParamCount> vary{};
