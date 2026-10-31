@@ -9,6 +9,7 @@
 #include <QJsonValue>
 #include <QStringList>
 
+#include <algorithm>
 #include <cmath>
 
 namespace clay::sound {
@@ -83,14 +84,15 @@ bool isSample(const SfxLayer &l) { return l.source == SfxSource::Sample; }
 QString notApplicable(SfxParam p, const SfxLayer &l)
 {
     switch (p) {
-    case P::Freq: case P::PitchStart: case P::PitchEnd: case P::PitchTime:
+    case P::Freq: case P::PitchStart: case P::PitchEnd: case P::PitchTime: case P::PitchCurve:
         if (isSample(l)) return QStringLiteral("does not apply to a sample layer (use 'detune')");
         return {};
-    case P::Decay: case P::Sustain:
+    case P::Decay: case P::Sustain: case P::DecayCurve:
         if (isSample(l)) return QStringLiteral("does not apply to a sample layer (only attack and release do)");
         return {};
     case P::Cutoff: case P::Resonance: case P::FilterAttack: case P::FilterDecay:
     case P::FilterSustain: case P::FilterRelease: case P::FilterAmount:
+    case P::FilterAttackCurve: case P::FilterDecayCurve: case P::FilterReleaseCurve:
         if (isSample(l)) return QStringLiteral("does not apply to a sample layer");
         if (l.filterType == OscillatorVoice::FilterType::Off)
             return QStringLiteral("needs a 'filter' with a 'type'");
@@ -101,6 +103,28 @@ QString notApplicable(SfxParam p, const SfxLayer &l)
     case P::LfoRate: case P::LfoDepth:
         if (isSample(l)) return QStringLiteral("does not apply to a sample layer");
         if (l.lfoTarget == 0) return QStringLiteral("needs an 'lfo' with a 'target'");
+        return {};
+    case P::BurstCount: case P::BurstDuration: case P::BurstDensity: case P::JitterTime:
+    case P::JitterGain: case P::JitterFreq: case P::JitterLength:
+        if (!l.burst) return QStringLiteral("needs a 'burst'");
+        return {};
+    case P::FmRatio: case P::FmIndex: case P::FmAttack: case P::FmDecay: case P::FmSustain:
+    case P::FmRelease: case P::FmAttackCurve: case P::FmDecayCurve: case P::FmReleaseCurve:
+        if (!l.fm) return QStringLiteral("needs an 'fm'");
+        return {};
+    case P::RingRatio:
+        if (!l.ring) return QStringLiteral("needs a 'ring'");
+        return {};
+    case P::Drive:
+        if (!l.drive) return QStringLiteral("needs a 'drive'");
+        return {};
+    case P::CrushBits: case P::CrushRate:
+        if (!l.crush) return QStringLiteral("needs a 'crush'");
+        return {};
+    case P::JitterCutoff:
+        if (!l.burst) return QStringLiteral("needs a 'burst'");
+        if (l.filterType == OscillatorVoice::FilterType::Off)
+            return QStringLiteral("needs a 'filter' with a 'type'");
         return {};
     default:
         return {};
@@ -177,7 +201,8 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
 {
     if (!requireKeysOnly(o, {"name", "role", "source", "sample", "interpolation",
                              "freq", "detune", "gain", "pan", "offset", "length",
-                             "envelope", "pitch", "filter", "pulseWidth", "lfo", "vary"}, path))
+                             "envelope", "pitch", "filter", "pulseWidth", "lfo", "noise", "fm", "ring",
+                             "drive", "crush", "burst", "vary"}, path))
         return false;
 
     for (int i = 0; i < kSfxParamCount; ++i) l.value[i] = kSfxParams[i].def;
@@ -215,16 +240,22 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         if (!o.contains("length")) return fail(path, QStringLiteral("needs a 'length' in ms"));
     }
 
-    // The filter type and the lfo target first: they decide which of
-    // the numbers below have a meaning.
-    QJsonObject filter, lfo;
+    // The filter type, the lfo target and whether there is a burst first:
+    // they decide which of the numbers below have a meaning.
+    QJsonObject filter, lfo, fm, ring, crush, burst, jitter;
     const QString fp = join(path, "filter");
     const QString lp = join(path, "lfo");
+    const QString mp = join(path, "fm");
+    const QString rp = join(path, "ring");
+    const QString cp = join(path, "crush");
+    const QString bp = join(path, "burst");
+    const QString jp = join(bp, "jitter");
     if (o.contains("filter")) {
         if (isSample(l)) return fail(fp, QStringLiteral("does not apply to a sample layer"));
         if (!objectAt(o, "filter", path, filter)
             || !requireKeysOnly(filter, {"type", "cutoff", "resonance", "attack", "decay",
-                                         "sustain", "release", "amount"}, fp))
+                                         "sustain", "release", "amount", "attackCurve",
+                                         "decayCurve", "releaseCurve"}, fp))
             return false;
         if (!filter.contains("type")) return fail(fp, QStringLiteral("needs a 'type'"));
         if (!stringAt(filter, "type", fp, text)) return false;
@@ -236,18 +267,93 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
     }
     if (o.contains("lfo")) {
         if (isSample(l)) return fail(lp, QStringLiteral("does not apply to a sample layer"));
-        if (!objectAt(o, "lfo", path, lfo) || !requireKeysOnly(lfo, {"target", "rate", "depth"}, lp))
+        if (!objectAt(o, "lfo", path, lfo) || !requireKeysOnly(lfo, {"target", "shape", "rate", "depth"}, lp))
             return false;
         if (!lfo.contains("target")) return fail(lp, QStringLiteral("needs a 'target'"));
         if (!stringAt(lfo, "target", lp, text)) return false;
         if (text == QLatin1String("pitch"))       l.lfoTarget = 1;
         else if (text == QLatin1String("volume")) l.lfoTarget = 2;
-        else return fail(join(lp, "target"), QStringLiteral("unknown target '%1' (pitch, volume)").arg(text));
+        else if (text == QLatin1String("cutoff")) l.lfoTarget = 3;
+        else return fail(join(lp, "target"), QStringLiteral("unknown target '%1' (pitch, volume, cutoff)").arg(text));
+        if (l.lfoTarget == 3 && l.filterType == OscillatorVoice::FilterType::Off)
+            return fail(join(lp, "target"), QStringLiteral("a cutoff lfo needs a 'filter' with a 'type'"));
+        if (lfo.contains("shape")) {
+            if (!stringAt(lfo, "shape", lp, text)) return false;
+            using S = OscillatorVoice::LfoShape;
+            if (text == QLatin1String("sine"))               l.lfoShape = S::Sine;
+            else if (text == QLatin1String("square"))        l.lfoShape = S::Square;
+            else if (text == QLatin1String("sample_hold"))   l.lfoShape = S::SampleHold;
+            else if (text == QLatin1String("smooth_random")) l.lfoShape = S::SmoothRandom;
+            else return fail(join(lp, "shape"),
+                             QStringLiteral("unknown shape '%1' (sine, square, sample_hold, smooth_random)").arg(text));
+        }
+    }
+    if (o.contains("noise")) {
+        const QString np = join(path, "noise");
+        if (l.source != SfxSource::Noise) return fail(np, QStringLiteral("applies to a noise layer only"));
+        QJsonObject noise;
+        if (!objectAt(o, "noise", path, noise) || !requireKeysOnly(noise, {"color", "rate"}, np))
+            return false;
+        using C = OscillatorVoice::NoiseColor;
+        using R = OscillatorVoice::NoiseRate;
+        if (noise.contains("color")) {
+            if (!stringAt(noise, "color", np, text)) return false;
+            if (text == QLatin1String("white"))      l.noiseColor = C::White;
+            else if (text == QLatin1String("pink"))  l.noiseColor = C::Pink;
+            else if (text == QLatin1String("brown")) l.noiseColor = C::Brown;
+            else return fail(join(np, "color"), QStringLiteral("unknown color '%1' (white, pink, brown)").arg(text));
+        }
+        if (noise.contains("rate")) {
+            if (!stringAt(noise, "rate", np, text)) return false;
+            if (text == QLatin1String("sample"))    l.noiseRate = R::Sample;
+            else if (text == QLatin1String("freq")) l.noiseRate = R::Freq;
+            else return fail(join(np, "rate"), QStringLiteral("unknown rate '%1' (sample, freq)").arg(text));
+        }
+    }
+    // Either one modulates an oscillator's phase or its wave: a noise or a
+    // sample layer has neither.
+    const bool oscillator = !isSample(l) && l.source != SfxSource::Noise;
+    if (o.contains("fm")) {
+        if (!oscillator) return fail(mp, QStringLiteral("applies to a sine, square, triangle or sawtooth layer only"));
+        if (!objectAt(o, "fm", path, fm)
+            || !requireKeysOnly(fm, {"ratio", "index", "attack", "decay", "sustain", "release",
+                                     "attackCurve", "decayCurve", "releaseCurve"}, mp))
+            return false;
+        if (!fm.contains("ratio")) return fail(mp, QStringLiteral("needs a 'ratio'"));
+        if (!fm.contains("index")) return fail(mp, QStringLiteral("needs an 'index'"));
+        l.fm = true;
+    }
+    if (o.contains("ring")) {
+        if (!oscillator) return fail(rp, QStringLiteral("applies to a sine, square, triangle or sawtooth layer only"));
+        if (l.fm) return fail(rp, QStringLiteral("a layer has an 'fm' or a 'ring', not both"));
+        if (!objectAt(o, "ring", path, ring) || !requireKeysOnly(ring, {"ratio"}, rp)) return false;
+        if (!ring.contains("ratio")) return fail(rp, QStringLiteral("needs a 'ratio'"));
+        l.ring = true;
+    }
+    // Both act on whatever the layer sounds, a sample too.
+    l.drive = o.contains("drive");
+    if (o.contains("crush")) {
+        if (!objectAt(o, "crush", path, crush) || !requireKeysOnly(crush, {"bits", "rate"}, cp)) return false;
+        if (crush.isEmpty()) return fail(cp, QStringLiteral("needs a 'bits' or a 'rate'"));
+        l.crush = true;
+    }
+    if (o.contains("burst")) {
+        if (isSample(l)) return fail(bp, QStringLiteral("does not apply to a sample layer"));
+        if (!objectAt(o, "burst", path, burst)
+            || !requireKeysOnly(burst, {"count", "duration", "density", "jitter"}, bp))
+            return false;
+        for (const char *key : {"count", "duration"})
+            if (!burst.contains(key)) return fail(bp, QStringLiteral("needs a '%1'").arg(key));
+        if (burst.contains("jitter")
+            && (!objectAt(burst, "jitter", bp, jitter)
+                || !requireKeysOnly(jitter, {"time", "gain", "cutoff", "freq", "length"}, jp)))
+            return false;
+        l.burst = true;
     }
 
     if (!numbers(o, path, l, {{"freq", P::Freq}, {"detune", P::Detune}, {"gain", P::Gain},
                               {"pan", P::Pan}, {"offset", P::Offset}, {"length", P::Length},
-                              {"pulseWidth", P::PulseWidth}}))
+                              {"pulseWidth", P::PulseWidth}, {"drive", P::Drive}}))
         return false;
     if (!isSample(l) && l.get(P::Length) <= 0.0)
         return fail(join(path, "length"), QStringLiteral("must be above 0"));
@@ -256,9 +362,12 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         const QString ep = join(path, "envelope");
         QJsonObject env;
         if (!objectAt(o, "envelope", path, env)
-            || !requireKeysOnly(env, {"attack", "decay", "sustain", "release"}, ep)
+            || !requireKeysOnly(env, {"attack", "decay", "sustain", "release", "attackCurve",
+                                      "decayCurve", "releaseCurve"}, ep)
             || !numbers(env, ep, l, {{"attack", P::Attack}, {"decay", P::Decay},
-                                     {"sustain", P::Sustain}, {"release", P::Release}}))
+                                     {"sustain", P::Sustain}, {"release", P::Release},
+                                     {"attackCurve", P::AttackCurve}, {"decayCurve", P::DecayCurve},
+                                     {"releaseCurve", P::ReleaseCurve}}))
             return false;
     }
     if (o.contains("pitch")) {
@@ -266,19 +375,39 @@ bool parseLayer(const QJsonObject &o, const QString &path, SfxLayer &l)
         if (isSample(l)) return fail(pp, notApplicable(P::PitchStart, l));
         QJsonObject pitch;
         if (!objectAt(o, "pitch", path, pitch)
-            || !requireKeysOnly(pitch, {"start", "end", "time"}, pp)
+            || !requireKeysOnly(pitch, {"start", "end", "time", "curve"}, pp)
             || !numbers(pitch, pp, l, {{"start", P::PitchStart}, {"end", P::PitchEnd},
-                                       {"time", P::PitchTime}}))
+                                       {"time", P::PitchTime}, {"curve", P::PitchCurve}}))
             return false;
     }
     if (!filter.isEmpty()
         && !numbers(filter, fp, l, {{"cutoff", P::Cutoff}, {"resonance", P::Resonance},
                                     {"attack", P::FilterAttack}, {"decay", P::FilterDecay},
                                     {"sustain", P::FilterSustain}, {"release", P::FilterRelease},
-                                    {"amount", P::FilterAmount}}))
+                                    {"amount", P::FilterAmount}, {"attackCurve", P::FilterAttackCurve},
+                                    {"decayCurve", P::FilterDecayCurve},
+                                    {"releaseCurve", P::FilterReleaseCurve}}))
         return false;
     if (!lfo.isEmpty()
         && !numbers(lfo, lp, l, {{"rate", P::LfoRate}, {"depth", P::LfoDepth}}))
+        return false;
+    if (l.fm
+        && !numbers(fm, mp, l, {{"ratio", P::FmRatio}, {"index", P::FmIndex},
+                                {"attack", P::FmAttack}, {"decay", P::FmDecay},
+                                {"sustain", P::FmSustain}, {"release", P::FmRelease},
+                                {"attackCurve", P::FmAttackCurve}, {"decayCurve", P::FmDecayCurve},
+                                {"releaseCurve", P::FmReleaseCurve}}))
+        return false;
+    if (l.ring && !numbers(ring, rp, l, {{"ratio", P::RingRatio}}))
+        return false;
+    if (l.crush && !numbers(crush, cp, l, {{"bits", P::CrushBits}, {"rate", P::CrushRate}}))
+        return false;
+    if (l.burst
+        && (!numbers(burst, bp, l, {{"count", P::BurstCount}, {"duration", P::BurstDuration},
+                                    {"density", P::BurstDensity}})
+            || !numbers(jitter, jp, l, {{"time", P::JitterTime}, {"gain", P::JitterGain},
+                                        {"cutoff", P::JitterCutoff}, {"freq", P::JitterFreq},
+                                        {"length", P::JitterLength}})))
         return false;
 
     if (o.contains("vary")) {
@@ -302,7 +431,7 @@ bool parseRecipe(const QByteArray &json, SfxRecipe &r)
         return fail({}, QStringLiteral("JSON error at offset %1: %2").arg(perr.offset).arg(perr.errorString()));
     if (!doc.isObject()) return fail({}, QStringLiteral("a recipe must be a JSON object"));
     const QJsonObject root = doc.object();
-    if (!requireKeysOnly(root, {"version", "name", "variation", "layers"}, {})) return false;
+    if (!requireKeysOnly(root, {"version", "name", "variation", "maxVoices", "layers"}, {})) return false;
 
     if (root.contains("version")) {
         const QJsonValue v = root.value("version");
@@ -332,6 +461,14 @@ bool parseRecipe(const QByteArray &json, SfxRecipe &r)
         }
     }
 
+    if (root.contains("maxVoices")) {
+        const QJsonValue v = root.value("maxVoices");
+        const double n = v.toDouble(-1.0);
+        if (!v.isDouble() || n < 0.0 || n > 256.0 || n != std::floor(n))
+            return fail(QStringLiteral("maxVoices"), QStringLiteral("must be an integer in 0..256"));
+        r.maxVoices = static_cast<int>(n);
+    }
+
     if (!root.contains("layers")) return fail({}, QStringLiteral("a recipe needs 'layers'"));
     const QJsonValue lv = root.value("layers");
     if (!lv.isArray() || lv.toArray().isEmpty())
@@ -344,6 +481,10 @@ bool parseRecipe(const QByteArray &json, SfxRecipe &r)
         if (!parseLayer(layers.at(i).toObject(), lp, layer)) return false;
         r.layers.append(layer);
     }
+    // The cap is on grains alone, so without a burst it would cap nothing.
+    if (r.maxVoices > 0
+        && std::none_of(r.layers.cbegin(), r.layers.cend(), [](const SfxLayer &l) { return l.burst; }))
+        return fail(QStringLiteral("maxVoices"), QStringLiteral("caps the grains of a 'burst', and no layer has one"));
     return true;
 }
 

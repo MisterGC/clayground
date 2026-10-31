@@ -82,8 +82,9 @@ CharacterController {
 ## Physical gamepads
 
 On Linux (the Steam Deck included), Windows and macOS a `GameController` reads
-physical gamepads through SDL3's gamepad part, linked into the plugin. The
-WebAssembly, iOS and Android builds read none yet: there `gamepads` stays
+physical gamepads through SDL3's gamepad part, linked into the plugin; in the
+browser it reads them through the browser's Gamepad API (see "In the browser"
+below). The iOS and Android builds read none yet: there `gamepads` stays
 empty and `numConnectedGamepads` 0, and keyboard, touch and the dojo work as
 everywhere.
 
@@ -159,6 +160,39 @@ What SDL handles:
 The build option `CLAY_GAMEPAD_SDL` (on for desktop builds) turns SDL off; SDL
 is fetched at configure time, pinned to a release.
 
+In the browser - the WebAssembly build, the WebDojo included - pads come from
+`navigator.getGamepads()`, read 125 times a second like SDL on the desktop.
+What the browser decides:
+
+- **Firefox is not supported yet.** Firefox 158 on macOS reported an untouched
+  Switch Pro Controller with buttons pressed and its stick moving, while
+  Chrome on the same Mac read it clean. So in Firefox a pad is listed, with
+  `type` `unsupported` and no buttons or axes, and drives no input; the demo
+  asks the player to use Chrome. Lifting this where Firefox delivers clean
+  input is [#474](https://github.com/MisterGC/clayground/issues/474).
+
+- **A pad shows up only after it is pressed.** A browser hides the pads from
+  a page until someone presses a button or moves a stick on one while the
+  page is in front; in Firefox, once one pad has been used, the others show
+  up as well. Until then `numConnectedGamepads` is 0 even with a pad plugged
+  in - tell the player to press any button, as the demo does, rather than
+  that no pad is connected.
+- **Name, type and labels.** The browser names a pad by an id string: Chrome
+  puts "(STANDARD GAMEPAD Vendor: 054c Product: 0ce6)" after the name, Firefox
+  "054c-0ce6-" before it, and `name` drops both. It says nothing about the
+  make, so `type` is `standard` and `labels` is empty.
+- **Mapping.** The browser maps a pad it knows to its standard gamepad - four
+  face buttons, shoulders, analog triggers, back, start, two stick clicks, the
+  d-pad, guide and two sticks - and the table above holds for it. Which pads it
+  knows differs between browsers and systems, and there is no mapping to add
+  as with SDL. A pad it does not map has `type` `unmapped` and is read by the
+  standard gamepad's numbering all the same, so its buttons may come up under
+  other names; the demo shows which. Buttons past the standard ones, such as
+  a touchpad click or paddles, are not read.
+- **Embedded pages.** Where the page embedding a game restricts `gamepad` in
+  its `Permissions-Policy`, the game's `<iframe>` needs `allow="gamepad"`;
+  without it the game reads no pads.
+
 ## Core Components
 
 - **GameController** - Main unified input component with axis and button states
@@ -167,7 +201,7 @@ is fetched at configure time, pinned to a release.
 - **KeyboardGamepad** - Internal keyboard-to-controller mapping
 - **TouchscreenGamepad** - Virtual on-screen gamepad for touch devices
 - **PhysicalGamepad** - Internal mapping from a physical pad to the controller
-- **GamepadHub** - Internal list of the connected pads, read through SDL3
+- **GamepadHub** - Internal list of the connected pads, read through SDL3 or the browser's Gamepad API
 
 ## Usage Examples
 
@@ -414,4 +448,4 @@ The GameController plugin implements:
 - **Visual Feedback**: Built-in debug visualization
 - **Touch Adaptation**: Virtual joystick with visual feedback for touch screens
 - **Two layouts**: `nes`, a stick and two buttons, and `full`, the inputs of a modern gamepad
-- **Physical gamepads**: SDL3's gamepad part behind one backend interface (`gamepadbackend.h`), pumped from a timer at 125 Hz, without a window of its own; the browser and iOS get backends of their own behind the same interface
+- **Physical gamepads**: SDL3's gamepad part behind one backend interface (`gamepadbackend.h`), pumped from a timer at 125 Hz, without a window of its own; the browser's Gamepad API (`navigator.getGamepads()`) behind the same interface on WebAssembly; iOS gets a backend of its own

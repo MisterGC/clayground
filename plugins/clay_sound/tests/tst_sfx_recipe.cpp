@@ -6,7 +6,26 @@
 // semitones is the recipe with every layer's detune raised by n (#439),
 // stop() ends a playing recipe within its layers' release (#441), a
 // looped recipe plays on pass after pass with no gap and no jump at the
-// seam, live as offline (#442), and the values other seeds play with stay inside the declared ranges
+// seam, live as offline (#442), an exponential decay renders a straight
+// line in dB and an exponential pitch sweep settles into its end (#447),
+// a burst of 40 grains starts 40 times inside its duration, the same seed
+// on the same grains and another seed on others, and the recipe's voice
+// cap bounds the grains that ring at once and no other layer, and a
+// grain's jitter keeps it inside its fields' ranges (#448), white noise
+// drawn every sample is the noise of before, pink and brown fall 3 and 6
+// dB per octave, and a noise clocked by its freq moves its spectrum down
+// with a lower freq and with a play's detune (#449), FM at 1:2.76 puts
+// its sidebands where the Bessel functions say, ring modulation leaves
+// the sum and the difference alone, and an FM index on a decay narrows
+// the spectrum with it (#450), a sine lfo is the lfo of before, a
+// random lfo renders the same samples for the same seed, sample-and-hold
+// holds one level a period while smooth random glides through the same
+// levels, and a cutoff lfo moves the cutoff by its depth in octaves
+// (#451), a layer without drive or crush, or with a crush at its
+// defaults, sounds as before, drive adds the odd harmonics tanh puts on a
+// sine and no even ones, crush rounds to steps of its bits and holds each
+// value for a period of its rate, an oscillator and a sample layer alike,
+// before the layer's gain (#452), and the values other seeds play with stay inside the declared ranges
 // - drawn and measured on the render (pitch by zero crossings, gain by
 // RMS, pan by the channel ratio, offset by the onset). Sample equality is only asserted between
 // renders on the same machine.
@@ -30,6 +49,7 @@
 #include <QTemporaryDir>
 #include <algorithm>
 #include <cmath>
+#include <complex>
 #include <memory>
 #include <vector>
 
@@ -88,6 +108,201 @@ static const char *kRangesRecipe = R"({
   } ]
 })";
 
+// The level in dB of each `win`-frame window of buf[from, to).
+static std::vector<double> dbSeries(const std::vector<float> &buf, size_t from, size_t to, size_t win)
+{
+    std::vector<double> db;
+    for (size_t i = from; i + win <= to; i += win)
+        db.push_back(20.0 * std::log10(rms(buf, i, win)));
+    return db;
+}
+
+// The least-squares line through (i, y[i]): its slope per step, and the
+// largest distance of a point from it.
+static std::pair<double, double> lineFit(const std::vector<double> &y)
+{
+    const double n = static_cast<double>(y.size());
+    double sx = 0, sy = 0, sxx = 0, sxy = 0;
+    for (size_t i = 0; i < y.size(); ++i) {
+        const double x = static_cast<double>(i);
+        sx += x; sy += y[i]; sxx += x * x; sxy += x * y[i];
+    }
+    const double slope = (n * sxy - sx * sy) / (n * sxx - sx * sx);
+    const double icept = (sy - slope * sx) / n;
+    double worst = 0.0;
+    for (size_t i = 0; i < y.size(); ++i)
+        worst = std::max(worst, std::abs(y[i] - (icept + slope * static_cast<double>(i))));
+    return {slope, worst};
+}
+
+// The power spectrum of buf, averaged over 4096-frame Hann windows:
+// bin k is k * kRate / 4096 Hz, up to the Nyquist frequency.
+static constexpr size_t kFft = 4096;
+static std::vector<double> powerSpectrum(const std::vector<float> &buf)
+{
+    std::vector<double> power(kFft / 2 + 1, 0.0);
+    std::vector<std::complex<double>> x(kFft);
+    for (size_t at = 0; at + kFft <= buf.size(); at += kFft) {
+        for (size_t i = 0; i < kFft; ++i)
+            x[i] = buf[at + i] * (0.5 - 0.5 * std::cos(2.0 * M_PI * i / kFft));
+        // Iterative radix-2 FFT.
+        for (size_t i = 1, j = 0; i < kFft; ++i) {
+            size_t bit = kFft >> 1;
+            for (; j & bit; bit >>= 1) j ^= bit;
+            j ^= bit;
+            if (i < j) std::swap(x[i], x[j]);
+        }
+        for (size_t len = 2; len <= kFft; len <<= 1) {
+            const std::complex<double> w(std::cos(2.0 * M_PI / len), -std::sin(2.0 * M_PI / len));
+            for (size_t i = 0; i < kFft; i += len) {
+                std::complex<double> wk(1.0, 0.0);
+                for (size_t k = 0; k < len / 2; ++k) {
+                    const auto u = x[i + k], v = x[i + k + len / 2] * wk;
+                    x[i + k] = u + v;
+                    x[i + k + len / 2] = u - v;
+                    wk *= w;
+                }
+            }
+        }
+        for (size_t k = 0; k < power.size(); ++k) power[k] += std::norm(x[k]);
+    }
+    return power;
+}
+
+// The mean power in dB of each octave from `lowest` Hz, `octaves` of them.
+static std::vector<double> octaveLevels(const std::vector<double> &power, double lowest, int octaves)
+{
+    std::vector<double> db;
+    for (int o = 0; o < octaves; ++o) {
+        const double lo = lowest * std::pow(2.0, o);
+        double sum = 0.0;
+        int n = 0;
+        for (size_t k = 0; k < power.size(); ++k) {
+            const double f = static_cast<double>(k) * kRate / kFft;
+            if (f >= lo && f < 2.0 * lo) { sum += power[k]; ++n; }
+        }
+        db.push_back(10.0 * std::log10(sum / n));
+    }
+    return db;
+}
+
+// The frequency below which half of the power lies.
+static double medianFrequency(const std::vector<double> &power)
+{
+    double total = 0.0;
+    for (size_t k = 1; k < power.size(); ++k) total += power[k];
+    double acc = 0.0;
+    for (size_t k = 1; k < power.size(); ++k) {
+        acc += power[k];
+        if (acc >= total / 2.0) return static_cast<double>(k) * kRate / kFft;
+    }
+    return kRate / 2.0;
+}
+
+// Four seconds of one flat noise layer with `noise` as its noise group.
+static QByteArray noiseRecipe(const QByteArray &noise, double freq = 440.0)
+{
+    return R"({"variation": {"seed": 3}, "layers": [{"source": "noise", "length": 4000, "freq": )"
+           + QByteArray::number(freq) + (noise.isEmpty() ? QByteArray() : ", \"noise\": " + noise)
+           + "}]}";
+}
+
+static std::vector<float> renderNoise(const QByteArray &noise, double freq = 440.0, double detune = 0.0)
+{
+    const auto r = parseOk(noiseRecipe(noise, freq));
+    return cs::renderSfx(r, {}, 1, 1.0f, 1.0f, 0.0f, kRate, false, -1, detune);
+}
+
+// The amplitude of the sine at `freq` Hz in buf[from, from + n): a
+// Hann-windowed DFT at that one frequency.
+static double toneAmplitude(const std::vector<float> &buf, size_t from, size_t n, double freq)
+{
+    std::complex<double> acc(0.0, 0.0);
+    double weight = 0.0;
+    for (size_t i = 0; i < n; ++i) {
+        const double w = 0.5 - 0.5 * std::cos(2.0 * M_PI * i / n);
+        acc += w * buf[from + i] * std::polar(1.0, -2.0 * M_PI * freq * (from + i) / kRate);
+        weight += w;
+    }
+    return 2.0 * std::abs(acc) / weight;
+}
+
+// J_n(x), the Bessel function of the first kind, by its power series
+// (libc++ has no std::cyl_bessel_j).
+static double besselJ(int n, double x)
+{
+    double term = std::pow(x / 2.0, n) / std::tgamma(n + 1.0);
+    double sum = term;
+    for (int k = 1; k < 40; ++k) {
+        term *= -(x / 2.0) * (x / 2.0) / (k * (k + n));
+        sum += term;
+    }
+    return sum;
+}
+
+// One second of one flat sine layer at 500 Hz; `group` goes into it.
+static std::vector<float> renderTone(const QByteArray &group)
+{
+    const auto r = parseOk(R"({"layers": [{"source": "sine", "freq": 500, "length": 1000)"
+                           + (group.isEmpty() ? QByteArray() : ", " + group) + "}]}");
+    return cs::renderSfx(r, {}, 1, 1.0f, 1.0f, 0.0f, kRate, false, -1, 0.0);
+}
+
+// The n-th harmonic's amplitude of tanh(g sin x): its Fourier sine
+// coefficient, summed over one period.
+static double tanhHarmonic(double g, int n)
+{
+    const int steps = 1 << 16;
+    double sum = 0.0;
+    for (int i = 0; i < steps; ++i) {
+        const double x = 2.0 * M_PI * i / steps;
+        sum += std::tanh(g * std::sin(x)) * std::sin(n * x);
+    }
+    return std::abs(2.0 * sum / steps);
+}
+
+// A one-second 500 Hz sine at full scale, as a sample layer's source.
+static cs::SfxSamples sineSample()
+{
+    std::vector<float> mono(kRate);
+    for (int i = 0; i < kRate; ++i) mono[i] = float(std::sin(2.0 * M_PI * 500.0 * i / kRate));
+    return {std::make_shared<const cs::PcmBuffer>(cs::PcmBuffer::fromFloats(std::move(mono), kRate))};
+}
+
+// That sine played by a sample layer; `fields` go into it.
+static std::vector<float> renderSampleLayer(const QByteArray &fields)
+{
+    const auto r = parseOk(R"({"layers": [{"source": "sample", "sample": "sine.wav")"
+                           + (fields.isEmpty() ? QByteArray() : ", " + fields) + "}]}");
+    return cs::renderSfx(r, sineSample(), 1, 1.0f, 1.0f, 0.0f, kRate, false, -1, 0.0);
+}
+
+// The lengths of the runs of equal samples in buf[from, from + n).
+static std::vector<int> runLengths(const std::vector<float> &buf, size_t from, size_t n)
+{
+    std::vector<int> runs{1};
+    for (size_t i = from + 1; i < from + n; ++i) {
+        if (buf[i] == buf[i - 1]) ++runs.back();
+        else runs.push_back(1);
+    }
+    return runs;
+}
+
+// One mono render of the recipe `json` at `seed`.
+static std::vector<float> renderRecipe(const QByteArray &json, uint32_t seed = 1)
+{
+    return cs::renderSfx(parseOk(json), {}, seed, 1.0f, 1.0f, 0.0f, kRate, false, -1, 0.0);
+}
+
+// Two seconds of a 500 Hz sine whose volume follows an lfo of `shape`
+// at 10 Hz: one lfo period is 4410 frames.
+static QByteArray volumeLfoRecipe(const QByteArray &shape, double depth = 1.0)
+{
+    return R"({"layers": [{"source": "sine", "freq": 500, "length": 2000,
+               "lfo": {"target": "volume", "shape": ")" + shape + R"(", "rate": 10, "depth": )"
+           + QByteArray::number(depth) + "}}]}";
+}
+
 class SfxRecipeTest : public QObject
 {
     Q_OBJECT
@@ -97,7 +312,37 @@ private slots:
     void rejectsAnUnknownFieldByName();
     void rejectsValuesOutsideTheirRange_data();
     void rejectsValuesOutsideTheirRange();
+    void segmentCurvesAreLayerNumbers();
+    void exponentialDecayIsAStraightLineInDb();
+    void exponentialPitchSweepSettlesIntoItsEnd();
+    void burstIsALayerGroup();
+    void burstOf40GrainsStarts40TimesInsideItsDuration();
+    void sameSeedPlaysTheSameGrains();
+    void voiceCapBoundsTheGrainsThatRingAtOnce();
+    void grainsStayInsideTheFieldRanges();
+    void noiseIsALayerGroup();
+    void whiteNoiseDrawnEverySampleIsTheNoiseOfBefore();
+    void pinkAndBrownFall3And6DbPerOctave();
+    void aLowerRateMovesTheSpectrumDown();
+    void detuneMovesAClockedNoiseLayer();
     void seededNoiseIgnoresTheStartFrame();
+    void fmAndRingAreLayerGroups();
+    void fmOfIndexZeroIsNoFm();
+    void fmAt1To276PutsTheSidebandsWhereBesselSays();
+    void ringLeavesTheSumAndTheDifference();
+    void theIndexEnvelopeNarrowsTheSpectrumAsItDecays();
+    void lfoShapeAndCutoffTargetAreLfoFields();
+    void aSineLfoIsTheLfoOfBefore();
+    void aSeededRandomLfoRendersTheSameSamplesForTheSameSeed();
+    void seededLfoIgnoresTheStartFrame();
+    void squareAndSampleHoldHoldALevelAndSmoothRandomGlides();
+    void aCutoffLfoMovesTheCutoffByItsDepthInOctaves();
+    void driveAndCrushAreLayerFields();
+    void withoutDriveOrCrushALayerSoundsAsBefore();
+    void driveAddsTheOddHarmonicsOfTanh();
+    void crushRoundsToTheStepsOfItsBits();
+    void crushHoldsEachValueForAPeriodOfItsRate();
+    void aSampleLayerIsDrivenAndCrushedBeforeItsGain();
     void sameSeedRendersSameSamples();
     void otherSeedsStayInsideTheDeclaredRanges();
     void poolCyclesItsVariations();
@@ -153,6 +398,12 @@ void SfxRecipeTest::rejectsAnUnknownFieldByName_data()
                             << "layers[0].filter: unknown field 'cutof'";
     QTest::newRow("vary") << QByteArray(R"({"layers": [{)" + layer + R"(, "vary": {"detnue": [0, 1]}}]})")
                           << "layers[0].vary: unknown field 'detnue'";
+    QTest::newRow("burst") << QByteArray(R"({"layers": [{)" + layer
+                                         + R"(, "burst": {"count": 4, "duration": 50, "rate": 2}}]})")
+                           << "layers[0].burst: unknown field 'rate'";
+    QTest::newRow("jitter") << QByteArray(R"({"layers": [{)" + layer
+                                          + R"(, "burst": {"count": 4, "duration": 50, "jitter": {"pitch": 2}}}]})")
+                            << "layers[0].burst.jitter: unknown field 'pitch'";
 }
 
 void SfxRecipeTest::rejectsAnUnknownFieldByName()
@@ -191,6 +442,32 @@ void SfxRecipeTest::rejectsValuesOutsideTheirRange_data()
                                                         "lfo": {"target": "volume", "depth": 0.8},
                                                         "vary": {"lfo.depth": [0, 0.5]})")
                                         << "layers[0].lfo.depth: a volume lfo reaches at most 1";
+    QTest::newRow("curve beyond exponential") << QByteArray(R"("source": "sine", "length": 10,
+                                                              "envelope": {"releaseCurve": 2})")
+                                              << "layers[0].envelope.releaseCurve: 2 is outside 0..1";
+    QTest::newRow("decay curve on a sample") << QByteArray(R"("source": "sample", "sample": "a.wav",
+                                                             "envelope": {"decayCurve": 1})")
+                                             << "layers[0].envelope.decayCurve: does not apply to a sample layer";
+    QTest::newRow("filter curve without filter") << QByteArray(R"("source": "sine", "length": 10,
+                                                                 "vary": {"filter.decayCurve": [0, 0.5]})")
+                                                 << "layers[0].vary.filter.decayCurve: needs a 'filter' with a 'type'";
+    QTest::newRow("burst on a sample") << QByteArray(R"("source": "sample", "sample": "a.wav",
+                                                       "burst": {"count": 4, "duration": 50})")
+                                       << "layers[0].burst: does not apply to a sample layer";
+    QTest::newRow("burst without duration") << QByteArray(R"("source": "noise", "length": 2, "burst": {"count": 4})")
+                                            << "layers[0].burst: needs a 'duration'";
+    QTest::newRow("no grains") << QByteArray(R"("source": "noise", "length": 2, "burst": {"count": 0, "duration": 50})")
+                               << "layers[0].burst.count: 0 is outside 1..256";
+    QTest::newRow("density 0") << QByteArray(R"("source": "noise", "length": 2,
+                                               "burst": {"count": 4, "duration": 50, "density": 0})")
+                               << "layers[0].burst.density: 0 is outside 0.01..100";
+    QTest::newRow("cutoff jitter without filter") << QByteArray(R"("source": "noise", "length": 2,
+                                                                  "burst": {"count": 4, "duration": 50,
+                                                                            "jitter": {"cutoff": 1}})")
+                                                  << "layers[0].burst.jitter.cutoff: needs a 'filter' with a 'type'";
+    QTest::newRow("burst number without burst") << QByteArray(R"("source": "noise", "length": 2,
+                                                                "vary": {"burst.count": [0, 4]})")
+                                                << "layers[0].vary.burst.count: needs a 'burst'";
 }
 
 void SfxRecipeTest::rejectsValuesOutsideTheirRange()
@@ -200,6 +477,740 @@ void SfxRecipeTest::rejectsValuesOutsideTheirRange()
     const auto res = cs::SfxParser::parse("{\"layers\": [{" + layer + "}]}");
     QVERIFY(!res.ok);
     QVERIFY2(res.error.startsWith(error), qPrintable(res.error));
+}
+
+void SfxRecipeTest::segmentCurvesAreLayerNumbers()
+{
+    const auto r = parseOk(R"({ "layers": [
+      { "source": "sine", "length": 100,
+        "envelope": { "attackCurve": 0.25, "decayCurve": 1, "releaseCurve": 0.5 },
+        "pitch": { "start": 12, "time": 30, "curve": 1 },
+        "filter": { "type": "lowpass", "attackCurve": 0.1, "decayCurve": 0.2, "releaseCurve": 0.3 },
+        "vary": { "pitch.curve": [-0.5, 0] } },
+      { "source": "sample", "sample": "a.wav",
+        "envelope": { "attackCurve": 1, "releaseCurve": 1 } },
+      { "source": "noise", "length": 100 } ] })");
+    QCOMPARE(r.layers.size(), 3);
+    const auto &l = r.layers[0];
+    QCOMPARE(l.get(P::AttackCurve), 0.25);
+    QCOMPARE(l.get(P::DecayCurve), 1.0);
+    QCOMPARE(l.get(P::ReleaseCurve), 0.5);
+    QCOMPARE(l.get(P::PitchCurve), 1.0);
+    QCOMPARE(l.get(P::FilterAttackCurve), 0.1);
+    QCOMPARE(l.get(P::FilterDecayCurve), 0.2);
+    QCOMPARE(l.get(P::FilterReleaseCurve), 0.3);
+    QVERIFY(l.vary[int(P::PitchCurve)].on);
+    QCOMPARE(r.layers[1].get(P::AttackCurve), 1.0);
+    QCOMPARE(r.layers[1].get(P::ReleaseCurve), 1.0);
+    // Linear unless set.
+    for (P p : {P::AttackCurve, P::DecayCurve, P::ReleaseCurve, P::PitchCurve,
+                P::FilterAttackCurve, P::FilterDecayCurve, P::FilterReleaseCurve})
+        QCOMPARE(r.layers[2].get(p), 0.0);
+}
+
+// A 1 kHz sine decays from full to nothing over 500 ms. With decayCurve
+// 1 its level, measured in 10 ms windows (ten periods each), falls on a
+// straight line in dB at 60 dB per decay time; linear, the same fit
+// misses by more than 3 dB.
+void SfxRecipeTest::exponentialDecayIsAStraightLineInDb()
+{
+    auto decay = [](const char *curve) {
+        const auto r = parseOk(QByteArray(R"({ "layers": [ { "source": "sine", "freq": 1000, "length": 600,
+            "envelope": { "decay": 500, "sustain": 0, "decayCurve": )") + curve + " } } ] }");
+        const auto buf = cs::renderSfx(r, {}, 0, 1.0f, 1.0f, 0.0f, kRate, false);
+        // From 10 ms to 450 ms: the first window lies past the onset, the
+        // last before -60 dB, where the segment ends.
+        return dbSeries(buf, kRate / 100, kRate * 45 / 100, kRate / 100);
+    };
+
+    const auto exponential = decay("1");
+    QCOMPARE(exponential.size(), size_t{44});
+    const auto [slope, worst] = lineFit(exponential);
+    qInfo("exponential: %.4f dB per 10 ms, farthest point %.4f dB from the line", slope, worst);
+    QVERIFY2(std::abs(slope - (-1.2)) < 0.01, qPrintable(QString::number(slope)));   // -60 dB / 50 windows
+    QVERIFY2(worst < 0.05, qPrintable(QString::number(worst)));
+
+    const auto linear = decay("0");
+    const auto [linSlope, linWorst] = lineFit(linear);
+    qInfo("linear: %.4f dB per 10 ms, farthest point %.2f dB from the line", linSlope, linWorst);
+    QVERIFY2(linWorst > 3.0, qPrintable(QString::number(linWorst)));
+}
+
+// A sweep from +12 semitones to 0 over 200 ms, read halfway: linear it
+// is at +6 (1414 Hz); exponential it has covered all but 10^-1.5 of the
+// way, +0.38 semitones (1022 Hz); after the sweep it is at its end.
+void SfxRecipeTest::exponentialPitchSweepSettlesIntoItsEnd()
+{
+    auto sweep = [](const char *curve) {
+        const auto r = parseOk(QByteArray(R"({ "layers": [ { "source": "sine", "freq": 1000, "length": 400,
+            "pitch": { "start": 12, "end": 0, "time": 200, "curve": )") + curve + " } } ] }");
+        return cs::renderSfx(r, {}, 0, 1.0f, 1.0f, 0.0f, kRate, false);
+    };
+    const size_t halfway = kRate * 95 / 1000, ms10 = kRate / 100;
+
+    const double linHz = zeroCrossingFreq(sweep("0"), halfway, ms10);
+    const auto exp = sweep("1");
+    const double expHz = zeroCrossingFreq(exp, halfway, ms10);
+    const double expected = 1000.0 * std::pow(2.0, std::pow(10.0, -1.5));
+    qInfo("halfway: linear %.1f Hz, exponential %.1f Hz (expected %.1f)", linHz, expHz, expected);
+    QVERIFY2(std::abs(linHz / (1000.0 * std::sqrt(2.0)) - 1.0) < 0.01, qPrintable(QString::number(linHz)));
+    QVERIFY2(std::abs(expHz / expected - 1.0) < 0.01, qPrintable(QString::number(expHz)));
+
+    const double after = zeroCrossingFreq(exp, kRate * 250 / 1000, kRate / 10);
+    QVERIFY2(std::abs(after / 1000.0 - 1.0) < 0.002, qPrintable(QString::number(after)));
+}
+
+void SfxRecipeTest::burstIsALayerGroup()
+{
+    const auto r = parseOk(R"({ "maxVoices": 6, "layers": [
+      { "source": "noise", "length": 3, "filter": { "type": "bandpass", "cutoff": 1400 },
+        "burst": { "count": 23, "duration": 420, "density": 0.2,
+                   "jitter": { "time": 1, "gain": 3, "cutoff": 0.5, "freq": 2, "length": 1 } },
+        "vary": { "burst.count": [-3, 3], "burst.jitter.gain": [0, 2] } },
+      { "source": "sine", "length": 100 } ] })");
+    QCOMPARE(r.maxVoices, 6);
+    const auto &l = r.layers[0];
+    QVERIFY(l.burst);
+    QCOMPARE(l.get(P::BurstCount), 23.0);
+    QCOMPARE(l.get(P::BurstDuration), 420.0);
+    QCOMPARE(l.get(P::BurstDensity), 0.2);
+    QCOMPARE(l.get(P::JitterTime), 1.0);
+    QCOMPARE(l.get(P::JitterGain), 3.0);
+    QCOMPARE(l.get(P::JitterCutoff), 0.5);
+    QCOMPARE(l.get(P::JitterFreq), 2.0);
+    QCOMPARE(l.get(P::JitterLength), 1.0);
+    QVERIFY(l.vary[int(P::BurstCount)].on);
+    QVERIFY(l.vary[int(P::JitterGain)].on);
+    // A layer without one plays as one note, as before.
+    QVERIFY(!r.layers[1].burst);
+    QCOMPARE(cs::realizeSfx(r, 1).size(), size_t(cs::realizeSfx(r, 1)[0].get(P::BurstCount) + 0.5) + 1);
+
+    // The cap is the grains'; with no burst there is nothing to cap.
+    auto res = cs::SfxParser::parse(R"({"maxVoices": 4, "layers": [{"source": "sine", "length": 10}]})");
+    QVERIFY(!res.ok);
+    QVERIFY2(res.error.startsWith("maxVoices: caps the grains of a 'burst'"), qPrintable(res.error));
+    res = cs::SfxParser::parse(R"({"maxVoices": 2.5, "layers": [{"source": "sine", "length": 10}]})");
+    QVERIFY(!res.ok);
+    QVERIFY2(res.error.startsWith("maxVoices: must be an integer in 0..256"), qPrintable(res.error));
+}
+
+// Grains of white noise: 40 within 600 ms after a 50 ms offset, each
+// 1.5 to 2.5 ms long, placed anywhere in the middle half of its slot, the
+// grain rate at the end a quarter of the one at the start. The slots are
+// at least 8 ms wide, so there is silence before every grain.
+static const char *kGritRecipe = R"({"variation": {"seed": 11}, "layers": [
+  {"name": "grit", "source": "noise", "offset": 50, "length": 2, "gain": -6,
+   "envelope": {"decay": 2, "sustain": 0},
+   "burst": {"count": 40, "duration": 600, "density": 0.25,
+             "jitter": {"time": 0.5, "gain": 6, "length": 0.5}}}]})";
+
+// The frames where sound starts after at least `gap` frames of silence.
+static std::vector<size_t> onsets(const std::vector<float> &mono, size_t gap)
+{
+    std::vector<size_t> out;
+    size_t quiet = gap;
+    for (size_t f = 0; f < mono.size(); ++f) {
+        if (mono[f] == 0.0f) { ++quiet; continue; }
+        if (quiet >= gap) out.push_back(f);
+        quiet = 0;
+    }
+    return out;
+}
+
+void SfxRecipeTest::burstOf40GrainsStarts40TimesInsideItsDuration()
+{
+    const auto recipe = parseOk(kGritRecipe);
+    const uint32_t seed = cs::sfxVariationSeed(recipe, 0);
+    const auto notes = cs::realizeSfx(recipe, seed);
+    QCOMPARE(notes.size(), size_t(40));
+    QVERIFY(std::all_of(notes.cbegin(), notes.cend(), [](const cs::SfxNote &n) { return n.grain; }));
+
+    const auto mono = cs::renderSfx(recipe, {}, seed, 1.0f, 1.0f, 0.0f, kRate, false);
+    const auto found = onsets(mono, kRate / 2000);    // 0.5 ms of silence before each
+    QCOMPARE(found.size(), size_t(40));
+    const size_t begin = std::llround(0.050 * kRate), end = std::llround(0.650 * kRate);
+    int firstHalf = 0;
+    for (size_t i = 0; i < found.size(); ++i) {
+        QVERIFY2(found[i] >= begin && found[i] < end, qPrintable(QString::number(found[i])));
+        // Where the grain was placed, to the frame.
+        const auto at = size_t(std::llround(notes[i].get(P::Offset) * kRate / 1000.0));
+        QVERIFY2(found[i] >= at && found[i] <= at + 1, qPrintable(QString("%1 vs %2").arg(found[i]).arg(at)));
+        if (found[i] < (begin + end) / 2) ++firstHalf;
+    }
+    qInfo("%zu onsets in %zu..%zu frames, %d of them in the first half", found.size(), begin, end, firstHalf);
+    // A falling density: two thirds of an even spread in the first half.
+    QVERIFY2(firstHalf >= 24 && firstHalf <= 30, qPrintable(QString::number(firstHalf)));
+}
+
+void SfxRecipeTest::sameSeedPlaysTheSameGrains()
+{
+    const auto recipe = parseOk(kGritRecipe);
+    const auto render = [&recipe](uint32_t seed) {
+        return cs::renderSfx(recipe, {}, seed, 1.0f, 1.0f, 0.0f, kRate, true);
+    };
+    const auto offsets = [&recipe](uint32_t seed) {
+        std::vector<double> o;
+        for (const auto &n : cs::realizeSfx(recipe, seed)) o.push_back(n.get(P::Offset));
+        return o;
+    };
+    for (uint32_t seed : {1u, 2u, 0x7fffffffu}) {
+        QCOMPARE(offsets(seed), offsets(seed));
+        QCOMPARE(render(seed), render(seed));
+    }
+    // Another seed: the grains start elsewhere and sound otherwise.
+    const auto a = offsets(1), b = offsets(2);
+    QCOMPARE(a.size(), b.size());
+    int moved = 0;
+    for (size_t i = 0; i < a.size(); ++i)
+        if (std::abs(a[i] - b[i]) > 0.1) ++moved;
+    QVERIFY2(moved > 30, qPrintable(QString::number(moved)));
+    QVERIFY(render(1) != render(2));
+
+    // Without time jitter the grains sit in the middle of their slots,
+    // the same for every seed.
+    auto even = recipe;
+    even.layers[0].at(P::JitterTime) = 0.0;
+    const auto e1 = cs::realizeSfx(even, 1), e2 = cs::realizeSfx(even, 2);
+    for (size_t i = 0; i < e1.size(); ++i) QCOMPARE(e1[i].get(P::Offset), e2[i].get(P::Offset));
+}
+
+// 40 grains of 200 ms within 100 ms under a low hum: with a cap of 4,
+// four grains ring at most, and the hum rings beside them throughout.
+// Without the cap all 40 would ring at once.
+void SfxRecipeTest::voiceCapBoundsTheGrainsThatRingAtOnce()
+{
+    auto recipe = parseOk(R"({"maxVoices": 4, "layers": [
+      {"name": "hum", "source": "sine", "freq": 80, "length": 500},
+      {"name": "grit", "source": "noise", "length": 200, "burst": {"count": 40, "duration": 100}}]})");
+    const auto mostAtOnce = [](const cs::SfxRecipe &r, size_t *atLastGrain) {
+        cs::Engine eng(kRate);
+        cs::SfxVoices voices;
+        voices.attach(eng, r, {});
+        voices.play(eng, cs::realizeSfx(r, 1), 0, 1.0f);
+        std::vector<float> buf(2 * 32);
+        size_t most = 0;
+        for (int64_t f = 0; f < kRate * 2 / 5; f += 32) {
+            eng.renderStereo(buf.data(), 32);
+            most = std::max(most, eng.activeVoices());
+            if (f <= kRate * 3 / 20 && f + 32 > kRate * 3 / 20) *atLastGrain = eng.activeVoices();
+        }
+        voices.detach(eng);
+        return most;
+    };
+    size_t at150 = 0;
+    qInfo("cap 4: at most %zu voices at once", mostAtOnce(recipe, &at150));
+    QCOMPARE(mostAtOnce(recipe, &at150), size_t(4 + 1));
+    QCOMPARE(at150, size_t(4 + 1));     // after the last grain started: the hum still rings
+    recipe.maxVoices = 0;
+    QCOMPARE(mostAtOnce(recipe, &at150), size_t(40 + 1));
+}
+
+// A layer at the top of its gain and far up in detune, with jitters
+// that reach past both: every grain is held to the field's range, so
+// none plays louder than 12 dB or further than 48 semitones up.
+void SfxRecipeTest::grainsStayInsideTheFieldRanges()
+{
+    const auto recipe = parseOk(R"({"layers": [{"source": "sine", "freq": 440, "length": 5,
+      "gain": 12, "detune": 40, "burst": {"count": 200, "duration": 100,
+                                          "jitter": {"gain": 48, "freq": 48}}}]})");
+    const auto notes = cs::realizeSfx(recipe, 1);
+    QCOMPARE(notes.size(), size_t(200));
+    double gainHi = -1e9, gainLo = 1e9, detuneHi = -1e9;
+    for (const auto &n : notes) {
+        gainHi = std::max(gainHi, n.get(P::Gain));
+        gainLo = std::min(gainLo, n.get(P::Gain));
+        detuneHi = std::max(detuneHi, n.get(P::Detune));
+    }
+    qInfo("grain gain %.2f..%.2f dB, detune up to %.2f semitones", gainLo, gainHi, detuneHi);
+    QCOMPARE(gainHi, 12.0);         // grains that drew above it play at it
+    QVERIFY(gainLo < -30.0);        // and the jitter still reaches down
+    QCOMPARE(detuneHi, 48.0);
+}
+
+void SfxRecipeTest::noiseIsALayerGroup()
+{
+    using C = cs::OscillatorVoice::NoiseColor;
+    using R = cs::OscillatorVoice::NoiseRate;
+    const auto r = parseOk(R"({"layers": [
+      {"source": "noise", "length": 10},
+      {"source": "noise", "length": 10, "noise": {"color": "pink"}},
+      {"source": "noise", "length": 10, "noise": {"color": "brown", "rate": "freq"}}]})");
+    QCOMPARE(r.layers.size(), 3);
+    QCOMPARE(r.layers[0].noiseColor, C::White);
+    QCOMPARE(r.layers[0].noiseRate, R::Sample);
+    QCOMPARE(r.layers[1].noiseColor, C::Pink);
+    QCOMPARE(r.layers[1].noiseRate, R::Sample);
+    QCOMPARE(r.layers[2].noiseColor, C::Brown);
+    QCOMPARE(r.layers[2].noiseRate, R::Freq);
+
+    const QList<QPair<QByteArray, QString>> bad = {
+        {R"("source": "sine", "length": 10, "noise": {"color": "pink"})",
+         "layers[0].noise: applies to a noise layer only"},
+        {R"("source": "noise", "length": 10, "noise": {"colour": "pink"})",
+         "layers[0].noise: unknown field 'colour'"},
+        {R"("source": "noise", "length": 10, "noise": {"color": "blue"})",
+         "layers[0].noise.color: unknown color 'blue' (white, pink, brown)"},
+        {R"("source": "noise", "length": 10, "noise": {"rate": 2000})",
+         "layers[0].noise.rate: must be a string"},
+        {R"("source": "noise", "length": 10, "noise": {"rate": "pitch"})",
+         "layers[0].noise.rate: unknown rate 'pitch' (sample, freq)"}};
+    for (const auto &b : bad) {
+        const auto res = cs::SfxParser::parse("{\"layers\": [{" + b.first + "}]}");
+        QVERIFY(!res.ok);
+        QVERIFY2(res.error.startsWith(b.second), qPrintable(res.error));
+    }
+}
+
+void SfxRecipeTest::whiteNoiseDrawnEverySampleIsTheNoiseOfBefore()
+{
+    // The noise of before: one xorshift step per sample, mapped onto
+    // -1..1, whatever the frequency - for the default patch, and for one
+    // that names white and the sample rate.
+    auto render = [](double freq, bool named) {
+        cs::Engine eng(kRate);
+        auto osc = std::make_unique<cs::OscillatorInstrument>();
+        auto *o = osc.get();
+        const int id = eng.addInstrument(std::move(osc));
+        cs::NoteEvent ev;
+        ev.instrumentId = id;
+        ev.durationFrames = 4000;
+        ev.freqHz = freq;
+        cs::OscillatorVoice::Patch p;
+        p.waveform = cs::OscillatorVoice::Waveform::Noise;
+        p.attack = 0.0; p.decay = 0.0; p.sustain = 1.0; p.release = 0.0;
+        p.noiseSeed = 77;
+        if (named) {
+            p.noiseColor = cs::OscillatorVoice::NoiseColor::White;
+            p.noiseRate = cs::OscillatorVoice::NoiseRate::Sample;
+        }
+        o->pushPatch(eng.schedule(ev), p);
+        std::vector<float> out(4000);
+        eng.renderOffline(out.data(), 4000);
+        return out;
+    };
+    std::vector<float> before(4000);
+    uint32_t s = 77;
+    for (auto &v : before) {
+        s ^= s << 13; s ^= s >> 17; s ^= s << 5;
+        v = static_cast<float>(static_cast<double>(s) / static_cast<double>(0xFFFFFFFFu) * 2.0 - 1.0);
+    }
+    for (double freq : {440.0, 55.0, 5000.0}) {
+        QCOMPARE(render(freq, false), before);
+        QCOMPARE(render(freq, true), before);
+    }
+}
+
+void SfxRecipeTest::pinkAndBrownFall3And6DbPerOctave()
+{
+    // Six octaves from 250 Hz: the level falls by a straight line in dB
+    // per octave, flat for white, about 3 dB for pink and 6 for brown.
+    struct Colour { QByteArray noise; double slope; };
+    const QList<Colour> colours = {{{}, 0.0},
+                                   {R"({"color": "white"})", 0.0},
+                                   {R"({"color": "pink"})", -3.0},
+                                   {R"({"color": "brown"})", -6.0}};
+    for (const auto &c : colours) {
+        const auto levels = octaveLevels(powerSpectrum(renderNoise(c.noise)), 250.0, 6);
+        const auto [slope, worst] = lineFit(levels);
+        qInfo("%s: %.2f dB per octave, farthest octave %.2f dB from the line",
+              c.noise.isEmpty() ? "default" : c.noise.constData(), slope, worst);
+        QVERIFY2(std::abs(slope - c.slope) < 0.5,
+                 qPrintable(QStringLiteral("%1: %2 dB per octave").arg(QString(c.noise)).arg(slope)));
+        QVERIFY2(worst < 1.0, qPrintable(QStringLiteral("%1: %2 dB off the line").arg(QString(c.noise)).arg(worst)));
+    }
+    // Pink and brown sit about 6 dB below white, inside -1..1.
+    const double white = rms(renderNoise({}), 0, 4 * kRate);
+    for (const QByteArray &noise : {QByteArray(R"({"color": "pink"})"), QByteArray(R"({"color": "brown"})")}) {
+        const auto buf = renderNoise(noise);
+        const double db = 20.0 * std::log10(rms(buf, 0, buf.size()) / white);
+        qInfo("%s: %.2f dB below white", noise.constData(), -db);
+        QVERIFY2(db > -7.5 && db < -4.5, qPrintable(QStringLiteral("%1: %2 dB").arg(QString(noise)).arg(db)));
+        for (float v : buf) QVERIFY(std::abs(v) <= 1.0f);
+    }
+}
+
+void SfxRecipeTest::aLowerRateMovesTheSpectrumDown()
+{
+    // Clocked by its freq, the noise holds each value for one period, so
+    // its power at a frequency depends on frequency / freq alone, scaled
+    // by the hold: a quarter of the freq lays every octave two octaves
+    // lower and 6.02 dB (4x) up - for every colour, over the five octaves
+    // below each freq (above 8 kHz the images of the faster clock fold
+    // back from the Nyquist frequency and add about 1 dB). Drawn every
+    // sample, freq does nothing.
+    for (const QByteArray color : {"white", "pink", "brown"}) {
+        const QByteArray clocked = R"({"color": ")" + color + R"(", "rate": "freq"})";
+        const auto high = octaveLevels(powerSpectrum(renderNoise(clocked, 8000)), 250.0, 5);  // to 8 kHz
+        const auto low = octaveLevels(powerSpectrum(renderNoise(clocked, 2000)), 62.5, 5);    // to 2 kHz
+        double worst = 0.0;
+        for (size_t i = 0; i < high.size(); ++i)
+            worst = std::max(worst, std::abs(low[i] - high[i] - 10.0 * std::log10(4.0)));
+        qInfo("%s: two octaves down each octave is 6.02 dB up, give or take %.2f dB", color.constData(), worst);
+        QVERIFY(worst < 1.0);
+        const QByteArray unclocked = R"({"color": ")" + color + R"("})";
+        QCOMPARE(renderNoise(unclocked, 8000), renderNoise(unclocked, 2000));
+    }
+    // For white the move is plain in one number: half of the power lies
+    // below a quarter of the frequency.
+    const double high = medianFrequency(powerSpectrum(renderNoise(R"({"rate": "freq"})", 8000)));
+    const double low = medianFrequency(powerSpectrum(renderNoise(R"({"rate": "freq"})", 2000)));
+    qInfo("white: half of the power below %.0f Hz at 8000, below %.0f Hz at 2000", high, low);
+    QVERIFY(high / low > 3.0 && high / low < 5.0);
+}
+
+void SfxRecipeTest::detuneMovesAClockedNoiseLayer()
+{
+    // A play's detune moves a clocked noise layer as it moves its freq:
+    // two octaves down puts half of the power a quarter as high.
+    const QByteArray clocked = R"({"rate": "freq"})";
+    const double plain = medianFrequency(powerSpectrum(renderNoise(clocked, 8000)));
+    const double down = medianFrequency(powerSpectrum(renderNoise(clocked, 8000, -24)));
+    QVERIFY2(plain / down > 3.0 && plain / down < 5.0,
+             qPrintable(QStringLiteral("%1 Hz, %2 Hz two octaves down").arg(plain).arg(down)));
+    QCOMPARE(renderNoise(clocked, 8000, -24), renderNoise(clocked, 2000));
+    // Drawn every sample, it does not move.
+    QCOMPARE(renderNoise({}, 8000, -24), renderNoise({}, 8000));
+}
+
+void SfxRecipeTest::fmAndRingAreLayerGroups()
+{
+    const auto r = parseOk(R"({"layers": [
+      {"source": "sine", "length": 10},
+      {"source": "sine", "length": 10, "fm": {"ratio": 2.76, "index": 2}},
+      {"source": "triangle", "length": 10,
+       "fm": {"ratio": 1.4, "index": 6, "decay": 300, "sustain": 0.2, "decayCurve": 1},
+       "vary": {"fm.index": [-1, 1]}},
+      {"source": "square", "length": 10, "ring": {"ratio": 1.5}}]})");
+    QCOMPARE(r.layers.size(), 4);
+    QVERIFY(!r.layers[0].fm);
+    QVERIFY(!r.layers[0].ring);
+    QVERIFY(r.layers[1].fm);
+    QCOMPARE(r.layers[1].get(P::FmRatio), 2.76);
+    QCOMPARE(r.layers[1].get(P::FmIndex), 2.0);
+    QCOMPARE(r.layers[1].get(P::FmSustain), 1.0);   // a constant index
+    QCOMPARE(r.layers[1].get(P::FmDecay), 0.0);
+    QCOMPARE(r.layers[2].get(P::FmDecay), 300.0);
+    QCOMPARE(r.layers[2].get(P::FmSustain), 0.2);
+    QCOMPARE(r.layers[2].get(P::FmDecayCurve), 1.0);
+    QVERIFY(r.layers[2].vary[int(P::FmIndex)].on);
+    QVERIFY(r.layers[3].ring);
+    QVERIFY(!r.layers[3].fm);
+    QCOMPARE(r.layers[3].get(P::RingRatio), 1.5);
+
+    const QList<QPair<QByteArray, QString>> bad = {
+        {R"("source": "noise", "length": 10, "fm": {"ratio": 2, "index": 1})",
+         "layers[0].fm: applies to a sine, square, triangle or sawtooth layer only"},
+        {R"("source": "sample", "sample": "x.wav", "ring": {"ratio": 2})",
+         "layers[0].ring: applies to a sine, square, triangle or sawtooth layer only"},
+        {R"("source": "sine", "length": 10, "fm": {"ratio": 2})",
+         "layers[0].fm: needs an 'index'"},
+        {R"("source": "sine", "length": 10, "fm": {"index": 2})",
+         "layers[0].fm: needs a 'ratio'"},
+        {R"("source": "sine", "length": 10, "fm": {"ratio": 2, "index": 1, "depth": 3})",
+         "layers[0].fm: unknown field 'depth'"},
+        {R"("source": "sine", "length": 10, "fm": {"ratio": 2, "index": 40})",
+         "layers[0].fm.index: 40 is outside 0..32"},
+        {R"("source": "sine", "length": 10, "fm": {"ratio": 0, "index": 1})",
+         "layers[0].fm.ratio: 0 is outside 0.01..64"},
+        {R"("source": "sine", "length": 10, "ring": {})",
+         "layers[0].ring: needs a 'ratio'"},
+        {R"("source": "sine", "length": 10, "fm": {"ratio": 2, "index": 1}, "ring": {"ratio": 2})",
+         "layers[0].ring: a layer has an 'fm' or a 'ring', not both"},
+        {R"("source": "sine", "length": 10, "vary": {"fm.index": [0, 1]})",
+         "layers[0].vary.fm.index: needs an 'fm'"},
+        {R"("source": "sine", "length": 10, "vary": {"ring.ratio": [0, 1]})",
+         "layers[0].vary.ring.ratio: needs a 'ring'"},
+        {R"("source": "sine", "length": 10, "fm": {"ratio": 2, "index": 30}, "vary": {"fm.index": [0, 4]})",
+         "layers[0].vary.fm.index: reaches 30..34, outside 0..32"}};
+    for (const auto &b : bad) {
+        const auto res = cs::SfxParser::parse("{\"layers\": [{" + b.first + "}]}");
+        QVERIFY2(!res.ok, b.first.constData());
+        QVERIFY2(res.error.startsWith(b.second), qPrintable(res.error));
+    }
+}
+
+void SfxRecipeTest::fmOfIndexZeroIsNoFm()
+{
+    // Off by default: a voice's patch has neither, and FM of index 0
+    // reads the wave where it is read without FM, to the last bit.
+    const cs::OscillatorVoice::Patch patch;
+    QCOMPARE(patch.fmRatio, 0.0);
+    QCOMPARE(patch.ringRatio, 0.0);
+    QCOMPARE(renderTone(R"("fm": {"ratio": 2.76, "index": 0})"), renderTone({}));
+    QVERIFY(renderTone(R"("fm": {"ratio": 2.76, "index": 1})") != renderTone({}));
+}
+
+void SfxRecipeTest::fmAt1To276PutsTheSidebandsWhereBesselSays()
+{
+    // A 500 Hz carrier and a modulator at 2.76 x 500 = 1380 Hz: the n-th
+    // sideband pair sits at 500 + n * 1380 and |500 - n * 1380| Hz (the
+    // lower ones fold back over 0 Hz: 880, 2260, 3640), at |J_n(index)| of
+    // the plain sine's level - and nothing at the modulator itself or at a
+    // harmonic of either.
+    const auto plain = renderTone({});
+    const double carrier = toneAmplitude(plain, 0, kRate, 500.0);
+    QVERIFY(carrier > 0.9);
+    for (double index : {1.0, 2.0}) {
+        const auto buf = renderTone(R"("fm": {"ratio": 2.76, "index": )" + QByteArray::number(index) + "}");
+        double worst = 0.0;
+        for (int n = 0; n <= 4; ++n) {
+            const double expected = std::abs(besselJ(n, index));
+            const QList<double> at = n == 0 ? QList<double>{500.0}
+                                            : QList<double>{500.0 + n * 1380.0, std::abs(500.0 - n * 1380.0)};
+            for (double f : at) {
+                const double level = toneAmplitude(buf, 0, kRate, f) / carrier;
+                qInfo("index %.0f: %4.0f Hz at %.4f of the carrier, |J_%d| %.4f", index, f, level, n, expected);
+                worst = std::max(worst, std::abs(level - expected));
+            }
+        }
+        QVERIFY2(worst < 0.005, qPrintable(QStringLiteral("index %1: %2 off Bessel").arg(index).arg(worst)));
+        for (double f : {1380.0, 1000.0, 2760.0, 690.0}) {
+            const double level = toneAmplitude(buf, 0, kRate, f) / carrier;
+            QVERIFY2(level < 0.001, qPrintable(QStringLiteral("index %1: %2 Hz at %3").arg(index).arg(f).arg(level)));
+        }
+    }
+}
+
+void SfxRecipeTest::ringLeavesTheSumAndTheDifference()
+{
+    // 500 Hz times 1380 Hz is 880 Hz plus 1880 Hz, each at half the
+    // level, and neither 500 nor 1380.
+    const double carrier = toneAmplitude(renderTone({}), 0, kRate, 500.0);
+    const auto buf = renderTone(R"("ring": {"ratio": 2.76})");
+    for (double f : {880.0, 1880.0}) {
+        const double level = toneAmplitude(buf, 0, kRate, f) / carrier;
+        qInfo("%4.0f Hz at %.4f of the carrier", f, level);
+        QVERIFY2(std::abs(level - 0.5) < 0.005, qPrintable(QStringLiteral("%1 Hz at %2").arg(f).arg(level)));
+    }
+    for (double f : {500.0, 1380.0, 1000.0, 2760.0}) {
+        const double level = toneAmplitude(buf, 0, kRate, f) / carrier;
+        QVERIFY2(level < 0.001, qPrintable(QStringLiteral("%1 Hz at %2").arg(f).arg(level)));
+    }
+}
+
+void SfxRecipeTest::theIndexEnvelopeNarrowsTheSpectrumAsItDecays()
+{
+    // An 8 kHz carrier, its modulator at 1 kHz, the index falling from 5
+    // to 0 over the two seconds. The power-weighted spread of the
+    // spectrum around the carrier is index x 1000 / sqrt(2) Hz (the sum of
+    // n^2 J_n^2 is index^2 / 2), so every 4096-frame window of the
+    // offline render is narrower than the one before, by the index the
+    // envelope has at its middle.
+    const auto r = parseOk(R"({"layers": [{"source": "sine", "freq": 8000, "length": 2000,
+        "fm": {"ratio": 0.125, "index": 5, "decay": 2000, "sustain": 0}}]})");
+    const auto buf = cs::renderSfx(r, {}, 1, 1.0f, 1.0f, 0.0f, kRate, false, -1, 0.0);
+    QCOMPARE(buf.size(), size_t(2 * kRate));
+    double before = 1e9, worst = 0.0;
+    int windows = 0;
+    for (size_t at = 0; at + kFft <= buf.size(); at += kFft, ++windows) {
+        const auto power = powerSpectrum(std::vector<float>(buf.begin() + at, buf.begin() + at + kFft));
+        double total = 0.0, moment = 0.0;
+        for (size_t k = 0; k < power.size(); ++k) {
+            const double df = static_cast<double>(k) * kRate / kFft - 8000.0;
+            total += power[k];
+            moment += df * df * power[k];
+        }
+        const double spread = std::sqrt(moment / total);
+        const double index = 5.0 * (1.0 - (at + kFft / 2.0) / (2.0 * kRate));
+        const double expected = index * 1000.0 / std::sqrt(2.0);
+        qInfo("%4.0f ms: index %.2f, spread %6.1f Hz, expected %6.1f Hz",
+              (at + kFft / 2.0) * 1000.0 / kRate, index, spread, expected);
+        QVERIFY2(spread < before, qPrintable(QStringLiteral("window %1 is not narrower").arg(windows)));
+        before = spread;
+        if (expected > 200.0) worst = std::max(worst, std::abs(spread / expected - 1.0));
+    }
+    QCOMPARE(windows, 21);
+    QVERIFY2(worst < 0.03, qPrintable(QStringLiteral("spread %1 off index x 1000 / sqrt(2)").arg(worst)));
+}
+
+void SfxRecipeTest::lfoShapeAndCutoffTargetAreLfoFields()
+{
+    using S = cs::OscillatorVoice::LfoShape;
+    const auto r = parseOk(R"({"layers": [
+      {"source": "sine", "length": 10, "lfo": {"target": "pitch", "rate": 5, "depth": 1}},
+      {"source": "square", "length": 10, "lfo": {"target": "pitch", "shape": "square", "rate": 5, "depth": 1}},
+      {"source": "noise", "length": 10, "lfo": {"target": "volume", "shape": "sample_hold", "rate": 20, "depth": 0.5}},
+      {"source": "sawtooth", "length": 10, "filter": {"type": "lowpass"},
+       "lfo": {"target": "cutoff", "shape": "smooth_random", "rate": 3, "depth": 2},
+       "vary": {"lfo.depth": [0, 1]}}]})");
+    QCOMPARE(r.layers.size(), 4);
+    QCOMPARE(r.layers[0].lfoTarget, 1);
+    QCOMPARE(r.layers[0].lfoShape, S::Sine);
+    QCOMPARE(r.layers[1].lfoShape, S::Square);
+    QCOMPARE(r.layers[2].lfoTarget, 2);
+    QCOMPARE(r.layers[2].lfoShape, S::SampleHold);
+    QCOMPARE(r.layers[3].lfoTarget, 3);
+    QCOMPARE(r.layers[3].lfoShape, S::SmoothRandom);
+    QCOMPARE(r.layers[3].get(P::LfoDepth), 2.0);
+    QVERIFY(r.layers[3].vary[int(P::LfoDepth)].on);
+
+    const QList<QPair<QByteArray, QString>> bad = {
+        {R"("source": "sine", "length": 10, "lfo": {"target": "pitch", "shape": "triangle"})",
+         "layers[0].lfo.shape: unknown shape 'triangle' (sine, square, sample_hold, smooth_random)"},
+        {R"("source": "sine", "length": 10, "lfo": {"target": "pitch", "shape": 2})",
+         "layers[0].lfo.shape: must be a string"},
+        {R"("source": "sine", "length": 10, "lfo": {"target": "filter"})",
+         "layers[0].lfo.target: unknown target 'filter' (pitch, volume, cutoff)"},
+        {R"("source": "sine", "length": 10, "lfo": {"target": "cutoff", "rate": 3, "depth": 1})",
+         "layers[0].lfo.target: a cutoff lfo needs a 'filter' with a 'type'"},
+        {R"("source": "sine", "length": 10, "lfo": {"target": "pitch", "seed": 4})",
+         "layers[0].lfo: unknown field 'seed'"},
+        {R"("source": "sample", "sample": "x.wav", "lfo": {"target": "volume", "shape": "sample_hold"})",
+         "layers[0].lfo: does not apply to a sample layer"}};
+    for (const auto &b : bad) {
+        const auto res = cs::SfxParser::parse("{\"layers\": [{" + b.first + "}]}");
+        QVERIFY2(!res.ok, b.first.constData());
+        QVERIFY2(res.error.startsWith(b.second), qPrintable(res.error));
+    }
+}
+
+void SfxRecipeTest::aSineLfoIsTheLfoOfBefore()
+{
+    // The default: a voice's patch has a sine lfo seeded from its start,
+    // and a recipe's lfo without a shape renders what one naming the sine
+    // does, to the last bit, on each target.
+    const cs::OscillatorVoice::Patch patch;
+    QCOMPARE(patch.lfoShape, cs::OscillatorVoice::LfoShape::Sine);
+    QCOMPARE(patch.lfoSeed, 0u);
+    const auto noShape = renderTone(R"("lfo": {"target": "pitch", "rate": 5, "depth": 2})");
+    QCOMPARE(renderTone(R"("lfo": {"target": "pitch", "shape": "sine", "rate": 5, "depth": 2})"), noShape);
+    QVERIFY(noShape != renderTone({}));
+    QCOMPARE(renderTone(R"("lfo": {"target": "volume", "shape": "sine", "rate": 5, "depth": 0.5})"),
+             renderTone(R"("lfo": {"target": "volume", "rate": 5, "depth": 0.5})"));
+    QCOMPARE(renderTone(R"("filter": {"type": "lowpass"}, "lfo": {"target": "cutoff", "shape": "sine", "rate": 5, "depth": 1})"),
+             renderTone(R"("filter": {"type": "lowpass"}, "lfo": {"target": "cutoff", "rate": 5, "depth": 1})"));
+}
+
+void SfxRecipeTest::aSeededRandomLfoRendersTheSameSamplesForTheSameSeed()
+{
+    // On every target: one seed renders the same samples every time,
+    // another seed other ones.
+    const QList<QByteArray> layers = {
+        R"("source": "sine", "freq": 300, "lfo": {"target": "pitch", "rate": 12, "depth": 3)",
+        R"("source": "sine", "freq": 300, "lfo": {"target": "volume", "rate": 12, "depth": 1)",
+        R"("source": "noise", "filter": {"type": "lowpass", "cutoff": 900},
+           "lfo": {"target": "cutoff", "rate": 12, "depth": 2)"};
+    for (const QByteArray shape : {"sample_hold", "smooth_random"}) {
+        for (const auto &layer : layers) {
+            const QByteArray json = R"({"layers": [{"length": 500, )" + layer
+                                    + R"(, "shape": ")" + shape + R"("}}]})";
+            const auto a = renderRecipe(json, 7);
+            QVERIFY(!a.empty());
+            QCOMPARE(renderRecipe(json, 7), a);
+            QVERIFY2(renderRecipe(json, 8) != a, json.constData());
+        }
+    }
+    // The grains of a burst each draw their own lfo.
+    const QByteArray grains = R"({"layers": [{"source": "sine", "freq": 300, "length": 40,
+        "lfo": {"target": "pitch", "shape": "sample_hold", "rate": 100, "depth": 12},
+        "burst": {"count": 2, "duration": 100}}]})";
+    const auto g = renderRecipe(grains, 3);
+    QCOMPARE(renderRecipe(grains, 3), g);
+    const size_t at = std::llround(0.05 * kRate);   // the second grain's slot
+    QVERIFY(std::vector<float>(g.begin(), g.begin() + 1700)
+            != std::vector<float>(g.begin() + at, g.begin() + at + 1700));
+}
+
+void SfxRecipeTest::seededLfoIgnoresTheStartFrame()
+{
+    // A voice whose patch names an lfo seed wobbles the same wherever it
+    // starts; seed 0 seeds it from the start frame, and differs.
+    auto render = [](int64_t start, uint32_t seed) {
+        cs::Engine eng(kRate);
+        auto osc = std::make_unique<cs::OscillatorInstrument>();
+        auto *o = osc.get();
+        const int id = eng.addInstrument(std::move(osc));
+        std::vector<float> skip(static_cast<size_t>(start));
+        eng.renderOffline(skip.data(), static_cast<int>(start));
+        cs::NoteEvent ev;
+        ev.instrumentId = id;
+        ev.timeFrames = start;
+        ev.durationFrames = 8000;
+        ev.freqHz = 440.0;
+        cs::OscillatorVoice::Patch p;
+        p.attack = 0.0; p.decay = 0.0; p.sustain = 1.0; p.release = 0.0;
+        p.lfoTarget = 1; p.lfoRate = 30.0; p.lfoDepth = 4.0;
+        p.lfoShape = cs::OscillatorVoice::LfoShape::SmoothRandom;
+        p.lfoSeed = seed;
+        o->pushPatch(eng.schedule(ev), p);
+        std::vector<float> out(8000);
+        eng.renderOffline(out.data(), 8000);
+        return out;
+    };
+    QCOMPARE(render(100, 77), render(5000, 77));
+    QVERIFY(render(100, 0) != render(5000, 0));
+    QVERIFY(render(100, 77) != render(100, 78));
+}
+
+void SfxRecipeTest::squareAndSampleHoldHoldALevelAndSmoothRandomGlides()
+{
+    constexpr size_t kPeriod = kRate / 10;
+    constexpr size_t kEdge = kPeriod / 10;    // left out around each step
+    const double sineRms = std::sqrt(0.5);
+
+    // Square at depth 0.5: full level the first half of each period,
+    // half of it the second.
+    const auto sq = renderRecipe(volumeLfoRecipe("square", 0.5));
+    for (size_t k = 0; k < 19; ++k) {
+        const size_t at = k * kPeriod;
+        QVERIFY(std::abs(rms(sq, at + kEdge, kPeriod / 2 - 2 * kEdge) - sineRms) < 0.01);
+        QVERIFY(std::abs(rms(sq, at + kPeriod / 2 + kEdge, kPeriod / 2 - 2 * kEdge) - 0.5 * sineRms) < 0.01);
+    }
+
+    // Sample-and-hold: one level through a period, the two halves of it
+    // alike; from period to period it moves, inside 0..1 at depth 1.
+    // Smooth random, at the same seed, passes through each of those levels
+    // as its period starts and glides between them: no step between two
+    // neighbouring windows comes near the largest step of the held one.
+    const auto sh = renderRecipe(volumeLfoRecipe("sample_hold"));
+    const auto sm = renderRecipe(volumeLfoRecipe("smooth_random"));
+    std::vector<double> held;
+    for (size_t k = 0; k < 19; ++k) {
+        const size_t at = k * kPeriod + kEdge;
+        const size_t half = (kPeriod - 2 * kEdge) / 2;
+        const double a = rms(sh, at, half), b = rms(sh, at + half, half);
+        QVERIFY2(std::abs(a - b) < 0.005, qPrintable(QStringLiteral("period %1: %2 vs %3").arg(k).arg(a).arg(b)));
+        QVERIFY(a <= sineRms + 0.005);
+        held.push_back(a);
+        if (k > 0) {
+            const double start = rms(sm, k * kPeriod - 220, 441);   // five periods of the sine
+            QVERIFY2(std::abs(start - a) < 0.01,
+                     qPrintable(QStringLiteral("period %1: smooth %2, held %3").arg(k).arg(start).arg(a)));
+        }
+    }
+    const auto [lo, hi] = std::minmax_element(held.begin(), held.end());
+    QVERIFY2(*hi - *lo > 0.2, "the held levels hardly move");
+    double heldStep = 0.0, smoothStep = 0.0;
+    constexpr size_t kWin = kPeriod / 10;
+    for (size_t i = kWin; i + kWin <= 19 * kPeriod; i += kWin) {
+        heldStep = std::max(heldStep, std::abs(rms(sh, i, kWin) - rms(sh, i - kWin, kWin)));
+        smoothStep = std::max(smoothStep, std::abs(rms(sm, i, kWin) - rms(sm, i - kWin, kWin)));
+    }
+    QVERIFY2(smoothStep < 0.3 * heldStep, qPrintable(QStringLiteral("smooth %1, held %2").arg(smoothStep).arg(heldStep)));
+}
+
+void SfxRecipeTest::aCutoffLfoMovesTheCutoffByItsDepthInOctaves()
+{
+    // White noise through a 1000 Hz lowpass, its cutoff moved by a 1 Hz
+    // square lfo of depth 2: the first half of each second sounds as a
+    // fixed 4000 Hz lowpass does, the second half as a 250 Hz one.
+    auto noise = [](const QByteArray &cutoff, const QByteArray &lfo) {
+        return renderRecipe(R"({"layers": [{"source": "noise", "length": 1000,
+                                 "filter": {"type": "lowpass", "cutoff": )" + cutoff + "}"
+                            + (lfo.isEmpty() ? QByteArray() : ", \"lfo\": " + lfo) + "}]}");
+    };
+    auto median = [](const std::vector<float> &buf, size_t from, size_t to) {
+        return medianFrequency(powerSpectrum(std::vector<float>(buf.begin() + from, buf.begin() + to)));
+    };
+    const auto moved = noise("1000", R"({"target": "cutoff", "shape": "square", "rate": 1, "depth": 2})");
+    const size_t half = kRate / 2, settle = 1000;
+    const double high = median(moved, settle, half);
+    const double low = median(moved, half + settle, kRate);
+    const double at4000 = median(noise("4000", {}), settle, half);
+    const double at250 = median(noise("250", {}), half + settle, kRate);
+    QVERIFY2(std::abs(high / at4000 - 1.0) < 0.1, qPrintable(QStringLiteral("%1 vs %2 Hz").arg(high).arg(at4000)));
+    QVERIFY2(std::abs(low / at250 - 1.0) < 0.1, qPrintable(QStringLiteral("%1 vs %2 Hz").arg(low).arg(at250)));
+    QVERIFY2(high / low > 8.0, qPrintable(QStringLiteral("%1 vs %2 Hz").arg(high).arg(low)));
 }
 
 void SfxRecipeTest::seededNoiseIgnoresTheStartFrame()
@@ -229,6 +1240,183 @@ void SfxRecipeTest::seededNoiseIgnoresTheStartFrame()
     QCOMPARE(render(100, 77), render(5000, 77));
     QVERIFY(render(100, 0) != render(5000, 0));
     QVERIFY(render(100, 77) != render(100, 78));
+}
+
+void SfxRecipeTest::driveAndCrushAreLayerFields()
+{
+    const auto r = parseOk(R"({"layers": [
+      {"source": "sine", "length": 10},
+      {"source": "sawtooth", "length": 10, "drive": 18, "vary": {"drive": [-6, 6]}},
+      {"source": "noise", "length": 10, "crush": {"bits": 4}},
+      {"source": "sample", "sample": "x.wav", "drive": 6, "crush": {"rate": 8000},
+       "vary": {"crush.rate": [-2000, 0]}}]})");
+    QCOMPARE(r.layers.size(), 4);
+    QVERIFY(!r.layers[0].drive);
+    QVERIFY(!r.layers[0].crush);
+    QVERIFY(r.layers[1].drive);
+    QCOMPARE(r.layers[1].get(P::Drive), 18.0);
+    QVERIFY(r.layers[1].vary[int(P::Drive)].on);
+    QVERIFY(r.layers[2].crush);
+    QCOMPARE(r.layers[2].get(P::CrushBits), 4.0);
+    QCOMPARE(r.layers[2].get(P::CrushRate), 192000.0);   // holds nothing
+    QVERIFY(r.layers[3].drive);
+    QVERIFY(r.layers[3].crush);
+    QCOMPARE(r.layers[3].get(P::CrushBits), 24.0);       // rounds nothing
+    QCOMPARE(r.layers[3].get(P::CrushRate), 8000.0);
+
+    const QList<QPair<QByteArray, QString>> bad = {
+        {R"("source": "sine", "length": 10, "drive": -3)",
+         "layers[0].drive: -3 is outside 0..48"},
+        {R"("source": "sine", "length": 10, "drive": "hot")",
+         "layers[0].drive: must be a number"},
+        {R"("source": "sine", "length": 10, "crush": {})",
+         "layers[0].crush: needs a 'bits' or a 'rate'"},
+        {R"("source": "sine", "length": 10, "crush": {"bits": 8, "depth": 2})",
+         "layers[0].crush: unknown field 'depth'"},
+        {R"("source": "sine", "length": 10, "crush": {"bits": 0})",
+         "layers[0].crush.bits: 0 is outside 1..24"},
+        {R"("source": "sine", "length": 10, "crush": {"rate": 10})",
+         "layers[0].crush.rate: 10 is outside 20..192000"},
+        {R"("source": "sine", "length": 10, "vary": {"drive": [0, 6]})",
+         "layers[0].vary.drive: needs a 'drive'"},
+        {R"("source": "sine", "length": 10, "vary": {"crush.bits": [-2, 0]})",
+         "layers[0].vary.crush.bits: needs a 'crush'"},
+        {R"("source": "sine", "length": 10, "crush": {"bits": 2}, "vary": {"crush.bits": [-2, 0]})",
+         "layers[0].vary.crush.bits: reaches 0..2, outside 1..24"}};
+    for (const auto &b : bad) {
+        const auto res = cs::SfxParser::parse("{\"layers\": [{" + b.first + "}]}");
+        QVERIFY2(!res.ok, b.first.constData());
+        QVERIFY2(res.error.startsWith(b.second), qPrintable(res.error));
+    }
+}
+
+void SfxRecipeTest::withoutDriveOrCrushALayerSoundsAsBefore()
+{
+    // Off in a voice's patch, and a crush at its defaults is no crush,
+    // to the last bit, on an oscillator and on a sample layer.
+    QVERIFY(!cs::OscillatorVoice::Patch{}.driveCrush.active());
+    QVERIFY(!cs::SampleVoice::Patch{}.driveCrush.active());
+    const auto tone = renderTone({});
+    QCOMPARE(renderTone(R"("crush": {"bits": 24, "rate": 192000})"), tone);
+    QVERIFY(renderTone(R"("drive": 0)") != tone);   // tanh even at 0 dB
+    const auto sample = renderSampleLayer({});
+    QCOMPARE(renderSampleLayer(R"("crush": {"bits": 24})"), sample);
+    QVERIFY(rms(sample, 0, sample.size()) > 0.5);
+}
+
+void SfxRecipeTest::driveAddsTheOddHarmonicsOfTanh()
+{
+    // A 500 Hz sine at full scale, 4410 frames (50 periods) from 0.25 s:
+    // the first, third and fifth harmonics at what tanh(g sin) puts
+    // there, the even ones at nothing, and the peak inside -1..1.
+    const size_t from = kRate / 4, n = 4410;
+    const auto clean = renderTone({});
+    QVERIFY(toneAmplitude(clean, from, n, 1500) < 1e-4);
+    double last3 = 0.0;
+    for (double db : {6.0, 12.0, 24.0}) {
+        const auto driven = renderTone("\"drive\": " + QByteArray::number(db));
+        const double g = std::pow(10.0, db / 20.0);
+        for (int h : {1, 3, 5}) {
+            const double want = tanhHarmonic(g, h);
+            const double got = toneAmplitude(driven, from, n, 500.0 * h);
+            QVERIFY2(std::abs(got - want) < 0.01 * want + 1e-4,
+                     qPrintable(QStringLiteral("%1 dB, harmonic %2: %3, tanh says %4")
+                                    .arg(db).arg(h).arg(got).arg(want)));
+        }
+        for (int h : {2, 4})
+            QVERIFY(toneAmplitude(driven, from, n, 500.0 * h) < 1e-3);
+        // More drive, more of the third harmonic.
+        const double third = toneAmplitude(driven, from, n, 1500);
+        QVERIFY2(third > last3 + 0.02, qPrintable(QString::number(third)));
+        last3 = third;
+        const auto [lo, hi] = std::minmax_element(driven.begin(), driven.end());
+        QVERIFY(*hi <= 1.0f && *lo >= -1.0f);
+    }
+}
+
+void SfxRecipeTest::crushRoundsToTheStepsOfItsBits()
+{
+    // `bits` rounds every sample to a multiple of 2^(1 - bits): a sine
+    // at full scale takes each of the 2^bits + 1 levels from -1 to 1.
+    for (int bits : {1, 2, 4, 6}) {
+        const auto crushed = renderTone("\"crush\": {\"bits\": " + QByteArray::number(bits) + "}");
+        const double step = std::pow(2.0, 1 - bits);
+        QSet<int> levels;
+        for (float v : crushed) {
+            const double k = v / step;
+            QVERIFY2(std::abs(k - std::round(k)) < 1e-5, qPrintable(QString::number(v)));
+            levels.insert(int(std::lround(k)));
+        }
+        QCOMPARE(levels.size(), (1 << bits) + 1);
+        QCOMPARE(*std::max_element(levels.begin(), levels.end()), 1 << (bits - 1));
+    }
+    // Between two depths the step is between theirs.
+    const auto between = renderTone(R"("crush": {"bits": 3.5})");
+    const QSet<float> levels(between.begin(), between.end());
+    QVERIFY2(levels.size() > 9 && levels.size() < 17, qPrintable(QString::number(levels.size())));
+}
+
+void SfxRecipeTest::crushHoldsEachValueForAPeriodOfItsRate()
+{
+    // 11025 Hz holds each value four samples exactly ...
+    const auto quarter = renderTone(R"("crush": {"rate": 11025})");
+    const auto runs = runLengths(quarter, 0, kRate);
+    QCOMPARE(int(runs.size()), 11025);
+    QVERIFY(std::all_of(runs.begin(), runs.end(), [](int r) { return r == 4; }));
+    // ... the one the plain tone has at each hold's start.
+    const auto tone = renderTone({});
+    for (int i = 0; i < kRate; i += 4) QCOMPARE(quarter[i], tone[i]);
+
+    // 3000 Hz: 3000 values a second, each held 14 or 15 samples
+    // (44100 / 3000 = 14.7).
+    const auto chip = renderTone(R"("crush": {"rate": 3000})");
+    const auto chipRuns = runLengths(chip, 0, kRate);
+    QVERIFY2(std::abs(int(chipRuns.size()) - 3000) <= 1, qPrintable(QString::number(chipRuns.size())));
+    QVERIFY(std::all_of(chipRuns.begin(), chipRuns.end(), [](int r) { return r == 14 || r == 15; }));
+
+    // The held steps fold the tone back from the crush rate: an image
+    // at 11025 - 500 Hz that the plain tone has none of, at the level a
+    // four-sample hold leaves at each frequency,
+    // |sin(4 pi f / rate) / (4 sin(pi f / rate))|.
+    const auto hold4 = [](double f) {
+        return std::abs(std::sin(4.0 * M_PI * f / kRate) / (4.0 * std::sin(M_PI * f / kRate)));
+    };
+    const size_t from = kRate / 4, n = 4410;
+    QVERIFY(toneAmplitude(tone, from, n, 10525) < 1e-4);
+    for (double f : {500.0, 10525.0, 11525.0}) {
+        const double got = toneAmplitude(quarter, from, n, f);
+        QVERIFY2(std::abs(got - hold4(f)) < 0.02 * hold4(f),
+                 qPrintable(QStringLiteral("%1 Hz: %2, a hold leaves %3").arg(f).arg(got).arg(hold4(f))));
+    }
+}
+
+void SfxRecipeTest::aSampleLayerIsDrivenAndCrushedBeforeItsGain()
+{
+    // At -6 dB the samples are 3-bit steps times the gain, not steps of
+    // the quieter signal: the gain comes after the crush.
+    const double gain = std::pow(10.0, -6.0 / 20.0);
+    const auto crushed = renderSampleLayer(R"("gain": -6, "crush": {"bits": 3})");
+    QSet<int> levels;
+    for (float v : crushed) {
+        const double k = v / gain / 0.25;
+        QVERIFY2(std::abs(k - std::round(k)) < 1e-4, qPrintable(QString::number(v)));
+        levels.insert(int(std::lround(k)));
+    }
+    QCOMPARE(levels.size(), 9);
+
+    // The drive is the same at either gain, only scaled by it.
+    const size_t from = kRate / 4, n = 4410;
+    QVERIFY(toneAmplitude(renderSampleLayer({}), from, n, 1500) < 1e-4);
+    const double want = tanhHarmonic(std::pow(10.0, 12.0 / 20.0), 3);
+    const double third = toneAmplitude(renderSampleLayer(R"("drive": 12)"), from, n, 1500);
+    QVERIFY2(std::abs(third - want) < 0.01 * want, qPrintable(QStringLiteral("%1 vs %2").arg(third).arg(want)));
+    const double quiet = toneAmplitude(renderSampleLayer(R"("drive": 12, "gain": -6)"), from, n, 1500);
+    QVERIFY2(std::abs(quiet - gain * third) < 0.01 * gain * third, qPrintable(QString::number(quiet)));
+
+    // A held rate on a sample, too.
+    const auto held = renderSampleLayer(R"("crush": {"rate": 11025})");
+    const auto runs = runLengths(held, 0, 4000);
+    QVERIFY(std::all_of(runs.begin(), runs.end(), [](int r) { return r == 4; }));
 }
 
 void SfxRecipeTest::sameSeedRendersSameSamples()
