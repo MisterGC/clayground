@@ -91,7 +91,10 @@ Rectangle {
         }
 
         Text {
-            text: "Connected gamepads: " + controller1.numConnectedGamepads
+            text: "Connected gamepads: " + controller1.numConnectedGamepads +
+                  (controller1.numConnectedGamepads > 0 ?
+                       "  |  Left: the first pad" +
+                       (controller1.numConnectedGamepads > 1 ? ", Right: the second" : "") : "")
             font.family: root.monoFont
             font.pixelSize: 11
             color: root.dimTextColor
@@ -99,7 +102,10 @@ Rectangle {
     }
 
     Row {
-        anchors.fill: parent
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.top: parent.top
+        anchors.bottom: padPanel.top
         anchors.topMargin: 110
 
         GameController {
@@ -132,6 +138,123 @@ Rectangle {
                     selectTouchscreenGamepad();
             }
             showDebugOverlay: true
+        }
+    }
+
+    // Every connected pad by name, with every button and axis it reports,
+    // live: one look tells whether a pad is fully recognised
+    Rectangle {
+        id: padPanel
+        objectName: "padPanel"
+        anchors.left: parent.left
+        anchors.right: parent.right
+        anchors.bottom: parent.bottom
+        anchors.margins: 10
+        height: padColumn.implicitHeight + 16
+        radius: 6
+        color: root.surfaceColor
+
+        Column {
+            id: padColumn
+            x: 8; y: 8
+            width: parent.width - 16
+            spacing: 8
+
+            Text {
+                visible: controller1.numConnectedGamepads === 0
+                text: "No gamepad connected - plug one in, it shows up here"
+                font.family: root.monoFont
+                font.pixelSize: 12
+                color: root.dimTextColor
+            }
+
+            Repeater {
+                model: controller1.gamepads
+                delegate: Column {
+                    id: thePadView
+                    required property var modelData
+                    required property int index
+                    readonly property var pad: modelData
+                    objectName: "pad_" + pad.deviceId
+                    width: padColumn.width
+                    spacing: 4
+
+                    Text {
+                        text: "#" + thePadView.index + "  " + thePadView.pad.name +
+                              "  (" + thePadView.pad.type + ", " +
+                              thePadView.pad.buttons.length + " buttons, " +
+                              thePadView.pad.axes.length + " axes)" +
+                              (controller1.gamepad === thePadView.pad ? "  - left controller" :
+                               controller2.gamepad === thePadView.pad ? "  - right controller" : "")
+                        font.family: root.monoFont
+                        font.pixelSize: 12
+                        font.bold: true
+                        color: root.textColor
+                    }
+
+                    Flow {
+                        width: parent.width
+                        spacing: 4
+
+                        Repeater {
+                            model: thePadView.pad.buttons
+                            delegate: Rectangle {
+                                required property string modelData
+                                readonly property bool down: thePadView.pad.values[modelData] === true
+                                readonly property string label: thePadView.pad.labels[modelData] || ""
+                                objectName: "button_" + modelData
+                                width: buttonText.implicitWidth + 10
+                                height: 18
+                                radius: 3
+                                color: down ? root.accentColor : "#0d1b33"
+                                border.color: root.accentColor
+                                Text {
+                                    id: buttonText
+                                    anchors.centerIn: parent
+                                    text: parent.modelData + (parent.label ? " " + parent.label : "")
+                                    font.family: root.monoFont
+                                    font.pixelSize: 10
+                                    color: parent.down ? "#000000" : root.textColor
+                                }
+                            }
+                        }
+
+                        Repeater {
+                            model: thePadView.pad.axes
+                            delegate: Rectangle {
+                                id: theAxis
+                                required property string modelData
+                                readonly property real value: thePadView.pad.values[modelData] || 0
+                                readonly property bool trigger: modelData.endsWith("Trigger")
+                                objectName: "axis_" + modelData
+                                width: 150
+                                height: 18
+                                radius: 3
+                                color: "#0d1b33"
+                                border.color: root.accentColor
+                                // A stick fills from the middle, a trigger from the left
+                                Rectangle {
+                                    readonly property real origin: theAxis.trigger ? 0 : theAxis.width * .5
+                                    readonly property real span: theAxis.trigger ? theAxis.width : theAxis.width * .5
+                                    x: theAxis.value >= 0 ? origin : origin + theAxis.value * span
+                                    width: Math.abs(theAxis.value) * span
+                                    height: parent.height
+                                    radius: 3
+                                    color: root.accentColor
+                                    opacity: .6
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: theAxis.modelData + " " + theAxis.value.toFixed(2)
+                                    font.family: root.monoFont
+                                    font.pixelSize: 10
+                                    color: root.textColor
+                                }
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }

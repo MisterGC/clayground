@@ -76,39 +76,33 @@ Item {
     readonly property bool vGamepadSelected: vgamepad.enabled
     readonly property bool keyboardSelected: keybGamepad.enabled
 
-    // All properties of a connected, physical gamepad
-    // TODO: Reactivate Gamepad
-    readonly property var gamepad: null//gamepadLoader.item
-    readonly property int gamepadDeviceId: gamepad ? gamepad.deviceId : -1
-    readonly property int numConnectedGamepads: gamepad ? gamepad.numConnectedGamepads : 0
+    // The physical pads connected to the machine, each with its name, type,
+    // the buttons and axes it has and their live values
+    readonly property var gamepads: GamepadHub.gamepads
+    readonly property int numConnectedGamepads: GamepadHub.count
+    // The selected pad, one of gamepads, or null
+    readonly property var gamepad: physGamepad.pad
+    readonly property int gamepadDeviceId: physGamepad.deviceId
 
-    /** Selects the specified gamepad as input source */
+    /** Selects the gamepad at gamePadIdx of gamepads as input source; the
+        left stick and the d-pad drive axisX/axisY, the d-pad alone when
+        useAnalogAxis is false */
     function selectGamepad(gamePadIdx, useAnalogAxis) {
-        if (!gamepad) return;
-        if (gamepad.selectGamepad(gamePadIdx, useAnalogAxis)) {
-            keybGamepad.enabled = false;
-            vgamepad.enabled = false;
-            buttonAPressed = Qt.binding(function() {return gamepad.buttonX;});
-            buttonBPressed = Qt.binding(function() {return gamepad.buttonA;});
-            if (useAnalogAxis) {
-                axisX = Qt.binding(function() {return Math.abs(gamepad.axisLeftX) > .2 ? gamepad.axisLeftX : 0;});
-                axisY = Qt.binding(function() {return Math.abs(gamepad.axisLeftY) > .2 ? -gamepad.axisLeftY : 0;});
-            }
-            else {
-                axisX = Qt.binding(function() {return gamepad.buttonLeft ? -1 : gamepad.buttonRight ? 1 : 0;});
-                axisY = Qt.binding(function() {return gamepad.buttonUp ? 1 : gamepad.buttonDown ? -1 : 0;});
-            }
+        if (gamePadIdx < 0 || gamePadIdx >= numConnectedGamepads) {
+            console.error("Invalid game pad index: " + gamePadIdx +
+                          " nr of connected gamepads: " + numConnectedGamepads);
+            return;
         }
-        else console.error("Invalid game pad index: " + gamePadIdx +
-                           " nr of connected gamepads: " + GamepadManager.connectedGamepads.length)
-
+        keybGamepad.enabled = false;
+        vgamepad.enabled = false;
+        physGamepad.select(gamePadIdx, useAnalogAxis);
     }
 
     /** Selects the keyboard as input: six keys for the stick and two
         buttons, or one map from input name to key - an axis takes
         [negative key, positive key] */
     function selectKeyboard(upKey, downKey, leftKey, rightKey, buttonAKey, buttonBKey) {
-        if (gamepad) gamepad.deviceId = -1;
+        physGamepad.deselect();
         keybGamepad.enabled = true;
         vgamepad.enabled = false;
         if (typeof upKey === "object" && upKey !== null)
@@ -120,7 +114,7 @@ Item {
     /** Selects the touchscreen gamepad */
     function selectTouchscreenGamepad()
     {
-        if (gamepad) gamepad.deviceId = -1;
+        physGamepad.deselect();
         keybGamepad.enabled = false;
         vgamepad.enabled = true;
         vgamepad.configure();
@@ -132,13 +126,6 @@ Item {
         observed: theController
     }
 
-    // TODO There is not yet a Qt6.x version available that supports
-    // Gamepad again - either wait for a version or use an alternative
-//    Loader {
-//        id: gamepadLoader
-//        source: Qt.platform.os !== "ios" ?  "GamepadWrapper.qml" : null
-//    }
-
     // Agent-synthesized input (Dojo inspector); inert outside the sandbox.
     // It writes imperatively like KeyboardGamepad, so it composes with the
     // humanly selected source instead of replacing it.
@@ -147,5 +134,6 @@ Item {
     Keys.forwardTo: keybGamepad
     KeyboardGamepad { id: keybGamepad; gameController: theController; }
     TouchscreenGamepad { id: vgamepad; gameController: theController; }
+    PhysicalGamepad { id: physGamepad; gameController: theController; }
     SyntheticGamepad { id: synthGamepad; gameController: theController; }
 }
