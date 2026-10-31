@@ -360,7 +360,10 @@ jobs:
           --timeout 120
 
     # Clayground.Sound's first audio-device query used to deadlock the page's
-    # main thread (#216) - a failure no desktop test can see.
+    # main thread (#216) - a failure no desktop test can see. No --click, on
+    # purpose: before a user gesture, Chrome 156 rejects the resume() Qt 6.10
+    # drops for every audio device, and the harness fails on that uncaught
+    # error unless clay_sound's pre-js catches it (#480).
     - name: Sound Regression
       if: matrix.group == 'pages'
       run: |
@@ -447,6 +450,21 @@ jobs:
           --expect "clay-sound: hammer probe finished" \
           --require-audible baseline,after-hammer \
           --click \
+          --timeout 120
+
+    # A page that plays from its load on - a title tune - and the player's
+    # first click after that: the browser held the page's AudioContext back,
+    # and the click on Qt's window never reached what resumes it, so the page
+    # stayed silent for good (#480). --click-after clicks once the notes are
+    # under way; the page must be audible after that click.
+    - name: Sound After A Late Click Regression
+      if: matrix.group == 'pages'
+      run: |
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/sound-late-click \
+          --expect "clay-sound: notes started before a click" \
+          --click-after "300,300:clay-sound: listened after the click" \
+          --require-audible after-click \
           --timeout 120
 
     # Every step above loads a page that sits next to the runtime, the way a

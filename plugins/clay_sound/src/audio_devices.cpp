@@ -32,4 +32,9 @@ void primeAudioDevices()
 #endif
 }
 
+bool outputMuted()
+{
+    return qEnvironmentVariableIntValue("CLAY_SOUND_MUTE") != 0;
+}
+
 } // namespace clay::sound

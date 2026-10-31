@@ -39,6 +39,10 @@ have printed since the steps began (absent). Until the first step there is
 no pad, as in a browser before anyone pressed a button. --user-agent makes
 the page see another browser's navigator.userAgent.
 
+--click-after clicks the loaded page once at a point and waits for a marker -
+a player's first click, which --click is not: that one lands before the QML
+has loaded. Sound a page started before that click must start with it (#480).
+
 Usage:
     python3 wasm_smoke_test.py <starter-dir> [--screenshot out.png] [--timeout 180]
                                [--overlay dir] [--expect "marker"] [--click]
@@ -46,6 +50,7 @@ Usage:
                                [--site-example src[:name]] [--site-entry Sandbox.qml]
                                [--site-gate file.qml] [--reload-expect "marker"]
                                [--type "x,y:text"] [--gamepad steps.json]
+                               [--click-after "x,y:marker"]
 
 Requires: pip install playwright
 Uses the system Chrome when available, otherwise a Playwright-managed
@@ -271,7 +276,15 @@ def main():
                          "after it)")
     ap.add_argument("--user-agent", default="",
                     help="the navigator.userAgent the page sees")
+    ap.add_argument("--click-after", default="",
+                    help="after the page loaded and printed --expect, click it "
+                         "once at x,y and wait until it prints the marker: "
+                         "\"x,y:marker\"")
     args = ap.parse_args()
+    if args.click_after and (args.site_example or args.reload_expect or args.type):
+        print("FAIL: --click-after is not supported with --site-example, "
+              "--reload-expect or --type")
+        return 2
     if args.type and (args.site_example or args.reload_expect):
         print("FAIL: --type is not supported with --site-example or --reload-expect")
         return 2
@@ -363,6 +376,12 @@ def run(args, serve_dir):
     lines = []
     # The step that never got its line, None while there is none
     failed_step = None
+    click_at, _, click_marker = args.click_after.partition(":")
+    clicked_ok = not args.click_after
+    # Chrome takes every page.evaluate() for a user gesture, and the audio
+    # probe samples through one: before the click of --click-after it would
+    # unlock the page's audio itself, so it listens only from that click on.
+    listening = [not args.click_after]
     errors = []
     phase = "start"
     # phase name -> {"rms": loudest sample, "samples": n, "state": last
@@ -397,7 +416,7 @@ def run(args, serve_dir):
 
         def on_console(msg):
             nonlocal booted, qml_loaded, marker_seen, modules_ok, fs_ok, phase
-            nonlocal reloaded_ok, typed_ok
+            nonlocal reloaded_ok, typed_ok, clicked_ok
             text = msg.text
             print(f"[console] {text}")
             lines.append(text)
@@ -406,6 +425,8 @@ def run(args, serve_dir):
             if args.type and TYPED_MARKER in text \
                     and text.split(TYPED_MARKER, 1)[1] == type_text:
                 typed_ok = True
+            if args.click_after and click_marker in text:
+                clicked_ok = True
             if BOOT_MARKER in text:
                 booted = True
             if QML_OK_MARKER in text:
@@ -445,7 +466,7 @@ def run(args, serve_dir):
             while budget[0] > 0 and not (done() or errors):
                 page.wait_for_timeout(250)
                 budget[0] -= 250
-                if args.audio_probe:
+                if args.audio_probe and listening[0]:
                     sample_audio()
             return done()
 
@@ -494,24 +515,29 @@ def run(args, serve_dir):
                 page.wait_for_timeout(500)
                 page.keyboard.type(type_text, delay=100)
                 wait_until(lambda: typed_ok)
-        if steps and qml_loaded and marker_seen and not errors:
-            first = len(lines)
-            for n, step in enumerate(steps, 1):
-                seen = len(lines)
-                page.evaluate("s => window.__clayPadStep(s)", step)
-                expect = step.get("expect", "")
-                if expect and not wait_until(
-                        lambda: any(expect in l for l in lines[seen:])):
-                    failed_step = (n, step, f"never printed {expect!r}")
-                    break
-                absent = step.get("absent", "")
-                if absent and any(absent in l for l in lines[first:]):
-                    failed_step = (n, step, f"printed {absent!r}")
-                    break
-                if step.get("screenshot"):
-                    page.wait_for_timeout(500)
-                    page.screenshot(path=step["screenshot"])
-                    print(f"Screenshot written to {step['screenshot']}")
+            if steps and qml_loaded and marker_seen and not errors:
+                first = len(lines)
+                for n, step in enumerate(steps, 1):
+                    seen = len(lines)
+                    page.evaluate("s => window.__clayPadStep(s)", step)
+                    expect = step.get("expect", "")
+                    if expect and not wait_until(
+                            lambda: any(expect in l for l in lines[seen:])):
+                        failed_step = (n, step, f"never printed {expect!r}")
+                        break
+                    absent = step.get("absent", "")
+                    if absent and any(absent in l for l in lines[first:]):
+                        failed_step = (n, step, f"printed {absent!r}")
+                        break
+                    if step.get("screenshot"):
+                        page.wait_for_timeout(500)
+                        page.screenshot(path=step["screenshot"])
+                        print(f"Screenshot written to {step['screenshot']}")
+            if args.click_after and qml_loaded and marker_seen and not errors:
+                x, y = (int(v) for v in click_at.split(","))
+                page.mouse.click(x, y)
+                listening[0] = True
+                wait_until(lambda: clicked_ok)
         page.wait_for_timeout(1500)  # let trailing errors and rendering arrive
         if args.screenshot:
             page.screenshot(path=args.screenshot)
@@ -572,6 +598,9 @@ def run(args, serve_dir):
         n, step, why = failed_step
         print(f"FAIL: gamepad step {n} {json.dumps(step)} - the page {why}")
         return 1
+    if not clicked_ok:
+        print(f"FAIL: clicked at {click_at}, the page never printed {click_marker!r}")
+        return 1
     for name in (n.strip() for n in args.require_audible.split(",") if n.strip()):
         slot = audio.get(name)
         if not slot or not slot["samples"]:
@@ -595,6 +624,8 @@ def run(args, serve_dir):
         what += f", typed {type_text!r} into the page"
     if steps:
         what += f", {len(steps)} gamepad steps answered"
+    if args.click_after:
+        what += f", clicked it and it printed {click_marker!r}"
     print(f"PASS: runtime booted, {what}, all required QML modules available, "
           f"/game/ FS works")
     return 0

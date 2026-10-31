@@ -31,6 +31,58 @@ uint32_t mix(uint32_t a, uint32_t b) { return hash32(a ^ hash32(b + 0x9e3779b9u)
 
 // Salt of a layer's noise seed, apart from every parameter index.
 constexpr uint32_t kNoiseSalt = 0x6e6f6973u;
+// Salt of a layer's grains, apart from the noise and every parameter.
+constexpr uint32_t kGrainSalt = 0x6772616eu;
+// Salt of a layer's random LFO, apart from the noise, the grains and
+// every parameter.
+constexpr uint32_t kLfoSalt = 0x6c666f73u;
+
+// 24 bits of a hash: u in [0, 1), exact in a double.
+double unit(uint32_t h) { return (h >> 8) / 16777216.0; }
+
+// Where the grain at `u` (0..1, its place among the grains) starts, in
+// ms after the burst's: the grain rate changes exponentially from the
+// start to `density` times that at `duration`.
+double burstOnset(double u, double duration, double density)
+{
+    const double a = -std::log(density);
+    if (std::abs(a) < 1e-9) return u * duration;
+    return -duration / a * std::log(1.0 - u * (1.0 - std::exp(-a)));
+}
+
+double inRange(SfxParam p, double v)
+{
+    return std::clamp(v, sfxParamInfo(p).min, sfxParamInfo(p).max);
+}
+
+// The grains of the burst layer `note`: each the layer's note at its
+// onset, strayed by its jitter, with its own noise.
+void addGrains(const SfxNote &note, uint32_t layerSeed, std::vector<SfxNote> &notes)
+{
+    const int count = std::max(1, static_cast<int>(std::lround(note.get(P::BurstCount))));
+    const uint32_t burstSeed = mix(layerSeed, kGrainSalt);
+    for (int i = 0; i < count; ++i) {
+        const uint32_t grainSeed = mix(burstSeed, static_cast<uint32_t>(i + 1));
+        // In [-1, 1): the k-th jitter of this grain.
+        auto spread = [grainSeed](uint32_t k) { return 2.0 * unit(mix(grainSeed, k + 1)) - 1.0; };
+        SfxNote g = note;
+        g.grain = true;
+        // Inside its own slot, so the grains keep their order and the
+        // last one starts before the burst's end.
+        const double u = (i + 0.5 + 0.5 * note.get(P::JitterTime) * spread(0)) / count;
+        g.at(P::Offset) += burstOnset(u, note.get(P::BurstDuration), note.get(P::BurstDensity));
+        // A jitter is a range per grain, and a grain stays a valid layer
+        // whatever its draw: the parser cannot bound these the way it
+        // bounds a vary range, since a design's macro may move either side.
+        g.at(P::Gain)    = inRange(P::Gain, note.get(P::Gain) + note.get(P::JitterGain) * spread(1));
+        g.at(P::Cutoff)  = inRange(P::Cutoff, note.get(P::Cutoff) * std::exp2(note.get(P::JitterCutoff) * spread(2)));
+        g.at(P::Detune)  = inRange(P::Detune, note.get(P::Detune) + note.get(P::JitterFreq) * spread(3));
+        g.at(P::Length)  = std::max(0.0, note.get(P::Length) + note.get(P::JitterLength) * spread(4));
+        g.noiseSeed = mix(grainSeed, kNoiseSalt) | 1u;
+        g.lfoSeed = mix(grainSeed, kLfoSalt) | 1u;
+        notes.push_back(g);
+    }
+}
 
 int64_t msToFrames(double ms, int sampleRate)
 {
@@ -47,6 +99,20 @@ OscillatorVoice::Waveform waveformOf(SfxSource s)
     case SfxSource::Noise:    return W::Noise;
     default:                  return W::Sine;
     }
+}
+
+// The voice's drive and crush. 24 bits round nothing and a rate at or
+// above the output's holds nothing, so a crush at its defaults is off.
+DriveCrush driveCrushOf(const SfxLayer &layer, const SfxNote &n)
+{
+    DriveCrush d;
+    d.drive   = layer.drive;
+    d.driveDb = n.get(P::Drive);
+    if (layer.crush) {
+        if (n.get(P::CrushBits) < 24.0) d.crushBits = n.get(P::CrushBits);
+        d.crushRate = n.get(P::CrushRate);
+    }
+    return d;
 }
 
 } // namespace
@@ -73,12 +139,13 @@ std::vector<SfxNote> realizeSfx(const SfxRecipe &recipe, uint32_t seed, double d
         for (int p = 0; p < kSfxParamCount; ++p) {
             const SfxRange &r = layer.vary[p];
             if (!r.on) continue;
-            // 24 bits of the hash: u in [0, 1), exact in a double.
-            const double u = (mix(layerSeed, static_cast<uint32_t>(p + 1)) >> 8) / 16777216.0;
+            const double u = unit(mix(layerSeed, static_cast<uint32_t>(p + 1)));
             n.value[p] += r.lo + (r.hi - r.lo) * u;
         }
         n.noiseSeed = mix(layerSeed, kNoiseSalt) | 1u;
-        notes.push_back(n);
+        n.lfoSeed = mix(layerSeed, kLfoSalt) | 1u;
+        if (layer.burst) addGrains(n, layerSeed, notes);
+        else notes.push_back(n);
     }
     return notes;
 }
@@ -94,6 +161,16 @@ void SfxVoices::attach(Engine &engine, const SfxRecipe &recipe, const SfxSamples
     osc_ = osc.get();
     oscId_ = engine.addInstrument(std::move(osc));
 
+    // Grains ring on an instrument of their own: the voice cap cuts the
+    // oldest grain, never a layer that plays as one note.
+    if (std::any_of(recipe.layers.cbegin(), recipe.layers.cend(),
+                    [](const SfxLayer &l) { return l.burst; })) {
+        auto grains = std::make_unique<OscillatorInstrument>();
+        grains->setMaxVoices(recipe.maxVoices);
+        grain_ = grains.get();
+        grainId_ = engine.addInstrument(std::move(grains));
+    }
+
     samplers_.fill({}, recipe.layers.size());
     for (int li = 0; li < recipe.layers.size(); ++li) {
         if (recipe.layers[li].source != SfxSource::Sample || !samples_[li]) continue;
@@ -108,28 +185,34 @@ void SfxVoices::attach(Engine &engine, const SfxRecipe &recipe, const SfxSamples
 void SfxVoices::detach(Engine &engine)
 {
     if (oscId_ >= 0) engine.removeInstrument(oscId_);
+    if (grainId_ >= 0) engine.removeInstrument(grainId_);
     for (const Sampler &s : std::as_const(samplers_))
         if (s.id >= 0) engine.removeInstrument(s.id);
     oscId_ = -1;
     osc_ = nullptr;
+    grainId_ = -1;
+    grain_ = nullptr;
     samplers_.clear();
 }
 
 void SfxVoices::setGain(float g)
 {
     if (osc_) osc_->setGain(g);
+    if (grain_) grain_->setGain(g);
     for (const Sampler &s : std::as_const(samplers_)) if (s.inst) s.inst->setGain(g);
 }
 
 void SfxVoices::setPan(float p)
 {
     if (osc_) osc_->setPan(p);
+    if (grain_) grain_->setPan(p);
     for (const Sampler &s : std::as_const(samplers_)) if (s.inst) s.inst->setPan(p);
 }
 
 void SfxVoices::setBus(Bus b)
 {
     if (osc_) osc_->setBus(b);
+    if (grain_) grain_->setBus(b);
     for (const Sampler &s : std::as_const(samplers_)) if (s.inst) s.inst->setBus(b);
 }
 
@@ -175,11 +258,15 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.interpolation = layer.interpolation;
             patch.attack  = n.get(P::Attack) / 1000.0;
             patch.release = n.get(P::Release) / 1000.0;
+            patch.attackCurve  = n.get(P::AttackCurve);
+            patch.releaseCurve = n.get(P::ReleaseCurve);
+            patch.driveCrush = driveCrushOf(layer, n);
             s.inst->pushPatch(engine.schedule(ev), patch);
             ended(offset + ev.durationFrames,
                   std::min(ev.durationFrames, msToFrames(n.get(P::Release), rate)));
         } else {
-            ev.instrumentId   = oscId_;
+            OscillatorInstrument *inst = n.grain ? grain_ : osc_;
+            ev.instrumentId   = n.grain ? grainId_ : oscId_;
             ev.freqHz         = n.get(P::Freq) * detune;
             ev.durationFrames = std::max<int64_t>(1, msToFrames(n.get(P::Length), rate));
 
@@ -190,12 +277,18 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.decay      = n.get(P::Decay) / 1000.0;
             patch.sustain    = n.get(P::Sustain);
             patch.release    = n.get(P::Release) / 1000.0;
+            patch.attackCurve  = n.get(P::AttackCurve);
+            patch.decayCurve   = n.get(P::DecayCurve);
+            patch.releaseCurve = n.get(P::ReleaseCurve);
             patch.pitchStart = n.get(P::PitchStart);
             patch.pitchEnd   = n.get(P::PitchEnd);
             patch.pitchTime  = n.get(P::PitchTime) / 1000.0;
+            patch.pitchCurve = n.get(P::PitchCurve);
             patch.lfoTarget  = layer.lfoTarget;
             patch.lfoRate    = n.get(P::LfoRate);
             patch.lfoDepth   = n.get(P::LfoDepth);
+            patch.lfoShape   = layer.lfoShape;
+            patch.lfoSeed    = n.lfoSeed;
             patch.filterType = layer.filterType;
             patch.cutoff     = n.get(P::Cutoff);
             patch.resonance  = n.get(P::Resonance);
@@ -204,8 +297,27 @@ SfxVoices::Span SfxVoices::play(Engine &engine, const std::vector<SfxNote> &note
             patch.filterSustain   = n.get(P::FilterSustain);
             patch.filterRelease   = n.get(P::FilterRelease) / 1000.0;
             patch.filterEnvAmount = n.get(P::FilterAmount);
+            patch.filterAttackCurve  = n.get(P::FilterAttackCurve);
+            patch.filterDecayCurve   = n.get(P::FilterDecayCurve);
+            patch.filterReleaseCurve = n.get(P::FilterReleaseCurve);
             patch.noiseSeed  = n.noiseSeed;
-            osc_->pushPatch(engine.schedule(ev), patch);
+            patch.noiseColor = layer.noiseColor;
+            patch.noiseRate  = layer.noiseRate;
+            // A ratio of 0 is the voice's off: no group, no modulation.
+            if (layer.fm) {
+                patch.fmRatio   = n.get(P::FmRatio);
+                patch.fmIndex   = n.get(P::FmIndex);
+                patch.fmAttack  = n.get(P::FmAttack) / 1000.0;
+                patch.fmDecay   = n.get(P::FmDecay) / 1000.0;
+                patch.fmSustain = n.get(P::FmSustain);
+                patch.fmRelease = n.get(P::FmRelease) / 1000.0;
+                patch.fmAttackCurve  = n.get(P::FmAttackCurve);
+                patch.fmDecayCurve   = n.get(P::FmDecayCurve);
+                patch.fmReleaseCurve = n.get(P::FmReleaseCurve);
+            }
+            if (layer.ring) patch.ringRatio = n.get(P::RingRatio);
+            patch.driveCrush = driveCrushOf(layer, n);
+            inst->pushPatch(engine.schedule(ev), patch);
             ended(offset + ev.durationFrames,
                   std::min(ev.durationFrames, msToFrames(n.get(P::Release), rate)));
         }
@@ -220,6 +332,10 @@ void SfxVoices::stop(Engine &engine) const
         engine.releaseInstrument(oscId_);
         // The cancelled layers' patches would wait for events that never come.
         osc_->clearPatches();
+    }
+    if (grain_) {
+        engine.releaseInstrument(grainId_);
+        grain_->clearPatches();
     }
     for (const Sampler &s : std::as_const(samplers_)) {
         if (!s.inst) continue;

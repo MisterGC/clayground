@@ -241,13 +241,16 @@ static const QByteArray kV2Song = R"({
     "beatsPerBar": 3,
     "instruments": {
       "lead": { "source": "square", "pulseWidth": 0.25,
-                "envelope": { "attack": 5, "decay": 120, "sustain": 0.5, "release": 80 },
-                "filter": { "type": "lowpass", "cutoff": 2400, "resonance": 0.3 },
+                "envelope": { "attack": 5, "decay": 120, "sustain": 0.5, "release": 80,
+                              "decayCurve": 1, "releaseCurve": 0.5 },
+                "pitch": { "start": 12, "end": 0, "time": 30, "curve": 0.75 },
+                "filter": { "type": "lowpass", "cutoff": 2400, "resonance": 0.3,
+                            "attackCurve": 0.25, "decayCurve": 1 },
                 "lfo": { "target": "pitch", "rate": 5, "depth": 0.2 },
                 "gain": -6, "pan": -0.5, "maxVoices": 3 },
       "kit": { "source": "sample", "sample": "kit/kick.wav", "root": "C3",
                "interpolation": "gaussian", "loop": { "start": 0.25, "end": 0.75 },
-               "envelope": { "release": 40 }, "bus": "sfx" }
+               "envelope": { "release": 40, "releaseCurve": 1 }, "bus": "sfx" }
     },
     "tracks": { "melody": { "instrument": "lead" }, "drums": { "instrument": "kit" } },
     "patterns": {
@@ -284,6 +287,13 @@ void TestSongParser::v2DefinesItsInstruments()
     QCOMPARE(lead.spec.synth.decay, 0.12);
     QCOMPARE(lead.spec.synth.sustain, 0.5);
     QCOMPARE(lead.spec.synth.release, 0.08);
+    QCOMPARE(lead.spec.synth.attackCurve, 0.0);     // linear unless set
+    QCOMPARE(lead.spec.synth.decayCurve, 1.0);
+    QCOMPARE(lead.spec.synth.releaseCurve, 0.5);
+    QCOMPARE(lead.spec.synth.pitchCurve, 0.75);
+    QCOMPARE(lead.spec.synth.filterAttackCurve, 0.25);
+    QCOMPARE(lead.spec.synth.filterDecayCurve, 1.0);
+    QCOMPARE(lead.spec.synth.filterReleaseCurve, 0.0);
     QCOMPARE(lead.spec.synth.filterType, clay::sound::OscillatorVoice::FilterType::LowPass);
     QCOMPARE(lead.spec.synth.cutoff, 2400.0);
     QCOMPARE(lead.spec.synth.resonance, 0.3);
@@ -304,6 +314,7 @@ void TestSongParser::v2DefinesItsInstruments()
     QCOMPARE(kit.spec.sampler.loopStartFrac, 0.25);
     QCOMPARE(kit.spec.sampler.loopEndFrac, 0.75);
     QCOMPARE(kit.spec.sampler.release, 0.04);
+    QCOMPARE(kit.spec.sampler.releaseCurve, 1.0);
     QCOMPARE(kit.spec.gain, 1.0f);                       // 0 dB
     QCOMPARE(kit.spec.bus, Bus::Sfx);
 }
@@ -419,6 +430,9 @@ void TestSongParser::v2Errors_data()
     QTest::newRow("attack out of range")
         << QByteArray(R"("attack": 5,|"attack": -5,)")
         << "instruments.lead.envelope.attack: -5 is outside 0..10000";
+    QTest::newRow("curve beyond exponential")
+        << QByteArray(R"("decayCurve": 1,|"decayCurve": 1.5,)")
+        << "instruments.lead.envelope.decayCurve: 1.5 is outside 0..1";
     QTest::newRow("gain above unity")
         << QByteArray(R"("gain": -6,|"gain": 3,)")
         << "instruments.lead.gain: 3 is outside -96..0";
