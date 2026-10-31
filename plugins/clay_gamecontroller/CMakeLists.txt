@@ -51,6 +51,9 @@ if(CLAY_GAMEPAD_SDL)
     if(IOS)
         set(SDL_HIDAPI OFF CACHE BOOL "" FORCE)
     endif()
+    # Without video SDL still wants X11 or Wayland on Linux unless told it
+    # is a console build (#482)
+    set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "" FORCE)
     # The static library ends up inside the shared plugin
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
