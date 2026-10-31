@@ -10,6 +10,11 @@
 // On Qt 6.11 for WebAssembly that first device query deadlocked the page's
 // main thread, so the page below either loads and prints its marker within
 // seconds or the tab is frozen and the test times out.
+//
+// The page loads without a click, which also makes it the gate for #480:
+// Qt 6.10 resumes and closes a throwaway AudioContext per audio device, and
+// Chrome 156 rejects that resume() before a user gesture - one uncaught
+// error per device, which the harness fails on.
 
 import QtQuick
 import Clayground.Sound
