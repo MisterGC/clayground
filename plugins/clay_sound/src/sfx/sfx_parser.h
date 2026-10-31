@@ -7,12 +7,24 @@
 //     "version": 1,
 //     "name": "wheel-detent",
 //     "variation": { "seed": 7, "pool": 4 },
+//     "maxVoices": 6,
 //     "layers": [
 //       { "role": "body", "source": "triangle", "freq": 784,
 //         "length": 40, "gain": -10,
 //         "envelope": { "attack": 0.5, "decay": 55, "sustain": 0, "release": 20 },
 //         "pitch": { "start": 12, "end": 0, "time": 12 },
-//         "vary": { "detune": [-1, 1], "gain": [-2, 0] } }
+//         "vary": { "detune": [-1, 1], "gain": [-2, 0] } },
+//       { "role": "body", "source": "sine", "freq": 500, "length": 900,
+//         "fm": { "ratio": 2.76, "index": 4, "decay": 600, "sustain": 0 } },
+//       { "role": "body", "source": "noise", "length": 900,
+//         "filter": { "type": "lowpass", "cutoff": 600 },
+//         "lfo": { "target": "cutoff", "shape": "sample_hold", "rate": 9, "depth": 1 } },
+//       { "role": "body", "source": "square", "freq": 110, "length": 400,
+//         "drive": 12, "crush": { "bits": 4, "rate": 8000 } },
+//       { "role": "tail", "source": "noise", "length": 3,
+//         "noise": { "color": "pink", "rate": "freq" },
+//         "burst": { "count": 12, "duration": 200, "density": 0.3,
+//                    "jitter": { "time": 1, "gain": 3 } } }
 //     ]
 //   }
 //

@@ -162,7 +162,8 @@ void Music::applyVolume()
     if (!audioOut_) return;
     const float bus = clay::sound::AudioOutput::instance().engine()
                           .busGain(clay::sound::Bus::Music);
-    audioOut_->setVolume(static_cast<float>(volume_) * bus);
+    audioOut_->setVolume(clay::sound::outputMuted() ? 0.0f
+                                                    : static_cast<float>(volume_) * bus);
 }
 
 void Music::setLazyLoading(bool v)

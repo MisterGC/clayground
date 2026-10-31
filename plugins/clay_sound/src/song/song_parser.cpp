@@ -348,12 +348,19 @@ static bool parseInstrument(const QJsonObject &o, const QString &path, SongInstr
         double *decay   = sampler ? &spec.sampler.decay   : &spec.synth.decay;
         double *sustain = sampler ? &spec.sampler.sustain : &spec.synth.sustain;
         double *release = sampler ? &spec.sampler.release : &spec.synth.release;
+        double *attackCurve  = sampler ? &spec.sampler.attackCurve  : &spec.synth.attackCurve;
+        double *decayCurve   = sampler ? &spec.sampler.decayCurve   : &spec.synth.decayCurve;
+        double *releaseCurve = sampler ? &spec.sampler.releaseCurve : &spec.synth.releaseCurve;
         if (!objectOf(o, "envelope", path, &env, errorOut)
-            || !keysOnly(env, {"attack", "decay", "sustain", "release"}, ep, errorOut)
+            || !keysOnly(env, {"attack", "decay", "sustain", "release", "attackCurve",
+                               "decayCurve", "releaseCurve"}, ep, errorOut)
             || !msOf(env, "attack", ep, P::Attack, attack, errorOut)
             || !msOf(env, "decay", ep, P::Decay, decay, errorOut)
             || !paramOf(env, "sustain", ep, P::Sustain, sustain, errorOut)
-            || !msOf(env, "release", ep, P::Release, release, errorOut))
+            || !msOf(env, "release", ep, P::Release, release, errorOut)
+            || !paramOf(env, "attackCurve", ep, P::AttackCurve, attackCurve, errorOut)
+            || !paramOf(env, "decayCurve", ep, P::DecayCurve, decayCurve, errorOut)
+            || !paramOf(env, "releaseCurve", ep, P::ReleaseCurve, releaseCurve, errorOut))
             return false;
     }
 
@@ -367,10 +374,11 @@ static bool parseInstrument(const QJsonObject &o, const QString &path, SongInstr
             const QString pp = path + QStringLiteral(".pitch");
             QJsonObject pitch;
             if (!objectOf(o, "pitch", path, &pitch, errorOut)
-                || !keysOnly(pitch, {"start", "end", "time"}, pp, errorOut)
+                || !keysOnly(pitch, {"start", "end", "time", "curve"}, pp, errorOut)
                 || !paramOf(pitch, "start", pp, P::PitchStart, &patch.pitchStart, errorOut)
                 || !paramOf(pitch, "end", pp, P::PitchEnd, &patch.pitchEnd, errorOut)
-                || !msOf(pitch, "time", pp, P::PitchTime, &patch.pitchTime, errorOut))
+                || !msOf(pitch, "time", pp, P::PitchTime, &patch.pitchTime, errorOut)
+                || !paramOf(pitch, "curve", pp, P::PitchCurve, &patch.pitchCurve, errorOut))
                 return false;
         }
         if (o.contains("filter")) {
@@ -379,7 +387,8 @@ static bool parseInstrument(const QJsonObject &o, const QString &path, SongInstr
             QString type;
             if (!objectOf(o, "filter", path, &filter, errorOut)
                 || !keysOnly(filter, {"type", "cutoff", "resonance", "attack", "decay", "sustain",
-                                      "release", "amount"}, fp, errorOut))
+                                      "release", "amount", "attackCurve", "decayCurve",
+                                      "releaseCurve"}, fp, errorOut))
                 return false;
             if (!filter.contains("type")) return fail(errorOut, fp, QStringLiteral("needs a 'type'"));
             if (!stringOf(filter, "type", fp, &type, errorOut)) return false;
@@ -395,7 +404,10 @@ static bool parseInstrument(const QJsonObject &o, const QString &path, SongInstr
                 || !msOf(filter, "decay", fp, P::FilterDecay, &patch.filterDecay, errorOut)
                 || !paramOf(filter, "sustain", fp, P::FilterSustain, &patch.filterSustain, errorOut)
                 || !msOf(filter, "release", fp, P::FilterRelease, &patch.filterRelease, errorOut)
-                || !paramOf(filter, "amount", fp, P::FilterAmount, &patch.filterEnvAmount, errorOut))
+                || !paramOf(filter, "amount", fp, P::FilterAmount, &patch.filterEnvAmount, errorOut)
+                || !paramOf(filter, "attackCurve", fp, P::FilterAttackCurve, &patch.filterAttackCurve, errorOut)
+                || !paramOf(filter, "decayCurve", fp, P::FilterDecayCurve, &patch.filterDecayCurve, errorOut)
+                || !paramOf(filter, "releaseCurve", fp, P::FilterReleaseCurve, &patch.filterReleaseCurve, errorOut))
                 return false;
         }
         if (o.contains("lfo")) {

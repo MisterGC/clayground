@@ -22,6 +22,8 @@ set(ENGINE_SRC
     src/engine/instrument.h
     src/engine/instrument_spec.cpp src/engine/instrument_spec.h
     src/engine/scheduler.cpp src/engine/scheduler.h
+    src/engine/segment_curve.h
+    src/engine/drive_crush.h
     src/engine/engine.cpp src/engine/engine.h
     src/engine/oscillator_voice.cpp src/engine/oscillator_voice.h
     src/engine/oscillator_instrument.cpp src/engine/oscillator_instrument.h
@@ -35,6 +37,8 @@ set(ENGINE_SRC
     src/sfx/sfx_recipe.h
     src/sfx/sfx_parser.cpp src/sfx/sfx_parser.h
     src/sfx/sfx_render.cpp src/sfx/sfx_render.h
+    src/sfx/sfx_writer.cpp src/sfx/sfx_writer.h
+    src/sfx/sfx_design.cpp src/sfx/sfx_design.h
     src/offline/sound_files.cpp src/offline/sound_files.h
     src/clay_sound_engine.h)
 
@@ -78,6 +82,28 @@ clay_plugin(Sound
 )
 
 target_include_directories(ClaySound PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Two pre-js for the browser's autoplay rule (#480). gesture.pre.js resumes
+# the AudioContexts created before the first click on that click, which
+# emscripten's own listeners never see on a Qt window. Qt before 6.11.1 also
+# resumes and closes a throwaway AudioContext per audio device and drops
+# resume()'s promise, which Chrome 156 rejects, uncaught, before a click;
+# resume.pre.js hands those promises a handler. INTERFACE, because they are
+# options of the final link - every app that links this plugin, not the
+# plugin's own static library.
+if(EMSCRIPTEN)
+    set(_clay_sound_prejs ${CMAKE_CURRENT_SOURCE_DIR}/wasm/gesture.pre.js)
+    if(Qt6Multimedia_VERSION VERSION_LESS 6.11.1)
+        list(APPEND _clay_sound_prejs ${CMAKE_CURRENT_SOURCE_DIR}/wasm/resume.pre.js)
+    endif()
+    foreach(_prejs IN LISTS _clay_sound_prejs)
+        target_link_options(ClaySound INTERFACE "SHELL:--pre-js ${_prejs}")
+    endforeach()
+    # A pre-js is no input of any build step, so editing it would relink
+    # nothing; rebuilding this plugin's library makes every app relink.
+    set_source_files_properties(src/audio_devices.cpp PROPERTIES
+        OBJECT_DEPENDS "${_clay_sound_prejs}")
+endif()
 
 if(NOT EMSCRIPTEN)
     add_subdirectory(tests)

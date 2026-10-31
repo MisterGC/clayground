@@ -2,9 +2,9 @@
 include (clayplugin)
 include (claybuildcache)
 
-# Physical pads are read through SDL3 on the desktop and on iOS. The browser
-# has a Gamepad API of its own and Android would need SDL's Java side, so
-# those builds take no SDL. Without a backend GameController still works with
+# Physical pads are read through SDL3 on the desktop and on iOS, and through
+# the browser's Gamepad API on WASM (#464). Android would need SDL's Java
+# side, so it takes no SDL. Without a backend GameController still works with
 # keyboard, touch and the Dojo, and reports no gamepads.
 if(EMSCRIPTEN OR ANDROID)
     set(_clay_gamepad_sdl_default OFF)
@@ -20,6 +20,13 @@ set(GAMEPAD_SOURCES
     gamepadhub.h
 )
 set(GAMEPAD_LIBS)
+
+if(EMSCRIPTEN)
+    list(APPEND GAMEPAD_SOURCES
+        gamepadbackend_browser.cpp
+        gamepadbackend_browser.h
+    )
+endif()
 
 if(CLAY_GAMEPAD_SDL)
     # Only the gamepad part of SDL, linked statically: no window, video,
@@ -90,3 +97,9 @@ endif()
 include(claytest)
 clay_add_qml_test(gamecontroller_qml IMPORTS_BUILT_MODULE
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests/qml)
+
+# The browser backend outside the browser: a test feeds it the slots
+# navigator.getGamepads() would return
+if(NOT EMSCRIPTEN)
+    add_subdirectory(tests/cpp)
+endif()

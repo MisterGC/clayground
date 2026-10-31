@@ -10,6 +10,15 @@
 //                                         clay::sound::kSampleRate, false);
 //   clay::sound::writeWav("detent.wav", mono, 1, clay::sound::kSampleRate);
 //
+// A recipe can be compiled from a design file - a template, the macro
+// values and the overrides (sfx/sfx_design.h) - and written next to it:
+//
+//   clay::sound::SfxCompileResult heavy;
+//   clay::sound::compileDesignFile("detent-heavy.sfx.design.json",
+//                                  "detent.sfx.template.json",
+//                                  "detent-heavy.sfx.json", &heavy);
+//   for (const auto &line : heavy.clampMessages()) ...  // what was clamped
+//
 // A song binds its tracks to instruments by name; without QML each is
 // an InstrumentSpec (a SynthInstrument's patch, volume, pan, ...):
 //
@@ -38,7 +47,9 @@
 #include "engine/engine.h"
 #include "engine/instrument_spec.h"
 #include "offline/sound_files.h"
+#include "sfx/sfx_design.h"
 #include "sfx/sfx_render.h"
+#include "sfx/sfx_writer.h"
 #include "song/song_render.h"
 
 #endif // CLAY_SOUND_ENGINE_API_H

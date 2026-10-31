@@ -204,10 +204,12 @@ needs. `demo/songs/adaptive.song.json` uses all of it:
 ```
 
 - **Instruments** take an effect recipe layer's fields and units (`source`,
-  `envelope` in ms, `pitch`, `filter`, `pulseWidth`, `lfo`, `gain` in dB up
+  `envelope` in ms, `pitch`, `filter`, `pulseWidth`, `lfo` (a sine on
+  `pitch` or `volume`; no `shape`, no `cutoff`), `gain` in dB up
   to 0, `pan`) plus `bus` (default `music`) and `maxVoices`, with a recipe
   layer's defaults for what is left out: no attack, decay or release, full
-  sustain, 0 dB, centred. A sample
+  sustain, linear segments, 0 dB, centred. The segment curves are a
+  recipe's too (see "Segment curves" below). A sample
   instrument names its `sample` (a WAV relative to the song file), its
   `root` note, `interpolation` and `loop` (`true` or `{ "start", "end" }`
   as fractions). Every track plays a defined instrument; `instruments` on
@@ -307,32 +309,222 @@ The wheel detent of `demo/sfx/` (lock_picker's, four layers):
 }
 ```
 
-Top level: `version` (1), `name`, `variation`, `layers` (required, at least
-one). A layer:
+Top level: `version` (1), `name`, `variation`, `maxVoices` (see "Bursts"
+below), `layers` (required, at least one). A layer:
 
 | Field | Unit | Default | Meaning |
 |-------|------|---------|---------|
 | `source` | - | required | `sine`, `square`, `triangle`, `sawtooth`, `noise` or `sample` |
 | `name`, `role` | - | - | a label; `role` is `transient`, `body` or `tail` |
-| `freq` | Hz, 1..20000 | 440 | pitch of an oscillator layer |
+| `freq` | Hz, 1..20000 | 440 | pitch of an oscillator layer; the clock of a noise layer with `"rate": "freq"` |
 | `detune` | semitones, -48..48 | 0 | shifts `freq`, or a sample's pitch |
 | `gain` | dB, -96..12 | 0 | level of the layer |
 | `pan` | -1..1 | 0 | added to the player's `pan` |
 | `offset` | ms, 0..10000 | 0 | start after `play()` |
 | `length` | ms, 0..10000 | required (oscillators) | the gate; the release runs inside it. A sample without one plays to its end |
-| `envelope` | `attack`, `decay`, `release` in ms; `sustain` 0..1 | 0, 0, 0; 1 | ADSR; a sample layer takes `attack` and `release` only |
-| `pitch` | `start`, `end` in semitones; `time` in ms | 0 | a linear sweep from `start` to `end` over `time` |
-| `filter` | `type`; `cutoff` Hz; `resonance` 0..1; `attack`, `decay`, `release` ms; `sustain` 0..1; `amount` octaves | -, 1000, 0, 0, 0, 0, 1, 0 | `lowpass`, `highpass` or `bandpass`, with a cutoff envelope that moves the cutoff by `amount` octaves at its peak |
+| `envelope` | `attack`, `decay`, `release` in ms; `sustain` 0..1; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | 0, 0, 0; 1; 0, 0, 0 | ADSR, each segment with its curve; a sample layer takes `attack` and `release` and their curves only |
+| `pitch` | `start`, `end` in semitones; `time` in ms; `curve` 0..1 | 0 | a sweep from `start` to `end` over `time` |
+| `filter` | `type`; `cutoff` Hz; `resonance` 0..1; `attack`, `decay`, `release` ms; `sustain` 0..1; `amount` octaves; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | -, 1000, 0, 0, 0, 0, 1, 0, 0, 0, 0 | `lowpass`, `highpass` or `bandpass`, with a cutoff envelope that moves the cutoff by `amount` octaves at its peak |
 | `pulseWidth` | 0.05..0.95 | 0.5 | `square` only |
-| `lfo` | `target`; `rate` Hz; `depth` semitones (pitch) or 0..1 (volume) | -, 0, 0 | `pitch` or `volume` |
+| `lfo` | `target`; `shape`; `rate` Hz, 0..100; `depth` semitones (pitch), 0..1 (volume) or octaves (cutoff) | -, `sine`, 0, 0 | `target` `pitch`, `volume` or `cutoff`; `shape` `sine`, `square`, `sample_hold` or `smooth_random` (see "LFO") |
+| `noise` | `color`: `white`, `pink`, `brown`; `rate`: `sample`, `freq` | `white`, `sample` | `noise` only (see "Noise") |
+| `fm` | `ratio` 0.01..64; `index` radians, 0..32; `attack`, `decay`, `release` ms; `sustain` 0..1; `attackCurve`, `decayCurve`, `releaseCurve` 0..1 | required, required; 0, 0, 0; 1; 0, 0, 0 | two-operator FM with an index envelope (see "FM and ring"); oscillator layers only |
+| `ring` | `ratio` 0.01..64 | required | ring modulation (see "FM and ring"); oscillator layers only, not with `fm` |
+| `drive` | dB, 0..48 | - (off) | saturates the layer through a tanh (see "Drive and crush"); any source |
+| `crush` | `bits` 1..24; `rate` Hz, 20..192000 | 24, 192000 (each off) | rounds the layer to `bits` and holds each value for one period of `rate` (see "Drive and crush"); any source; needs one of the two |
 | `sample`, `interpolation` | path; `nearest`, `linear`, `gaussian` | -, `linear` | the WAV of a `sample` layer, relative to the recipe file |
+| `burst` | `count` 1..256; `duration` ms; `density` 0.01..100; `jitter`: `time` 0..1, `gain` dB, `cutoff` octaves, `freq` semitones, `length` ms | required, required, 1; 0, 0, 0, 0, 0 | the layer plays as `count` short grains inside `duration` (see "Bursts"); not on a `sample` layer |
 | `vary` | `{"<field>": [min, max]}` | - | per play, `min..max` is added to the field |
 
+Segment curves: every envelope segment - attack, decay and release of the
+amplitude and the cutoff envelope - and the pitch sweep has a curve from 0,
+linear (the default, as before curves existed), to 1, exponential.
+Exponential is how a struck object rings out: the distance left to the
+segment's target falls by 60 dB over the segment's time, a straight line in
+dB, so a decay or release to 0 ends at -60 dB and its time is its RT60. An
+attack rises fast and settles into the peak; a pitch sweep moves fast and
+settles into its `end`, a kick's or a hit's drop. Values between mix the two
+shapes. For an impact or a ring, `"decay": 400, "sustain": 0, "decayCurve": 1`
+falls evenly in dB over its 400 ms; a linear decay of the same time stays
+loud for most of it and drops off at the end.
+
+Noise: a `noise` layer is white noise drawn every sample unless its `noise`
+group says otherwise - the default sounds as noise did before the group
+existed, and ignores `freq`.
+
+```json
+{ "name": "rumble", "source": "noise", "freq": 600, "length": 900,
+  "noise": { "color": "brown", "rate": "freq" } }
+```
+
+- `color`: `white` is flat, `pink` falls 3 dB per octave, `brown` 6 dB.
+  Pink and brown sit about 6 dB below white, so their peaks stay inside
+  -1..1 as white's do.
+- `rate`: `sample` draws a new value every sample. `freq` holds each value
+  for one period of the layer's pitch - `freq` raised by `detune`, the
+  `pitch` sweep and a pitch `lfo` - as the SNES noise clock does: the
+  spectrum is that of the colour laid over the clock, and a quarter of the
+  `freq` lays it two octaves lower. White noise clocked at 8000 Hz has half
+  of its power below about 2150 Hz, at 2000 Hz below about 540 Hz. Since
+  the clock is the pitch, everything that moves a pitch moves a clocked
+  noise: a play's `detune`, `vary.detune`, `burst.jitter.freq`, a pitch
+  sweep (a falling hiss). A clock above the sample rate draws every sample.
+- The colour is shaped at the clock: the colour filters run once per drawn
+  value, so pink and brown keep their slope below a clock of any rate.
+
+FM and ring: metal hits, bells and sparkle have partials that are not
+whole multiples of one pitch, and one oscillator through a filter cannot
+make them. A layer without an `fm` or a `ring` group sounds as layers did
+before the groups existed. Both run inside the layer's voice - a modulator
+of the layer, not one layer modulating another - and both follow the
+layer's pitch: `freq` raised by `detune`, the `pitch` sweep and a pitch
+`lfo`, so a play's `detune` moves the partials with it.
+
+```json
+{ "name": "bell", "source": "sine", "freq": 500, "length": 1800,
+  "envelope": { "decay": 1800, "sustain": 0, "decayCurve": 1 },
+  "fm": { "ratio": 2.76, "index": 6, "decay": 1200, "sustain": 0.1, "decayCurve": 1 } }
+```
+
+- `fm`: a sine modulator at `ratio` times the layer's pitch moves the
+  phase the wave is read at by up to `index` radians. On a sine that puts
+  sidebands at `freq + n * ratio * freq` for every whole `n`, the `n`-th
+  pair at `|J_n(index)|` of the plain sine's level; the ones below 0 Hz
+  fold back (at 500 Hz and 1:2.76: 500, 880, 1880, 2260, 3260, ... Hz).
+  `index` 0 is the plain wave; 1 gives the first pair at 0.44, 2 at 0.58
+  and the second pair at 0.35. A whole `ratio` keeps the partials
+  harmonic, another one makes them inharmonic. On square, triangle and
+  sawtooth the same phase shift is applied to the richer wave.
+- The index has an envelope of its own, an ADSR as the cutoff's: `index`
+  is its peak, `sustain` a fraction of it, the times in ms with their
+  curves. Without `attack` and `decay` and with `sustain` 1, the defaults,
+  the index holds. A decaying index narrows the spectrum as it falls - the
+  power-weighted spread around the carrier is `index * ratio * freq /
+  sqrt(2)` Hz - which is how a struck bar or bell loses its brightness
+  before its level.
+- `ring`: the layer's wave times a sine at `ratio` times its pitch, before
+  the filter. On a sine that leaves the sum and the difference of the two,
+  each at half the level, and neither of them (500 Hz and 1:2.76: 880 and
+  1880 Hz).
+- Nothing is band-limited: sidebands above half the sample rate fold back
+  as aliases, so a high `index` on a high `freq` sounds grainy.
+- A layer takes one of the two, on `sine`, `square`, `triangle` or
+  `sawtooth`; `noise` and `sample` take neither. `vary` and macros reach
+  every number of both (`vary: {"fm.index": [-1, 1]}`).
+
+LFO: growls, fire flicker and organic wobble move at random, not on a
+sine. A layer's `lfo` moves one `target` by up to `depth` either way at
+`rate` Hz, on the wave its `shape` names; without a `shape` it is the sine
+it was before the field existed.
+
+```json
+{ "name": "flicker", "source": "noise", "length": 1500,
+  "filter": { "type": "bandpass", "cutoff": 900, "resonance": 0.3 },
+  "lfo": { "target": "cutoff", "shape": "smooth_random", "rate": 7, "depth": 1.5 } }
+```
+
+- `target`: `pitch` moves the layer's pitch by `depth` semitones, `volume`
+  takes up to `depth` (0..1) off the envelope, `cutoff` moves the filter's
+  cutoff by `depth` octaves on top of its envelope - so it needs a
+  `filter`. Each is the LFO's value, -1..1, times `depth`: a cutoff of 900
+  Hz at depth 1.5 moves between 318 and 2546 Hz.
+- `shape`: `sine` starts at 0 and rises. `square` is +1 for the first half
+  of each period and -1 for the second, with hard edges - on `volume` a
+  hard gate that clicks. `sample_hold` holds one random value, -1..1, for
+  each period of `1 / rate` seconds and jumps to the next. `smooth_random`
+  passes through the same values as each period starts and glides from one
+  to the next over the period (a raised-cosine step, so it neither jumps
+  nor kinks).
+- The random values are drawn from the play's seed, as a noise layer's
+  are: the same `variation.seed` and play renders the same samples, every
+  burst grain draws values of its own, and a pool of variations gives each
+  one other values. A layer has no seed of its own for its LFO.
+- `vary` and macros reach `rate` and `depth`; a design file's override
+  sets `layers[<layer>].lfo.shape`.
+
+Drive and crush: explosions and growls need saturation, chip sounds their
+grit. A layer without a `drive` or a `crush` sounds as layers did before
+the two existed. Both act on what the layer sounds after its envelope and
+before its `gain`, so `gain` stays the layer's output level and does not
+change how hard it is driven or how coarse its steps are; a play's
+velocity, too, only scales the result.
+
+```json
+{ "name": "growl", "source": "sawtooth", "freq": 90, "length": 900,
+  "filter": { "type": "lowpass", "cutoff": 700, "resonance": 0.4 },
+  "drive": 18, "crush": { "bits": 6, "rate": 8000 } }
+```
+
+- `drive`: the signal raised by `drive` dB into a `tanh`. On a sine that
+  adds odd harmonics and no even ones, and keeps every peak inside -1..1.
+  On a full-scale sine: 0 dB is already a soft clip, the third harmonic at
+  0.05 of the peak; 6 dB 0.19, 12 dB 0.34, 24 dB 0.42, the fifth at 0.04,
+  0.14, 0.24. There is no make-up gain: a quiet layer driven hard comes
+  out louder, so lower its `gain` to match.
+- `crush.bits` rounds every value to a step of `2^(1 - bits)` of full
+  scale: a full-scale sine at 4 bits takes the 17 levels -1, -0.875, ...,
+  1. `bits` may be fractional, so a macro moves it smoothly; 24, the
+  default, rounds nothing.
+- `crush.rate` holds each value for `1 / rate` seconds, as a lower sample
+  rate would: at 11025 Hz under a 44.1 kHz output every value four
+  samples, at 3000 Hz 14 or 15. The steps fold the layer back around
+  multiples of `rate`, unfiltered - the aliasing is the grit. A rate at or
+  above the output's, as the default 192000, holds nothing.
+- The order inside a layer is drive, then hold, then rounding. Nothing is
+  band-limited: the harmonics a high drive adds above half the sample rate
+  fold back too.
+- `vary` and macros reach `drive`, `crush.bits` and `crush.rate`
+  (`vary: {"drive": [-3, 3]}`).
+
+Bursts: crumble, gravel, crackle and debris are many tiny grains with
+random timing. A layer with a `burst` plays as `count` grains instead of one
+note, each grain the layer itself - its source, envelope, filter, `length`,
+`gain` - started at its own time inside the `duration` after the layer's
+`offset`:
+
+```json
+{ "name": "grit", "source": "noise", "offset": 5, "length": 3, "gain": -4,
+  "envelope": { "decay": 3, "sustain": 0 },
+  "filter": { "type": "bandpass", "cutoff": 1400, "resonance": 0.2 },
+  "burst": { "count": 23, "duration": 420, "density": 0.2,
+             "jitter": { "time": 1, "gain": 3, "cutoff": 0.5, "length": 1 } } }
+```
+
+- Grain `i` of `n` owns the slot `[i, i + 1) / n` of the burst and starts
+  in its middle; `jitter.time` moves it up to that fraction of half the
+  slot either way, so at 1 a grain starts anywhere in its slot. The grains
+  keep their order, and every one starts inside the `duration`.
+- `density` is the grain rate at the burst's end over the rate at its
+  start, the change between them exponential: 1 (the default) spreads the
+  grains evenly, 0.2 starts them five times as densely as it ends - a
+  crumble that thins out - and 5 is the reverse.
+- The other jitters move each grain's `gain` (dB), `filter.cutoff`
+  (octaves), pitch (semitones, as `detune`) and `length` (ms) by a random
+  amount up to that much either way. `jitter.cutoff` needs a `filter`. A
+  grain stays inside the field's range: its gain at most 12 dB, its
+  `detune` within -48..48, its cutoff within 20..20000 Hz, its length at
+  least 0 - a jitter that reaches past an edge plays those grains at it.
+- Every grain's times and jitters, and its noise, are hashed from the
+  play's seed, the layer and the grain's number alone: the same seed plays
+  the same grains, another seed other ones. A layer's `vary` is drawn once
+  per play and holds for all its grains; `vary` can move the burst's
+  numbers too (`burst.count`, `burst.jitter.gain`), and a fractional
+  `count` plays the nearest whole number of grains.
+
+`maxVoices` (top level, 0..256, default 0 = no cap) bounds the grains of
+the recipe's bursts that ring at once: a grain that would exceed it cuts the
+oldest grain still ringing, with no fade. It counts the grains of every play
+of the player, and only grains: the recipe's other layers never count
+against it and are never cut. A recipe with a cap needs a burst.
+
 `vary` names a numeric field by its path: `detune`, `gain`, `envelope.decay`,
-`filter.cutoff`, `pitch.start`, ... Every value a range can reach must be a
-valid value of that field. The parser rejects an unknown field by name and
-path (`layers[1].envelope: unknown field 'decya'`), and so does a hot reload,
-which keeps playing the last good recipe.
+`envelope.decayCurve`, `filter.cutoff`, `pitch.start`, `pitch.curve`,
+`fm.index`, `ring.ratio`, `drive`, `crush.bits`, `burst.count`,
+`burst.jitter.time`, ...
+Every value a range can reach must be a valid value of that field. The
+parser rejects an unknown field by name and path (`layers[1].envelope:
+unknown field 'decya'`), and so does a hot reload, which keeps playing the
+last good recipe.
 
 Variation: `variation.seed` (default 0) is the base of every variation seed,
 and `variation.pool` cycles `play()` through that many variations; without a
@@ -379,6 +571,141 @@ looping player loops the new recipe on.
 `SfxPlayer` watches its recipe file and hot-reloads it; add `sfx/` (or
 `*.sfx.json`) to the sandbox's `.dojoignore`.
 
+### Design files: templates, macros and overrides
+
+A recipe is what a game plays; a design file is what a sound designer, or
+an agent, works on. It names a **template** - a recipe whose layers are the
+defaults, plus a few **macros**, knobs that each move several parameters at
+once - sets the macros, and writes **overrides** on top. The engine library
+compiles it to the flat `*.sfx.json`; `SfxPlayer` only ever reads the
+compiled file, so a game knows nothing of macros.
+
+The template `demo/sfx/wheel-detent.sfx.template.json` is the wheel detent
+above with three macros (its layers shortened here):
+
+```json
+{
+  "version": 1,
+  "template": { "id": "wheel-detent", "version": 1 },
+  "name": "wheel-detent",
+  "variation": { "seed": 1, "pool": 6 },
+  "layers": [ { "name": "tick", ... }, { "name": "body", ... },
+              { "name": "glint", ... }, { "name": "weight", ... } ],
+  "macros": [
+    { "id": "weight", "label": "Weight", "range": [0, 1], "default": 0.5,
+      "drives": [
+        { "path": "layers[body].freq", "from": 1108.73, "to": 554.37, "curve": "exp" },
+        { "path": "layers[weight].freq", "from": 174.61, "to": 87.31, "curve": "exp" },
+        { "path": "layers[weight].gain", "from": -19, "to": -7 } ] },
+    { "id": "click", "label": "Click", "range": [0, 1], "default": 0.5,
+      "drives": [
+        { "path": "layers[tick].gain", "from": -16.46, "to": -4.46 },
+        { "path": "layers[glint].gain", "from": -27.94, "to": -15.94 } ] },
+    { "id": "ring", "label": "Ring", "range": [0, 1], "default": 0.5,
+      "drives": [
+        { "path": "layers[body].envelope.decay", "from": 27.5, "to": 110, "curve": "exp" },
+        { "path": "layers[glint].envelope.decay", "from": 35, "to": 140, "curve": "exp" } ] }
+  ]
+}
+```
+
+and `demo/sfx/wheel-detent-heavy.sfx.design.json` a design on it, which
+compiles to the committed `demo/sfx/wheel-detent-heavy.sfx.json`:
+
+```json
+{
+  "version": 1,
+  "name": "wheel-detent-heavy",
+  "template": { "id": "wheel-detent", "version": 1 },
+  "macros": { "weight": 0.9, "click": 0.8, "ring": 0.7 },
+  "overrides": { "layers[glint].gain": -26 },
+  "locks": ["weight"]
+}
+```
+
+A template is a valid recipe - `version`, `name`, `variation`, `layers` as
+above - plus:
+
+| Field | Meaning |
+|-------|---------|
+| `template` | required: `id` (a string) and `version` (an integer from 1) |
+| `macros` | the knobs, in the order a tool shows them |
+| `meta` | any object, for what tools keep beside the format (provenance, a licence); the compiler ignores it |
+
+A macro:
+
+| Field | Meaning |
+|-------|---------|
+| `id` | required: letters, digits, `_` and `-`, not starting with a digit; unique in the template |
+| `label` | what a knob shows; the `id` when absent |
+| `range` | required: `[min, max]`, min below max |
+| `default` | required: inside the range |
+| `drives` | required, may be empty: `[{path, from, to, curve}]` - `from` is the value at the range's min, `to` at its max |
+
+A drive's `curve` is `lin` (default: `from + (to - from) * t`), `exp`
+(`from * (to / from)^t`, for Hz and ms; `from` and `to` non-zero and of one
+sign) or `db` (`from` and `to` in dB, the value written is `10^(dB / 20)`:
+a level in 0..1, such as `envelope.sustain`, moved evenly by ear), with `t`
+the macro's place in its range from 0 to 1. A drive's path is a layer's
+number in the `vary` syntax behind a layer selector: `layers[1].gain`,
+`layers[body].envelope.decay`, `layers[grit].burst.count` - an index, or the
+name of exactly one layer.
+The field must have a meaning on its layer (no `filter.cutoff` without a
+`filter`), and a path is driven by one macro only.
+
+At its default a macro's drives must pass through the values the layers
+have (to 0.01 %; `layers[0].gain: at the macro's default 0.5 it gives -3,
+but layers[0].gain is -6` otherwise): a template is its own recipe at the
+default macro values.
+
+A design file:
+
+| Field | Meaning |
+|-------|---------|
+| `template` | required: the `id` and `version` of the template it is for; another version does not compile |
+| `name` | the compiled recipe's `name`; the template's when absent |
+| `macros` | `{"<id>": value}`, each inside its macro's range; a macro not named stays at its default |
+| `overrides` | `{"<path>": value}`: `name`, `variation.seed`, `variation.pool`, `maxVoices`, or any field of a layer - `layers[2].gain`, `layers[body].filter.type`, `layers[body].vary.detune`, `layers[grit].burst.jitter.time` - or a whole group (`layers[0].envelope`, `layers[grit].burst.jitter`). `null` removes the field. Two overrides may not write into each other (`layers[0].filter` and `layers[0].filter.cutoff`) |
+| `locks` | macro ids and paths the tools must leave alone; the compiler checks they name one and otherwise ignores them |
+| `meta` | any object (lineage, a target); the compiler ignores it |
+
+The compiled recipe is the template's recipe with the design's `name`, then
+its overrides, then every driven path the overrides leave alone. An override
+wins over the macro that drives its path, whatever the macro's value. A
+macro at its default writes nothing, so the template's value stays exactly
+as written; at any other value its drives go through their curves and are
+rounded to six significant digits, so a last-bit difference between two
+platforms' `pow()` never reaches the file. A driven value outside what the
+recipe accepts there - the field's range, less the layer's `vary` range for
+it, a volume lfo's depth at most 1 - is clamped to the edge and reported,
+not written as is - at a macro's default too, when an override (a wider
+`vary` range) leaves the template's value outside. An override's value is not clamped: a recipe the parser
+rejects is an error (`the compiled recipe: layers[0].gain: 50 is outside
+-96..12`). Both parsers reject an unknown field by name and path
+(`macros[0]: unknown field 'lable'`, `overrides: unknown path
+'layers[0].gian'`), as the recipe parser does.
+
+The compiled file is written in one form - the keys in a fixed order
+(`version`, `name`, `variation`, `layers`; in a layer `name`, `role`,
+`source` first), a layer field per line, numbers in their shortest exact form -
+so the same template and design give the same bytes, on every platform.
+In C++ (see "The engine without QML"):
+
+```cpp
+cs::SfxCompileResult heavy;
+std::string error;
+cs::compileDesignFile("sfx/wheel-detent-heavy.sfx.design.json",
+                      "sfx/wheel-detent.sfx.template.json",
+                      "sfx/wheel-detent-heavy.sfx.json", &heavy, &error);
+for (const QString &line : heavy.clampMessages()) ...   // what was clamped
+for (const auto &d : heavy.drives) ...  // each drive: macro, path, value, written, clamped, overridden
+```
+
+`SfxDesignCompiler::parseTemplate()`, `parseDesign()` and `compile()` take
+the files' bytes instead; `writeSfxRecipe()` writes any recipe in the
+compiled form. A game ships the compiled `*.sfx.json`, not the design;
+setting a macro while a game runs is not part of this.
+
 ### Stereo, pan and buses
 
 The engine mixes in stereo. Every instrument (`SynthInstrument`,
@@ -397,6 +724,19 @@ SoundMixer.voiceVolume = 0.8
 
 `Music` (the `QMediaPlayer`-based type) does not play on the engine, but it
 follows the music bus: it plays at its `volume` times `SoundMixer.musicVolume`.
+
+### Muting a process: `CLAY_SOUND_MUTE`
+
+With `CLAY_SOUND_MUTE=1` in the environment, every output clay_sound opens
+plays at volume 0: the shared sink that `Sound`, `SampleInstrument`,
+`SynthInstrument`, `SongPlayer` and `SfxPlayer` play through, `SoftSynth`'s
+sink and `Music`'s audio output. Everything still plays - voices start,
+`SongPlayer.playing` turns true, `SfxPlayer.play()` returns its seed - and an
+offline render does not change. Use it for tests, benches and flow checks
+that should not play through the speakers. A sink reads the variable when it
+opens, so set it before the first sound plays; `Music` reads it whenever its
+volume is applied. `SoundMixer` and the players' `volume` properties keep
+reading what was set.
 
 ### Echo and reverb per bus
 
@@ -462,6 +802,7 @@ cs::writeWav("song.wav", music, 1, cs::kSampleRate, cs::WavFormat::Pcm16);
 | Call | Does |
 |---|---|
 | `loadRecipe(path, &file, &error)` | parses a `*.sfx.json` and decodes its sample layers, each relative to the recipe |
+| `compileDesignFile(design, template, recipe, &result, &error)` | compiles a design file against its template and, with a `recipe` path, writes the compiled `*.sfx.json` there (see "Design files") |
 | `loadSong(path, &model, &error)` | parses a `.song.json`; a v2 song's sample instruments get their WAVs decoded, each relative to the song |
 | `renderRecipe(recipe, samples, seed, velocity, gain, pan, rate, stereo, seconds, detune)` | the samples `SfxPlayer.renderOffline(seed, velocity, detune)` returns at that `volume` and `pan`; `seconds` 0 = until the last layer ends, `detune` 0 = as written |
 | `renderSong(model, instruments, seconds, volume, loop, rate, stereo)` | the samples `SongPlayer.renderOffline(seconds)` returns; `seconds` 0 = the song's length |
@@ -520,7 +861,16 @@ argued in `.github/workflows/main.yml`.
 ## Technical Notes
 
 - Audio is fully preloaded before playback (no streaming)
-- **WASM**: Web Audio API requires user gesture to start AudioContext
+- **WASM**: Web Audio API requires user gesture to start AudioContext. An
+  AudioContext created before the first click is resumed on that click by
+  `wasm/gesture.pre.js`: emscripten's own listeners wait for a `mousedown`
+  the browser never sends for a click on a Qt window, and a page whose
+  sound started before the click stayed silent (#480)
+- **WASM, Qt before 6.11.1**: Qt resumes and closes a throwaway AudioContext
+  for every audio device and drops the promise `resume()` returns; before a
+  click, Chrome 156 rejects it ("AudioContext closed before a pending resume()
+  could complete"). `wasm/resume.pre.js`, linked into every app on such a Qt,
+  catches exactly those rejections (#480)
 - **WASM**: Remote URLs must be CORS-enabled
 - **Desktop**: Uses `QAudioSink` for all in-engine types, `QMediaPlayer` for `Music`
 - **Hot-reload**: `SongPlayer` and `SfxPlayer` watch their source file; drop

@@ -164,6 +164,7 @@ bool AudioOutput::openSink(const QAudioDevice& device)
         device_ = nullptr;
         return false;
     }
+    if (outputMuted()) sink_->setVolume(0.0);
     return true;
 }
 

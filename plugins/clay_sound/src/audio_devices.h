@@ -26,6 +26,12 @@ namespace clay::sound {
 // and never re-enters. Idempotent; safe to call from any of the entry points.
 void primeAudioDevices();
 
+// True when CLAY_SOUND_MUTE is set to a non-zero number. Every output then
+// opens at volume 0 - the shared sink, SoftSynth's sink and Music's
+// QAudioOutput - so test runs and benches stay quiet while everything still
+// plays, renders and reports as played. Read whenever an output opens.
+bool outputMuted();
+
 } // namespace clay::sound
 
 #endif // CLAY_SOUND_AUDIO_DEVICES_H

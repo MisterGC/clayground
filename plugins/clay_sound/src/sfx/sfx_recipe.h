@@ -3,8 +3,11 @@
 // SfxRecipe — pure data of an effect recipe (*.sfx.json): a stack of
 // layers, each one voice with a source, an envelope, a pitch curve, a
 // filter curve, a start offset, a gain and a pan, all in physical units
-// (Hz, ms, semitones, dB), plus a variation spec: a random range per
-// layer parameter, a seed and a round-robin pool size.
+// (Hz, ms, semitones, dB), an oscillator layer FM or ring modulation,
+// any layer drive and crush, plus a variation spec: a random range per
+// layer parameter, a seed and a round-robin pool size. A layer with a
+// burst plays as many short seeded notes, its grains, and the recipe's
+// voice cap bounds how many of them ring at once.
 //
 // Built by SfxParser, turned into notes by sfx_render.h.
 
@@ -22,15 +25,23 @@
 
 namespace clay::sound {
 
-// Every number a layer has. The order is the file's documentation order
-// and nothing else: each parameter draws its variation from its own
-// hash of the seed, so adding one never moves another's values.
+// Every number a layer has. Each parameter draws its variation from a
+// hash of the seed and its index here, so a new one goes at the end:
+// put anywhere else it would move the values of those after it.
 enum class SfxParam : int {
     Freq, Detune, Gain, Pan, Offset, Length,
     Attack, Decay, Sustain, Release,
     PitchStart, PitchEnd, PitchTime,
     Cutoff, Resonance, FilterAttack, FilterDecay, FilterSustain, FilterRelease, FilterAmount,
     PulseWidth, LfoRate, LfoDepth,
+    AttackCurve, DecayCurve, ReleaseCurve, PitchCurve,
+    FilterAttackCurve, FilterDecayCurve, FilterReleaseCurve,
+    BurstCount, BurstDuration, BurstDensity,
+    JitterTime, JitterGain, JitterCutoff, JitterFreq, JitterLength,
+    FmRatio, FmIndex, FmAttack, FmDecay, FmSustain, FmRelease,
+    FmAttackCurve, FmDecayCurve, FmReleaseCurve,
+    RingRatio,
+    Drive, CrushBits, CrushRate,
     Count
 };
 
@@ -68,7 +79,45 @@ inline constexpr std::array<SfxParamInfo, kSfxParamCount> kSfxParams = {{
     {"filter.amount", -10.0,         10.0,   0.0},   // octaves at the envelope's peak
     {"pulseWidth",      0.05,         0.95,  0.5},
     {"lfo.rate",        0.0,        100.0,   0.0},   // Hz
-    {"lfo.depth",       0.0,         48.0,   0.0},   // semitones (pitch) or 0..1 (volume)
+    {"lfo.depth",       0.0,         48.0,   0.0},   // semitones (pitch), 0..1 (volume) or octaves (cutoff)
+    // Segment curves: 0 linear .. 1 exponential (engine/segment_curve.h).
+    {"envelope.attackCurve",  0.0,   1.0,   0.0},
+    {"envelope.decayCurve",   0.0,   1.0,   0.0},
+    {"envelope.releaseCurve", 0.0,   1.0,   0.0},
+    {"pitch.curve",           0.0,   1.0,   0.0},
+    {"filter.attackCurve",    0.0,   1.0,   0.0},
+    {"filter.decayCurve",     0.0,   1.0,   0.0},
+    {"filter.releaseCurve",   0.0,   1.0,   0.0},
+    // A burst: the layer plays `count` grains (rounded) inside `duration`,
+    // the grain rate at the end `density` times the one at the start.
+    {"burst.count",           1.0,   256.0,   1.0},
+    {"burst.duration",        0.0, 10000.0,   0.0},   // ms
+    {"burst.density",         0.01,  100.0,   1.0},   // end rate / start rate
+    // How far each grain strays, either way, from the layer's value.
+    {"burst.jitter.time",     0.0,     1.0,   0.0},   // of its slot; 1 = anywhere in it
+    {"burst.jitter.gain",     0.0,    48.0,   0.0},   // dB
+    {"burst.jitter.cutoff",   0.0,     8.0,   0.0},   // octaves
+    {"burst.jitter.freq",     0.0,    48.0,   0.0},   // semitones
+    {"burst.jitter.length",   0.0, 10000.0,   0.0},   // ms
+    // Two-operator FM: the modulator at `ratio` times the layer's pitch,
+    // `index` the phase deviation in radians at the peak of its envelope.
+    {"fm.ratio",              0.01,   64.0,   1.0},
+    {"fm.index",              0.0,    32.0,   0.0},   // radians
+    {"fm.attack",             0.0, 10000.0,   0.0},   // ms
+    {"fm.decay",              0.0, 10000.0,   0.0},   // ms
+    {"fm.sustain",            0.0,     1.0,   1.0},   // of the index
+    {"fm.release",            0.0, 10000.0,   0.0},   // ms
+    {"fm.attackCurve",        0.0,     1.0,   0.0},
+    {"fm.decayCurve",         0.0,     1.0,   0.0},
+    {"fm.releaseCurve",       0.0,     1.0,   0.0},
+    // Ring modulation: the layer times a sine at `ratio` times its pitch.
+    {"ring.ratio",            0.01,   64.0,   1.0},
+    // Drive: dB into a tanh saturation. Crush: rounding to `bits` (24
+    // rounds nothing) and holding each value for one period of `rate`
+    // (at or above the output's rate it holds nothing).
+    {"drive",                 0.0,    48.0,   0.0},   // dB
+    {"crush.bits",            1.0,    24.0,  24.0},
+    {"crush.rate",           20.0, 192000.0, 192000.0},   // Hz
 }};
 
 inline const SfxParamInfo &sfxParamInfo(SfxParam p) { return kSfxParams[static_cast<int>(p)]; }
@@ -93,7 +142,16 @@ struct SfxLayer
     SampleVoice::Interpolation interpolation = SampleVoice::Interpolation::Linear;
 
     OscillatorVoice::FilterType filterType = OscillatorVoice::FilterType::Off;
-    int lfoTarget = 0;              // as OscillatorVoice::Patch: 0 off, 1 pitch, 2 volume
+    int lfoTarget = 0;              // as OscillatorVoice::Patch: 0 off, 1 pitch, 2 volume, 3 cutoff
+    OscillatorVoice::LfoShape lfoShape = OscillatorVoice::LfoShape::Sine;
+    // Noise layers: the colour, and whether `freq` clocks the noise.
+    OscillatorVoice::NoiseColor noiseColor = OscillatorVoice::NoiseColor::White;
+    OscillatorVoice::NoiseRate  noiseRate  = OscillatorVoice::NoiseRate::Sample;
+    bool burst = false;             // plays as grains (the burst.* numbers), not as one note
+    bool fm = false;                // runs FM (the fm.* numbers)
+    bool ring = false;              // runs ring modulation (ring.ratio)
+    bool drive = false;             // saturates by `drive` dB
+    bool crush = false;             // rounds and holds (the crush.* numbers)
 
     std::array<double, kSfxParamCount>   value{};
     std::array<SfxRange, kSfxParamCount> vary{};
@@ -107,6 +165,7 @@ struct SfxRecipe
     QString  name;
     uint32_t seed = 0;              // base of every variation seed
     int      pool = 0;              // play() cycles this many variations; 0 = a new one each time
+    int      maxVoices = 0;         // burst grains that ring at once; 0 = no cap
     QVector<SfxLayer> layers;
 };
 

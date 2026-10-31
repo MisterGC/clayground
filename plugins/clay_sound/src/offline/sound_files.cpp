@@ -83,6 +83,28 @@ bool loadRecipe(const std::string &path, RecipeFile *out, std::string *error)
     return true;
 }
 
+bool compileDesignFile(const std::string &designPath, const std::string &templatePath,
+                       const std::string &recipePath, SfxCompileResult *out, std::string *error)
+{
+    const QString designFile = QString::fromStdString(designPath);
+    const QString templateFile = QString::fromStdString(templatePath);
+    QByteArray design, tpl;
+    if (!readAll(templateFile, &tpl, error) || !readAll(designFile, &design, error)) return false;
+    const auto t = SfxDesignCompiler::parseTemplate(tpl);
+    if (!t.ok) return fail(error, QStringLiteral("%1: %2").arg(templateFile, t.error));
+    const auto d = SfxDesignCompiler::parseDesign(design);
+    if (!d.ok) return fail(error, QStringLiteral("%1: %2").arg(designFile, d.error));
+    SfxCompileResult res = SfxDesignCompiler::compile(d.design, t.tpl);
+    if (!res.ok) return fail(error, QStringLiteral("%1: %2").arg(designFile, res.error));
+    if (!recipePath.empty()) {
+        QFile f(QString::fromStdString(recipePath));
+        if (!f.open(QIODevice::WriteOnly | QIODevice::Truncate) || f.write(res.json) != res.json.size())
+            return fail(error, QStringLiteral("cannot write %1").arg(f.fileName()));
+    }
+    if (out) *out = std::move(res);
+    return true;
+}
+
 bool loadSong(const std::string &path, SongModel *out, std::string *error)
 {
     const QString file = QString::fromStdString(path);

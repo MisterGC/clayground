@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "name": "wheel-detent-heavy",
+  "template": { "id": "wheel-detent", "version": 1 },
+  "macros": { "weight": 0.9, "click": 0.8, "ring": 0.7 },
+  "overrides": { "layers[glint].gain": -26 },
+  "locks": ["weight"]
+}
