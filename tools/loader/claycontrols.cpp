@@ -42,8 +42,30 @@ ClayInputControl::ClayInputControl(QObject* parent)
             this, &ClayInputControl::resetToNeutral);
 }
 
-void ClayInputControl::setGamepadState(double axisX, double axisY,
-                                       bool buttonA, bool buttonB,
+const QStringList& ClayInputControl::inputNames()
+{
+    static const QStringList names = {
+        "axisX", "axisY", "axisRightX", "axisRightY",
+        "buttonA", "buttonB", "buttonX", "buttonY",
+        "buttonL1", "buttonR1", "triggerL2", "triggerR2",
+        "buttonStart", "buttonSelect"};
+    return names;
+}
+
+bool ClayInputControl::isButton(const QString& input)
+{
+    return input.startsWith(QLatin1String("button"));
+}
+
+QVariantMap ClayInputControl::neutral()
+{
+    QVariantMap state;
+    for (const auto& name : inputNames())
+        state[name] = isButton(name) ? QVariant(false) : QVariant(0.0);
+    return state;
+}
+
+void ClayInputControl::setGamepadState(const QVariantMap& state,
                                        int durationMs)
 {
     m_neutralTimer.stop();
@@ -51,10 +73,14 @@ void ClayInputControl::setGamepadState(double axisX, double axisY,
         m_active = true;
         emit activeChanged();
     }
-    m_axisX = axisX;
-    m_axisY = axisY;
-    m_buttonA = buttonA;
-    m_buttonB = buttonB;
+    m_gamepad = neutral();
+    for (const auto& name : inputNames()) {
+        if (!state.contains(name))
+            continue;
+        const auto v = state.value(name);
+        m_gamepad[name] = isButton(name) ? QVariant(v.toBool())
+                                         : QVariant(v.toDouble());
+    }
     emit stateChanged();
     if (durationMs > 0)
         m_neutralTimer.start(durationMs);
@@ -62,9 +88,6 @@ void ClayInputControl::setGamepadState(double axisX, double axisY,
 
 void ClayInputControl::resetToNeutral()
 {
-    m_axisX = 0.0;
-    m_axisY = 0.0;
-    m_buttonA = false;
-    m_buttonB = false;
+    m_gamepad = neutral();
     emit stateChanged();
 }

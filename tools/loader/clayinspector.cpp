@@ -1618,13 +1618,29 @@ QJsonObject ClayInspector::handleInput(const QJsonObject& request)
             response["error"] = "input control unavailable";
             return response;
         }
+        // Every input of the full layout can be set; a nes controller
+        // reads only its own. A misspelt name fails rather than leaving the
+        // input neutral without a word.
         auto gp = request.value("gamepad").toObject();
-        m_inputCtrl->setGamepadState(
-            gp.value("axisX").toDouble(0.0),
-            gp.value("axisY").toDouble(0.0),
-            gp.value("buttonA").toBool(false),
-            gp.value("buttonB").toBool(false),
-            gp.value("durationMs").toInt(0));
+        QVariantMap state;
+        QStringList unknown;
+        for (auto it = gp.begin(); it != gp.end(); ++it) {
+            if (it.key() == QLatin1String("durationMs"))
+                continue;
+            if (!ClayInputControl::inputNames().contains(it.key()))
+                unknown << it.key();
+            else if (ClayInputControl::isButton(it.key()))
+                state[it.key()] = it.value().toBool(false);
+            else
+                state[it.key()] = it.value().toDouble(0.0);
+        }
+        if (!unknown.isEmpty()) {
+            response["error"] = QString("gamepad: no input %1 - inputs are %2")
+                .arg(unknown.join(", "),
+                     ClayInputControl::inputNames().join(", "));
+            return response;
+        }
+        m_inputCtrl->setGamepadState(state, gp.value("durationMs").toInt(0));
         response["gamepad"] = "applied";
     }
 

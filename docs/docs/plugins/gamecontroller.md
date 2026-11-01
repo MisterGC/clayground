@@ -7,8 +7,9 @@ permalink: /docs/plugins/gamecontroller/
 
 The Clay GameController plugin provides a unified game input system that
 supports multiple input sources including keyboard, physical gamepads, and
-touchscreen controls. It's designed with simplicity in mind, offering NES-style
-controller functionality with directional controls and two action buttons.
+touchscreen controls. A game picks the controller's layout: `nes`, a stick and
+two buttons (the default), or `full`, two sticks, A/B/X/Y, shoulders, triggers
+and start/select. Every source delivers in the terms of that layout.
 
 ## Getting Started
 
@@ -18,10 +19,72 @@ To use the Clay GameController plugin in your QML files:
 import Clayground.GameController
 ```
 
+## Layouts
+
+`layout` decides which inputs a `GameController` has. The sources - keyboard,
+touchscreen and the dojo's agent input - set only those; every other input
+stays at its neutral value (0 or `false`). `inputs` lists the layout's input
+names, and `inputValue(name)` reads one by its name.
+
+| Input | Property | Range | `nes` | `full` |
+|---|---|---|---|---|
+| `axisX`, `axisY` | `axisX`, `axisY` | -1..1, up and right positive | yes | yes, the left stick |
+| `axisRightX`, `axisRightY` | `axisRightX`, `axisRightY` | -1..1 | | yes |
+| `buttonA`, `buttonB` | `buttonAPressed`, `buttonBPressed` | bool | yes | yes |
+| `buttonX`, `buttonY` | `buttonXPressed`, `buttonYPressed` | bool | | yes |
+| `buttonL1`, `buttonR1` | `buttonL1Pressed`, `buttonR1Pressed` | bool, the shoulders | | yes |
+| `triggerL2`, `triggerR2` | `triggerL2`, `triggerR2` | 0..1 | | yes |
+| `buttonStart`, `buttonSelect` | `buttonStartPressed`, `buttonSelectPressed` | bool | | yes |
+
+```qml
+GameController {
+    id: controller
+    layout: "full"
+    Component.onCompleted: selectKeyboard({
+        axisX: [Qt.Key_A, Qt.Key_D],       // [negative, positive]
+        axisY: [Qt.Key_S, Qt.Key_W],
+        axisRightX: [Qt.Key_J, Qt.Key_L],
+        axisRightY: [Qt.Key_K, Qt.Key_I],
+        buttonA: Qt.Key_Space, buttonB: Qt.Key_Shift,
+        buttonX: Qt.Key_F, buttonY: Qt.Key_R,
+        buttonL1: Qt.Key_Q, buttonR1: Qt.Key_E,
+        triggerL2: Qt.Key_1, triggerR2: Qt.Key_3,   // a held key reads 1
+        buttonSelect: Qt.Key_Tab, buttonStart: Qt.Key_Return
+    })
+}
+
+CharacterController {
+    character: hero
+    axisX: controller.axisX
+    axisY: controller.axisY
+    sprinting: controller.buttonL1Pressed
+}
+```
+
+- **Keyboard**: `selectKeyboard()` takes either the six keys it always took
+  (up, down, left, right, then two buttons - the fifth key presses B and the
+  sixth A, as it always has) or one map from input name to key, as above. A
+  map may name inputs the layout lacks; they are ignored until the layout has
+  them.
+- **Touchscreen**: with `nes` a stick appears wherever the area is touched,
+  and B and A sit in the lower right. With `full` the left half is the left
+  stick and the right half the right stick, A/B/X/Y sit in the lower right as
+  a diamond (A at the bottom), L1/L2 in the upper left, R1/R2 in the upper
+  right, select and start at the bottom centre. A stick reads the finger's
+  offset from where it touched down over the stick's radius, so it reaches 1
+  half a stick's width away; a trigger reads 1 while touched. Sticks and pads
+  each follow their own finger.
+- **Dojo**: the inspector's `input` action takes every input name in its
+  `gamepad` object, e.g.
+  `{"action": "input", "gamepad": {"axisRightX": 1, "buttonL1": true}}`; a
+  `nes` controller reads only its stick and A/B of it.
+- Changing `layout` at run time sets the inputs it drops to neutral, and the
+  keyboard and dojo sources set the ones it adds from what they hold.
+
 ## Core Components
 
 - **GameController** - Main unified input component with axis and button states
-- **GameControllerDV** - Debug visualization showing current controller state
+- **GameControllerDV** - Debug visualization showing every input of the layout live, with the layout and the active source
 - **InputAction** - One action read as a tap, a hold or a buffered press, timed on the game clock
 - **KeyboardGamepad** - Internal keyboard-to-controller mapping
 - **TouchscreenGamepad** - Virtual on-screen gamepad for touch devices
@@ -267,7 +330,7 @@ The GameController plugin implements:
 - **Auto-switching**: Seamless switching between input sources
 - **Visual Feedback**: Built-in debug visualization
 - **Touch Adaptation**: Virtual joystick with visual feedback for touch screens
-- **Simple Design**: NES-inspired two-button controller for broad compatibility
+- **Two layouts**: `nes`, a stick and two buttons, and `full`, the inputs of a modern gamepad
 
 Note: Physical gamepad support is currently disabled due to Qt6 compatibility issues but the architecture supports it for future versions.
 

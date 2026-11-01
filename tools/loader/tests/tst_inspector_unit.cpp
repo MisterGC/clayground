@@ -10,6 +10,7 @@
 #include <QRectF>
 
 #include "clayinspector.h"
+#include "claycontrols.h"
 
 class TestInspectorUnit : public QObject
 {
@@ -44,6 +45,8 @@ private slots:
     void testBatchStopsAtFirstFailingStep();
     void testBatchStepNeedsAnAction();
     void testBatchRejectsNesting();
+    void testGamepadInputSetsEveryInput();
+    void testGamepadInputRejectsUnknownInput();
     void annotationCropFailureKeepsTheAnnotation();
 
 private:
@@ -895,6 +898,76 @@ void TestInspectorUnit::testBatchRejectsNesting()
     empty["steps"] = QJsonArray{};
     auto eresp = roundtrip(inspector, tmpDir.path(), empty);
     QVERIFY(eresp["error"].toString().contains("empty"));
+}
+
+// The gamepad input sets every input of GameController's full layout; what is
+// not given is neutral (#463).
+void TestInspectorUnit::testGamepadInputSetsEveryInput()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    ClayTimeControl timeCtrl;
+    ClayInputControl inputCtrl;
+    inspector.setControls(&timeCtrl, &inputCtrl);
+    inspector.setSandboxDir(tmpDir.path());
+
+    QJsonObject gp{{"axisX", -1.0}, {"axisRightX", 0.5}, {"axisRightY", -0.25},
+                   {"buttonA", true}, {"buttonY", true}, {"buttonR1", true},
+                   {"triggerL2", 0.75}, {"buttonStart", true}};
+    QJsonObject req{{"action", "input"}, {"id", "g1"}, {"gamepad", gp}};
+    auto resp = roundtrip(inspector, tmpDir.path(), req);
+    QCOMPARE(resp["gamepad"].toString(), QStringLiteral("applied"));
+
+    QVERIFY(inputCtrl.active());
+    auto state = inputCtrl.gamepad();
+    QCOMPARE(state.keys().size(), ClayInputControl::inputNames().size());
+    QCOMPARE(state["axisX"].toDouble(), -1.0);
+    QCOMPARE(state["axisY"].toDouble(), 0.0);
+    QCOMPARE(state["axisRightX"].toDouble(), 0.5);
+    QCOMPARE(state["axisRightY"].toDouble(), -0.25);
+    QCOMPARE(state["buttonA"].toBool(), true);
+    QCOMPARE(state["buttonB"].toBool(), false);
+    QCOMPARE(state["buttonX"].toBool(), false);
+    QCOMPARE(state["buttonY"].toBool(), true);
+    QCOMPARE(state["buttonL1"].toBool(), false);
+    QCOMPARE(state["buttonR1"].toBool(), true);
+    QCOMPARE(state["triggerL2"].toDouble(), 0.75);
+    QCOMPARE(state["triggerR2"].toDouble(), 0.0);
+    QCOMPARE(state["buttonStart"].toBool(), true);
+    QCOMPARE(state["buttonSelect"].toBool(), false);
+
+    // A second request replaces the state rather than merging into it.
+    QJsonObject req2{{"action", "input"}, {"id", "g2"},
+                     {"gamepad", QJsonObject{{"buttonSelect", true}}}};
+    roundtrip(inspector, tmpDir.path(), req2);
+    state = inputCtrl.gamepad();
+    QCOMPARE(state["buttonSelect"].toBool(), true);
+    QCOMPARE(state["buttonStart"].toBool(), false);
+    QCOMPARE(state["axisRightX"].toDouble(), 0.0);
+}
+
+// A misspelt input fails loudly and leaves the state as it was.
+void TestInspectorUnit::testGamepadInputRejectsUnknownInput()
+{
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    ClayTimeControl timeCtrl;
+    ClayInputControl inputCtrl;
+    inspector.setControls(&timeCtrl, &inputCtrl);
+    inspector.setSandboxDir(tmpDir.path());
+
+    QJsonObject req{{"action", "input"}, {"id", "u1"},
+                    {"gamepad", QJsonObject{{"buttonx", true},
+                                            {"axisX", 1.0}}}};
+    auto resp = roundtrip(inspector, tmpDir.path(), req);
+    QVERIFY2(resp["error"].toString().contains("buttonx"),
+             qPrintable(resp["error"].toString()));
+    QVERIFY(!inputCtrl.active());
+    QCOMPARE(inputCtrl.gamepad()["axisX"].toDouble(), 0.0);
 }
 
 // The overlay's creation-side call, when there is no scene to capture or to
