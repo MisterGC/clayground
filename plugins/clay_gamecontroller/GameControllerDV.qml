@@ -6,14 +6,16 @@
     \brief Debug visualization component showing GameController state.
 
     GameControllerDV displays the inputs of a GameController's layout with
-    their live values, and its layout and active input source. With \c nes
+    their live values, and its layout and active input source - for a
+    physical gamepad, the pad's name. With \c nes
     it shows the stick as four directions and B/A; with \c full it shows both
     sticks with their position, A/B/X/Y, L1/R1, the triggers L2/R2 filling
     with their value, and select/start.
     Useful for debugging input handling during development.
 
     Every input has an indicator named \c {"dv_" + input}, e.g.
-    \c dv_buttonX, whose \c level is the value it shows (a button is 0 or 1).
+    \c dv_buttonX, whose \c level is the value it shows (a button is 0 or 1);
+    the line naming layout and source is \c dv_source.
 
     Example usage:
     \qml
@@ -55,8 +57,8 @@ Rectangle {
     function _sourceName() {
         if (!observed) return "";
         const src = observed.keyboardSelected ? "Keyboard" :
-                    observed.gamepadSelected ?
-                        "Gamepad (" + observed.gamepadDeviceId + ")" :
+                    observed.gamepadSelected && observed.gamepad ?
+                        observed.gamepad.name :
                     observed.vGamepadSelected ? "Touchscreen" : "None";
         return observed.layout + " · " + src +
                (observed.syntheticActive ? " + Dojo" : "");
@@ -135,6 +137,7 @@ Rectangle {
     }
 
     Text {
+        objectName: "dv_source"
         color: "black"
         anchors.top: parent.top
         anchors.topMargin: parent.height * (theDebugVisu._full ? .05 : .12)
