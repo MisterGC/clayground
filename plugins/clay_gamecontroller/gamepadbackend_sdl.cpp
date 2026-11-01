@@ -5,6 +5,10 @@
 #include <QSet>
 
 #include <SDL3/SDL.h>
+// For SDL_SetMainReady() alone: without SDL_MAIN_HANDLED the header brings
+// SDL's own main(), which on iOS would take the app from Qt
+#define SDL_MAIN_HANDLED
+#include <SDL3/SDL_main.h>
 
 #include <algorithm>
 #include <cmath>
@@ -55,6 +59,10 @@ SdlGamepadBackend::SdlGamepadBackend(QObject *parent)
     // business; the game decides what to do with input while in the back.
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
 
+    // On iOS SDL expects to own main() and refuses SDL_Init until its own
+    // main says the app is set up. Qt owns main() and the UIKit run loop
+    // here; SDL's gamepad part takes its pad notifications from that loop.
+    SDL_SetMainReady();
     valid_ = SDL_Init(SDL_INIT_GAMEPAD);
     if (!valid_) {
         qWarning() << "GameController: SDL could not start reading gamepads:"

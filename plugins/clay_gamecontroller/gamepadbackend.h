@@ -48,10 +48,10 @@ inline const QStringList &gamepadAxisNames()
     return names;
 }
 
-// One way of reading physical pads: SDL3 on desktop, the browser's Gamepad
-// API on WASM. The hub owns exactly one and calls poll() from its timer; a
-// backend fed by events of its own may do nothing there. It reports through
-// the signals, always on the hub's thread.
+// One way of reading physical pads: SDL3 on desktop and iOS, the browser's
+// Gamepad API on WASM. The hub owns exactly one and calls poll() from its
+// timer; a backend fed by events of its own may do nothing there. It reports
+// through the signals, always on the hub's thread.
 class GamepadBackend : public QObject
 {
     Q_OBJECT

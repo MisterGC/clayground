@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project (examples)
 
+add_subdirectory (gamecontroller)
 add_subdirectory (gui)
 add_subdirectory (neoncity)
 add_subdirectory (platformer)

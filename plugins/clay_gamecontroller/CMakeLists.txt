@@ -2,12 +2,11 @@
 include (clayplugin)
 include (claybuildcache)
 
-# Physical pads are read through SDL3 on the desktop and through the
-# browser's Gamepad API on WASM (#464). Android would need SDL's Java side,
-# so it takes no SDL; iOS waits for its own step (#465). Without a backend
-# GameController still works with keyboard, touch and the Dojo, and reports
-# no gamepads.
-if(EMSCRIPTEN OR ANDROID OR IOS)
+# Physical pads are read through SDL3 on the desktop and on iOS, and through
+# the browser's Gamepad API on WASM (#464). Android would need SDL's Java
+# side, so it takes no SDL. Without a backend GameController still works with
+# keyboard, touch and the Dojo, and reports no gamepads.
+if(EMSCRIPTEN OR ANDROID)
     set(_clay_gamepad_sdl_default OFF)
 else()
     set(_clay_gamepad_sdl_default ON)
@@ -44,6 +43,14 @@ if(CLAY_GAMEPAD_SDL)
     foreach(_sdl_off AUDIO VIDEO GPU RENDER CAMERA HAPTIC POWER SENSOR DIALOG TRAY DBUS IBUS)
         set(SDL_${_sdl_off} OFF CACHE BOOL "" FORCE)
     endforeach()
+    # On iOS the pads come through Apple's GameController framework (MFi,
+    # Xbox, PlayStation, Switch Pro). HIDAPI would add only the Steam
+    # Controller over Bluetooth, and it links CoreBluetooth, for which App
+    # Store review wants a Bluetooth usage text in every app's Info.plist.
+    # Without HIDAPI SDL has no virtual pads there; the tests run on desktop.
+    if(IOS)
+        set(SDL_HIDAPI OFF CACHE BOOL "" FORCE)
+    endif()
     # Without video SDL still wants X11 or Wayland on Linux unless told it
     # is a console build (#482)
     set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "" FORCE)
