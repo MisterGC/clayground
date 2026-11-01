@@ -44,6 +44,9 @@ if(CLAY_GAMEPAD_SDL)
     foreach(_sdl_off AUDIO VIDEO GPU RENDER CAMERA HAPTIC POWER SENSOR DIALOG TRAY DBUS IBUS)
         set(SDL_${_sdl_off} OFF CACHE BOOL "" FORCE)
     endforeach()
+    # Without video SDL still wants X11 or Wayland on Linux unless told it
+    # is a console build (#482)
+    set(SDL_UNIX_CONSOLE_BUILD ON CACHE BOOL "" FORCE)
     # The static library ends up inside the shared plugin
     set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
