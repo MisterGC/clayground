@@ -11,7 +11,7 @@ Client-side AI plugin providing Text Inference (LLM) capabilities. All processin
 
 - **TextInference**: Local LLM chat with streaming responses
 - **AiModelManager**: Model download, caching, and registry management
-- Cross-platform: Desktop (macOS/Windows/Linux), Browser (WASM), Mobile (iOS/Android)
+- Cross-platform: Desktop (macOS/Windows/Linux), Browser (WASM), Mobile (Android; iOS builds leave the plugin out for now, #475)
 - Automatic model downloads from HuggingFace
 
 ## Quick Start
@@ -101,6 +101,7 @@ Manages model downloads and caching.
 
 ### Mobile
 - CPU inference only
+- Not in iOS builds yet: llama.cpp's Metal part does not build there (#475)
 - Use smaller models (smollm2-360m) for better performance
 
 ## Future Ideas

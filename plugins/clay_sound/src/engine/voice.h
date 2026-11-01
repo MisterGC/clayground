@@ -24,6 +24,11 @@ public:
     // this allows outside forcing of release (tracker cut, etc.).
     virtual void onNoteOff(int64_t atFrame) = 0;
 
+    // Begin the voice's release at `atFrame`: it ends once its own
+    // release has run from there (never later than its gate). A voice
+    // without a release ends at `atFrame`.
+    virtual void onRelease(int64_t atFrame) { onNoteOff(atFrame); }
+
     // Additively mix into `buffer` (mono, length = `frames`).
     // `bufferStartFrame` is the engine-time of buffer[0]. The voice is
     // responsible for writing only to the overlap of its own lifetime

@@ -29,6 +29,9 @@ public:
     // Returns true if the event was cancelled.
     bool cancel(EventId id);
 
+    // Remove every pending event of `instrumentId`. Returns how many.
+    size_t cancelInstrument(int instrumentId);
+
     // Drop all pending events.
     void clear();
 

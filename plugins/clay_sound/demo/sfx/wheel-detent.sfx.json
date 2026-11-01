@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "name": "wheel-detent",
+  "variation": { "seed": 1, "pool": 6 },
+  "layers": [
+    {
+      "name": "tick", "role": "transient", "source": "noise",
+      "length": 6, "gain": -10.46,
+      "envelope": { "attack": 0.5, "decay": 9, "sustain": 0, "release": 4 }
+    },
+    {
+      "name": "body", "role": "body", "source": "triangle",
+      "freq": 783.99, "length": 40, "gain": -10.03,
+      "envelope": { "attack": 0.5, "decay": 55, "sustain": 0, "release": 20 },
+      "pitch": { "start": 12, "end": 0, "time": 12 },
+      "vary": { "detune": [-1, 1] }
+    },
+    {
+      "name": "glint", "role": "tail", "source": "sine",
+      "freq": 2793.83, "length": 50, "gain": -21.94,
+      "envelope": { "attack": 0.5, "decay": 70, "sustain": 0, "release": 30 },
+      "vary": { "detune": [-1, 1] }
+    },
+    {
+      "name": "weight", "role": "body", "source": "sine",
+      "freq": 123.47, "length": 45, "gain": -13,
+      "envelope": { "attack": 1, "decay": 55, "sustain": 0, "release": 20 },
+      "pitch": { "start": 7, "end": 0, "time": 20 }
+    }
+  ]
+}

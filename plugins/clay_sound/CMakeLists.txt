@@ -12,12 +12,18 @@ endif()
 include(clayplugin)
 
 # Platform-agnostic C++ engine (Stage 0 spine). No QML types; used by
-# every instrument host below.
+# every instrument host below, and linked by programs outside clayground
+# as Clayground::SoundEngine (#429).
 set(ENGINE_SRC
+    src/engine/bus.h
+    src/engine/bus_effects.cpp src/engine/bus_effects.h
     src/engine/note_event.h
     src/engine/voice.h
     src/engine/instrument.h
+    src/engine/instrument_spec.cpp src/engine/instrument_spec.h
     src/engine/scheduler.cpp src/engine/scheduler.h
+    src/engine/segment_curve.h
+    src/engine/drive_crush.h
     src/engine/engine.cpp src/engine/engine.h
     src/engine/oscillator_voice.cpp src/engine/oscillator_voice.h
     src/engine/oscillator_instrument.cpp src/engine/oscillator_instrument.h
@@ -25,7 +31,16 @@ set(ENGINE_SRC
     src/engine/sample_voice.cpp src/engine/sample_voice.h
     src/engine/sampler_instrument.cpp src/engine/sampler_instrument.h
     src/song/song_model.h
-    src/song/song_parser.cpp src/song/song_parser.h)
+    src/song/song_parser.cpp src/song/song_parser.h
+    src/song/song_render.cpp src/song/song_render.h
+    src/song/song_sequencer.cpp src/song/song_sequencer.h
+    src/sfx/sfx_recipe.h
+    src/sfx/sfx_parser.cpp src/sfx/sfx_parser.h
+    src/sfx/sfx_render.cpp src/sfx/sfx_render.h
+    src/sfx/sfx_writer.cpp src/sfx/sfx_writer.h
+    src/sfx/sfx_design.cpp src/sfx/sfx_design.h
+    src/offline/sound_files.cpp src/offline/sound_files.h
+    src/clay_sound_engine.h)
 
 set(CPP_SRC
     src/voice_waveform.h
@@ -34,12 +49,25 @@ set(CPP_SRC
     src/softsynth.cpp src/softsynth.h
     src/synth_instrument.cpp src/synth_instrument.h
     src/sample_instrument.cpp src/sample_instrument.h
+    src/source_url.cpp src/source_url.h
     src/song_player.cpp src/song_player.h
+    src/sfx_player.cpp src/sfx_player.h
+    src/sound_mixer.cpp src/sound_mixer.h
+    src/bus_effect_objects.cpp src/bus_effect_objects.h
     src/sound.cpp src/sound.h
     src/music.cpp src/music.h
     src/chiptracker.cpp src/chiptracker.h
-    src/chipmood.cpp src/chipmood.h
-    ${ENGINE_SRC})
+    src/chipmood.cpp src/chipmood.h)
+
+# Qt Core only (the song and recipe parsers read JSON): no QML, no
+# Multimedia, no audio device. Static and position independent, so the
+# shared plugin on desktop links it as well as a static WASM/iOS build.
+add_library(ClaySoundEngine STATIC ${ENGINE_SRC})
+add_library(Clayground::SoundEngine ALIAS ClaySoundEngine)
+target_include_directories(ClaySoundEngine PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
+target_link_libraries(ClaySoundEngine PUBLIC Qt6::Core)
+target_compile_features(ClaySoundEngine PUBLIC cxx_std_17)
+set_target_properties(ClaySoundEngine PROPERTIES POSITION_INDEPENDENT_CODE ON)
 
 set(EXTRA_LIBS Qt::Multimedia Qt::Network)
 if(NOT EMSCRIPTEN)
@@ -50,10 +78,32 @@ clay_plugin(Sound
     VERSION 1.0
     SOURCES ${CPP_SRC}
     QML_FILES MoodPlayer.qml
-    LINK_LIBS Qt::Core Qt::Quick Qt::Qml ${EXTRA_LIBS}
+    LINK_LIBS Qt::Core Qt::Quick Qt::Qml ${EXTRA_LIBS} ClaySoundEngine
 )
 
 target_include_directories(ClaySound PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+
+# Two pre-js for the browser's autoplay rule (#480). gesture.pre.js resumes
+# the AudioContexts created before the first click on that click, which
+# emscripten's own listeners never see on a Qt window. Qt before 6.11.1 also
+# resumes and closes a throwaway AudioContext per audio device and drops
+# resume()'s promise, which Chrome 156 rejects, uncaught, before a click;
+# resume.pre.js hands those promises a handler. INTERFACE, because they are
+# options of the final link - every app that links this plugin, not the
+# plugin's own static library.
+if(EMSCRIPTEN)
+    set(_clay_sound_prejs ${CMAKE_CURRENT_SOURCE_DIR}/wasm/gesture.pre.js)
+    if(Qt6Multimedia_VERSION VERSION_LESS 6.11.1)
+        list(APPEND _clay_sound_prejs ${CMAKE_CURRENT_SOURCE_DIR}/wasm/resume.pre.js)
+    endif()
+    foreach(_prejs IN LISTS _clay_sound_prejs)
+        target_link_options(ClaySound INTERFACE "SHELL:--pre-js ${_prejs}")
+    endforeach()
+    # A pre-js is no input of any build step, so editing it would relink
+    # nothing; rebuilding this plugin's library makes every app relink.
+    set_source_files_properties(src/audio_devices.cpp PROPERTIES
+        OBJECT_DEPENDS "${_clay_sound_prejs}")
+endif()
 
 if(NOT EMSCRIPTEN)
     add_subdirectory(tests)

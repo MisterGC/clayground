@@ -1,0 +1,139 @@
+{
+  "version": 2,
+  "tempo": 120,
+  "beatsPerBar": 4,
+  "instruments": {
+    "lead": {
+      "source": "triangle",
+      "envelope": {"attack": 10, "decay": 150, "sustain": 0.6, "release": 120},
+      "lfo": {"target": "pitch", "rate": 5, "depth": 0.1},
+      "gain": -10
+    },
+    "bass": {
+      "source": "sawtooth",
+      "envelope": {"attack": 5, "decay": 200, "sustain": 0.7, "release": 100},
+      "filter": {"type": "lowpass", "cutoff": 700, "resonance": 0.2},
+      "gain": -12
+    },
+    "horn": {
+      "source": "square",
+      "pulseWidth": 0.35,
+      "envelope": {"attack": 15, "decay": 100, "sustain": 0.7, "release": 80},
+      "filter": {"type": "lowpass", "cutoff": 2500},
+      "gain": -12,
+      "pan": 0.2
+    },
+    "arp": {
+      "source": "sine",
+      "envelope": {"attack": 2, "decay": 80, "sustain": 0.3, "release": 40},
+      "gain": -14,
+      "pan": -0.3
+    },
+    "hat": {
+      "source": "noise",
+      "envelope": {"attack": 1, "decay": 30, "sustain": 0, "release": 10},
+      "filter": {"type": "highpass", "cutoff": 5000},
+      "gain": -20,
+      "pan": 0.3
+    }
+  },
+  "tracks": {
+    "melody": {"instrument": "lead"},
+    "bass": {"instrument": "bass"},
+    "horn": {"instrument": "horn"},
+    "arp": {"instrument": "arp"},
+    "hat": {"instrument": "hat"}
+  },
+  "patterns": {
+    "Explore": {
+      "melody": [
+        {"t": 0, "note": "C5", "dur": 0.9},
+        {"t": 1, "note": "E5", "dur": 0.9},
+        {"t": 2, "note": "G5", "dur": 0.9},
+        {"t": 3, "note": "E5", "dur": 0.9},
+        {"t": 4, "note": "F5", "dur": 0.9},
+        {"t": 5, "note": "A5", "dur": 0.9},
+        {"t": 6, "note": "G5", "dur": 1.4},
+        {"t": 7.5, "note": "E5", "dur": 0.4}
+      ],
+      "bass": [{"t": 0, "note": "C3", "dur": 3.9}, {"t": 4, "note": "F3", "dur": 3.9}],
+      "arp": [
+        {"t": 0, "note": "E6", "dur": 0.25},
+        {"t": 1, "note": "G6", "dur": 0.25},
+        {"t": 2, "note": "C7", "dur": 0.25},
+        {"t": 3, "note": "G6", "dur": 0.25},
+        {"t": 4, "note": "F6", "dur": 0.25},
+        {"t": 5, "note": "A6", "dur": 0.25},
+        {"t": 6, "note": "C7", "dur": 0.25},
+        {"t": 7, "note": "A6", "dur": 0.25}
+      ],
+      "hat": [
+        {"t": 0.5, "note": 60, "dur": 0.1},
+        {"t": 1.5, "note": 60, "dur": 0.1},
+        {"t": 2.5, "note": 60, "dur": 0.1},
+        {"t": 3.5, "note": 60, "dur": 0.1},
+        {"t": 4.5, "note": 60, "dur": 0.1},
+        {"t": 5.5, "note": 60, "dur": 0.1},
+        {"t": 6.5, "note": 60, "dur": 0.1},
+        {"t": 7.5, "note": 60, "dur": 0.1}
+      ]
+    },
+    "Combat": {
+      "horn": [
+        {"t": 0, "note": "A4", "dur": 0.45},
+        {"t": 0.5, "note": "A4", "dur": 0.45},
+        {"t": 1, "note": "C5", "dur": 0.9},
+        {"t": 2, "note": "E5", "dur": 0.45},
+        {"t": 2.5, "note": "D5", "dur": 0.45},
+        {"t": 3, "note": "C5", "dur": 0.9}
+      ],
+      "bass": [
+        {"t": 0.0, "note": "A2", "dur": 0.4},
+        {"t": 0.5, "note": "A2", "dur": 0.4},
+        {"t": 1.0, "note": "A2", "dur": 0.4},
+        {"t": 1.5, "note": "A2", "dur": 0.4},
+        {"t": 2.0, "note": "F2", "dur": 0.4},
+        {"t": 2.5, "note": "F2", "dur": 0.4},
+        {"t": 3.0, "note": "F2", "dur": 0.4},
+        {"t": 3.5, "note": "F2", "dur": 0.4}
+      ],
+      "arp": [
+        {"t": 0, "note": "A5", "dur": 0.25},
+        {"t": 1, "note": "C6", "dur": 0.25},
+        {"t": 2, "note": "E6", "dur": 0.25},
+        {"t": 3, "note": "C6", "dur": 0.25}
+      ],
+      "hat": [
+        {"t": 0.5, "note": 60, "dur": 0.1},
+        {"t": 1.5, "note": 60, "dur": 0.1},
+        {"t": 2.5, "note": 60, "dur": 0.1},
+        {"t": 3.5, "note": 60, "dur": 0.1}
+      ]
+    },
+    "Pickup": {
+      "melody": [{"t": 0, "note": "E6", "dur": 0.25}, {"t": 0.25, "note": "A6", "dur": 0.5}]
+    }
+  },
+  "segments": {
+    "explore": {
+      "sections": [{"pattern": "Explore"}]
+    },
+    "combat": {
+      "sections": [{"pattern": "Combat", "repeat": 2}],
+      "exits": [4]
+    }
+  },
+  "start": "explore",
+  "layers": {
+    "drive": {
+      "tracks": ["arp", "hat"],
+      "intensity": [0.25, 0.75],
+      "fade": 4
+    }
+  },
+  "transitions": [
+    {"from": "explore", "to": "combat", "sync": "bar"},
+    {"from": "combat", "to": "explore", "sync": "exit", "stinger": "pickup"}
+  ],
+  "stingers": {"pickup": {"pattern": "Pickup", "sync": "beat"}}
+}

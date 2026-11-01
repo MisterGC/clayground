@@ -17,6 +17,13 @@
     \qmlproperty bool SyntheticGamepad::active
     \readonly
     \brief True once agent input has been received in this session.
+
+    \qmlproperty var SyntheticGamepad::source
+    \brief The object whose \c gamepad map holds the state, by input name;
+    \c ClayInputCtrl in the Dojo, null outside it.
+
+    Every input of the controller's layout is written, a missing one as
+    neutral; the other inputs of the map are ignored.
 */
 import QtQuick
 
@@ -24,20 +31,26 @@ Item {
     id: theSynth
 
     property var gameController: null
-    readonly property bool available: typeof ClayInputCtrl !== 'undefined'
-    readonly property bool active: available && ClayInputCtrl.active
+    property var source: typeof ClayInputCtrl !== 'undefined' ? ClayInputCtrl : null
+    readonly property bool available: source !== null
+    readonly property bool active: available && source.active
 
     function _apply() {
         if (!active || !gameController) return;
-        gameController.axisX = ClayInputCtrl.axisX;
-        gameController.axisY = ClayInputCtrl.axisY;
-        gameController.buttonAPressed = ClayInputCtrl.buttonA;
-        gameController.buttonBPressed = ClayInputCtrl.buttonB;
+        const state = source.gamepad;
+        for (const name of gameController._layoutInputs())
+            gameController._write(name, state[name] !== undefined ?
+                                      state[name] : gameController._neutral(name));
     }
 
     Connections {
-        target: theSynth.available ? ClayInputCtrl : null
+        target: theSynth.source
         function onStateChanged() { theSynth._apply(); }
         function onActiveChanged() { theSynth._apply(); }
+    }
+
+    Connections {
+        target: theSynth.gameController
+        function onLayoutChanged() { theSynth._apply(); }
     }
 }

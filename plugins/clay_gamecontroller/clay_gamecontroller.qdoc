@@ -5,9 +5,11 @@
     \title Clayground GameController Module
     \brief Unified input system supporting keyboard, gamepad, and touch.
 
-    The GameController module provides a simple NES-style controller abstraction
-    with directional axis controls and two action buttons. It supports multiple
-    input sources that can be switched at runtime.
+    The GameController module provides one controller abstraction in two
+    layouts: \c nes, a stick and two action buttons, and \c full, two sticks,
+    A/B/X/Y, shoulders, triggers and start/select. It supports multiple input
+    sources that can be switched at runtime; each sets the inputs of the
+    chosen layout.
 
     \section1 Usage
 
@@ -44,11 +46,46 @@
     }
     \endqml
 
+    \section2 Full Layout
+
+    \qml
+    GameController {
+        id: controller
+        layout: "full"
+        Component.onCompleted: selectKeyboard({
+            axisX: [Qt.Key_A, Qt.Key_D], axisY: [Qt.Key_S, Qt.Key_W],
+            axisRightX: [Qt.Key_J, Qt.Key_L], axisRightY: [Qt.Key_K, Qt.Key_I],
+            buttonA: Qt.Key_Space, buttonB: Qt.Key_Shift,
+            buttonX: Qt.Key_F, buttonY: Qt.Key_R,
+            buttonL1: Qt.Key_Q, buttonR1: Qt.Key_E,
+            triggerL2: Qt.Key_1, triggerR2: Qt.Key_3,
+            buttonSelect: Qt.Key_Tab, buttonStart: Qt.Key_Return
+        })
+    }
+    \endqml
+
+    \section2 Physical Gamepad
+
+    \qml
+    GameController {
+        id: controller
+        layout: "full"
+        function pickSource() {
+            if (numConnectedGamepads > 0) selectGamepad(0)
+            else selectTouchscreenGamepad()
+        }
+        Component.onCompleted: pickSource()
+        onNumConnectedGamepadsChanged: pickSource()
+    }
+    \endqml
+
     \section1 Input Sources
 
     \list
     \li \b Keyboard - Map any keys to directions and buttons
-    \li \b Gamepad - Physical game controllers (Xbox, PlayStation, etc.)
+    \li \b Gamepad - Physical game controllers (Xbox, PlayStation, Switch,
+         the Steam Deck), read through SDL3 on Linux, Windows, macOS and iOS
+         and through the Gamepad API in the browser
     \li \b Touchscreen - Virtual on-screen gamepad overlay
     \endlist
 
@@ -60,11 +97,34 @@
     \inqmlmodule Clayground.GameController
     \brief A unified game input system supporting keyboard, gamepad, and touchscreen.
 
-    GameController provides a simple NES-style controller abstraction with
-    directional axis controls and two action buttons. It supports multiple
-    input sources that can be switched at runtime.
+    GameController provides one controller abstraction in two layouts, picked
+    with \l layout: \c nes, a stick and two action buttons, and \c full, two
+    sticks, A/B/X/Y, shoulders, triggers and start/select. It supports
+    multiple input sources that can be switched at runtime. Every source -
+    keyboard, touchscreen, a physical gamepad, the Dojo's agent input - sets
+    only the inputs of the layout; the others stay neutral, 0 or false.
+
+    Each input has a name, listed by \l inputs: \c axisX, \c axisY,
+    \c axisRightX, \c axisRightY, \c triggerL2 and \c triggerR2 are
+    properties of that name; a button \c buttonA is the property
+    \c buttonAPressed.
 
     \section1 Properties
+
+    \qmlproperty string GameController::layout
+    Which inputs the controller has: \c "nes" (the default) for axisX, axisY,
+    buttonA and buttonB, or \c "full" for all fourteen inputs. Any other value
+    warns and acts as \c nes. Changing it sets the inputs the new layout lacks
+    to neutral; the keyboard and Dojo sources set the ones it gains from what
+    they hold.
+
+    \qmlproperty var GameController::inputs
+    \readonly
+    The input names of the layout, in a fixed order:
+    \c {["axisX", "axisY", "buttonA", "buttonB"]} for \c nes, and for
+    \c full axisX, axisY, axisRightX, axisRightY, buttonA, buttonB, buttonX,
+    buttonY, buttonL1, buttonR1, triggerL2, triggerR2, buttonStart,
+    buttonSelect.
 
     \qmlproperty real GameController::axisX
     Horizontal directional axis value in range [-1, 1].
@@ -73,12 +133,51 @@
     \qmlproperty real GameController::axisY
     Vertical directional axis value in range [-1, 1].
     Negative values indicate down, positive values indicate up.
+    With the \c full layout axisX and axisY are the left stick.
+
+    \qmlproperty real GameController::axisRightX
+    Horizontal axis of the right stick in range [-1, 1], right positive.
+    \c full layout only.
+
+    \qmlproperty real GameController::axisRightY
+    Vertical axis of the right stick in range [-1, 1], up positive.
+    \c full layout only.
 
     \qmlproperty bool GameController::buttonAPressed
     True when the primary action button (A) is pressed.
 
     \qmlproperty bool GameController::buttonBPressed
     True when the secondary action button (B) is pressed.
+
+    \qmlproperty bool GameController::buttonXPressed
+    True when button X is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::buttonYPressed
+    True when button Y is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::buttonL1Pressed
+    True when the left shoulder button is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::buttonR1Pressed
+    True when the right shoulder button is pressed. \c full layout only.
+
+    \qmlproperty real GameController::triggerL2
+    How far the left trigger is pulled, in range [0, 1]; a key or a touch
+    reads 1 while held. \c full layout only.
+
+    \qmlproperty real GameController::triggerR2
+    How far the right trigger is pulled, in range [0, 1]; a key or a touch
+    reads 1 while held. \c full layout only.
+
+    \qmlproperty bool GameController::buttonStartPressed
+    True when start is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::buttonSelectPressed
+    True when select is pressed. \c full layout only.
+
+    \qmlproperty bool GameController::syntheticActive
+    \readonly
+    True once the Dojo inspector has sent agent input to this session.
 
     \qmlproperty bool GameController::showDebugOverlay
     Shows a visual debug overlay displaying current controller state.
@@ -96,29 +195,148 @@
     \readonly
     True if keyboard is the active input source.
 
+    \qmlproperty var GameController::gamepads
+    \readonly
+    The physical gamepads connected to the machine, in the order they were
+    connected; empty on Android builds, which read no pads yet. In the
+    browser a pad is listed only once it was pressed with the page in
+    front. Each pad has these properties:
+
+    \list
+    \li \c deviceId - unique while the pad is connected
+    \li \c name - the pad's name, e.g. "Xbox Series X Controller"
+    \li \c type - \c xbox360, \c xboxone, \c ps3, \c ps4, \c ps5,
+         \c switchpro, \c steam, ... or \c standard; in the browser
+         \c standard, \c unmapped for a pad the browser does not map to
+         its standard gamepad, or \c unsupported in Firefox
+    \li \c buttons - the buttons it has, by position: \c south, \c east,
+         \c west, \c north, \c back, \c guide, \c start, \c leftStick,
+         \c rightStick, \c leftShoulder, \c rightShoulder, \c dpadUp,
+         \c dpadDown, \c dpadLeft, \c dpadRight, \c misc1 to \c misc6,
+         \c leftPaddle1/2, \c rightPaddle1/2, \c touchpad
+    \li \c axes - the axes it has: \c leftX, \c leftY, \c rightX,
+         \c rightY in [-1, 1] with y down, \c leftTrigger, \c rightTrigger
+         in [0, 1]
+    \li \c values - every button (bool) and axis (number) by name, live
+    \li \c labels - what the face buttons are printed with, e.g.
+         \c {{south: "Cross"}}
+    \endlist
+
+    SDL brings a database of pad models, so a known pad reports the standard
+    buttons whatever its raw button numbers; a pad it does not know takes a
+    mapping line through the environment, \c SDL_GAMECONTROLLERCONFIG, or a
+    file of them, \c SDL_GAMECONTROLLERCONFIG_FILE. Under Steam Input a game
+    sees Steam's virtual pad, named after the pad it stands for, instead of
+    the physical one.
+
+    In the browser the pads come from \c navigator.getGamepads(). A pad the
+    browser maps to its standard gamepad reports its standard buttons and
+    axes; one it does not map is read by the same numbering, and its buttons
+    may come up under other names. The browser names no make and no face
+    button labels, so \c labels is empty there. Firefox is not supported
+    yet: it reported an untouched pad with buttons pressed, so there a pad is
+    listed with type \c unsupported and no buttons or axes, and drives no
+    input (clayground#474). A game in an iframe whose
+    embedding page restricts \c gamepad in its Permissions-Policy needs
+    \c {allow="gamepad"} on the iframe.
+
     \qmlproperty var GameController::gamepad
     \readonly
-    Reference to the connected physical gamepad object, or null if none.
+    The selected physical gamepad, one of \c gamepads, or null.
 
     \qmlproperty int GameController::gamepadDeviceId
     \readonly
-    Device ID of the connected gamepad, or -1 if no gamepad is connected.
+    The deviceId of the selected gamepad, or -1 if none is selected.
 
     \qmlproperty int GameController::numConnectedGamepads
     \readonly
-    Number of currently connected physical gamepads.
+    Number of currently connected physical gamepads; it follows pads being
+    plugged in and out.
 
     \section1 Methods
 
     \qmlmethod void GameController::selectGamepad(int gamePadIdx, bool useAnalogAxis)
-    Selects a physical gamepad as the input source.
-    \a gamePadIdx is the index of the gamepad to select (0-based).
-    \a useAnalogAxis if true uses analog sticks for axis, otherwise uses D-pad.
+    Selects the physical gamepad at \a gamePadIdx of \c gamepads as the
+    input source. The left stick and the d-pad drive axisX and axisY, the
+    d-pad winning while pressed; with \a useAnalogAxis false only the d-pad
+    does. The sticks have a round dead zone of 0.2 and read 0 to 1 beyond it.
+
+    Buttons count by position: buttonA is the bottom face button (Xbox A,
+    PlayStation Cross), buttonB the right one, buttonX the left one, buttonY
+    the top one. The right stick drives axisRightX/Y, the shoulder buttons
+    buttonL1/R1, the analog triggers triggerL2/R2, start and back
+    buttonStart and buttonSelect. Guide, the stick clicks and paddles have no
+    input in the layouts.
+
+    When the selected pad is unplugged, every input goes neutral and
+    \c gamepadSelected turns false. An index without a pad logs an error and
+    changes nothing.
 
     \qmlmethod void GameController::selectKeyboard(var upKey, var downKey, var leftKey, var rightKey, var buttonAKey, var buttonBKey)
     Configures keyboard as the input source with specified key mappings.
-    All parameters are Qt.Key values for the respective directions and buttons.
+    All parameters are Qt.Key values for the respective directions and buttons;
+    \a buttonAKey presses B and \a buttonBKey presses A, as they always have.
+
+    Alternatively \a upKey is one map from input name to key, which can set
+    every input of the \c full layout: a button or a trigger takes one key, an
+    axis takes [negative key, positive key], e.g.
+    \c {selectKeyboard({axisX: [Qt.Key_A, Qt.Key_D], buttonL1: Qt.Key_Q})}.
+    Inputs the layout lacks are ignored.
+
+    \qmlmethod var GameController::inputValue(string name)
+    Returns the current value of the input \a name, as \l inputs names it:
+    a number for an axis or a trigger, a bool for a button.
 
     \qmlmethod void GameController::selectTouchscreenGamepad()
-    Enables the touchscreen virtual gamepad overlay for touch input.
+    Enables the touchscreen virtual gamepad overlay for touch input. It shows
+    a stick and a pad for every input of the layout; see TouchscreenGamepad.
+*/
+
+/*!
+    \qmltype GamepadHub
+    \inqmlmodule Clayground.GameController
+    \brief Internal singleton listing the connected physical gamepads.
+
+    GamepadHub reads physical pads through one backend - SDL3 on Linux,
+    Windows, macOS and iOS, the browser's Gamepad API on WebAssembly -
+    polled 125 times a second, and lists them. Games use
+    GameController.gamepads, numConnectedGamepads and selectGamepad() rather
+    than the hub.
+
+    \section1 Properties
+
+    \qmlproperty string GamepadHub::backend
+    \readonly
+    The backend reading the pads: \c sdl, \c browser, or \c none where
+    the build reads no pads.
+
+    \qmlproperty list GamepadHub::gamepads
+    \readonly
+    The connected pads, as GameController.gamepads describes them.
+
+    \qmlproperty int GamepadHub::count
+    \readonly
+    The number of connected pads.
+
+    \section1 Methods
+
+    \qmlmethod object GamepadHub::gamepad(int deviceId)
+    Returns the pad with \a deviceId, or null when it is not connected.
+
+    \qmlmethod int GamepadHub::attachVirtualGamepad(string name)
+    Plugs in a pad that exists only in software, called \a name, with every
+    standard button and axis, and returns its deviceId; -1 where the backend
+    has no such pads. For tests: the pad goes through the same backend as a
+    real one.
+
+    \qmlmethod bool GamepadHub::setVirtualGamepadInput(int deviceId, string input, real value)
+    Sets the button or axis \a input of the virtual pad \a deviceId to
+    \a value, named as the pad's \c buttons and \c axes name them; a button
+    is pressed above 0.5. Returns false for an unknown pad or input.
+
+    \qmlmethod bool GamepadHub::detachVirtualGamepad(int deviceId)
+    Unplugs the virtual pad \a deviceId.
+
+    \qmlmethod void GamepadHub::poll()
+    Reads the backend now rather than at the next tick.
 */

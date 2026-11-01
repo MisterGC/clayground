@@ -4,6 +4,7 @@
 
 #include "audio_output.h"
 #include "engine/engine.h"
+#include "engine/instrument_spec.h"
 #include "engine/note_event.h"
 #include "engine/oscillator_instrument.h"
 #include "engine/pcm_buffer.h"
@@ -36,6 +37,15 @@ static int mapLfoTarget(const QString &name)
     if (name == "pitch")  return 1;
     if (name == "volume") return 2;
     return 0;
+}
+
+static cs::OscillatorVoice::FilterType mapFilterType(const QString &name)
+{
+    using F = cs::OscillatorVoice::FilterType;
+    if (name == "lowpass")  return F::LowPass;
+    if (name == "highpass") return F::HighPass;
+    if (name == "bandpass") return F::BandPass;
+    return F::Off;
 }
 
 SynthInstrument::SynthInstrument(QObject *parent)
@@ -170,6 +180,86 @@ void SynthInstrument::setLfoTarget(const QString &t)
     emit lfoTargetChanged();
 }
 
+void SynthInstrument::setPulseWidth(qreal v)
+{
+    v = std::clamp(v, 0.05, 0.95);
+    if (patch_.pulseWidth == v) return;
+    patch_.pulseWidth = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit pulseWidthChanged();
+}
+
+void SynthInstrument::setFilterType(const QString &t)
+{
+    if (t == filterTypeName_) return;
+    filterTypeName_ = t;
+    patch_.filterType = mapFilterType(t);
+    oscInst_->setDefaultPatch(patch_);
+    emit filterTypeChanged();
+}
+
+void SynthInstrument::setCutoff(qreal v)
+{
+    v = std::clamp(v, 20.0, 20000.0);
+    if (patch_.cutoff == v) return;
+    patch_.cutoff = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit cutoffChanged();
+}
+
+void SynthInstrument::setResonance(qreal v)
+{
+    v = std::clamp(v, 0.0, 1.0);
+    if (patch_.resonance == v) return;
+    patch_.resonance = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit resonanceChanged();
+}
+
+void SynthInstrument::setFilterAttack(qreal v)
+{
+    v = std::max(0.0, v);
+    if (patch_.filterAttack == v) return;
+    patch_.filterAttack = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterAttackChanged();
+}
+
+void SynthInstrument::setFilterDecay(qreal v)
+{
+    v = std::max(0.0, v);
+    if (patch_.filterDecay == v) return;
+    patch_.filterDecay = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterDecayChanged();
+}
+
+void SynthInstrument::setFilterSustain(qreal v)
+{
+    v = std::clamp(v, 0.0, 1.0);
+    if (patch_.filterSustain == v) return;
+    patch_.filterSustain = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterSustainChanged();
+}
+
+void SynthInstrument::setFilterRelease(qreal v)
+{
+    v = std::max(0.0, v);
+    if (patch_.filterRelease == v) return;
+    patch_.filterRelease = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterReleaseChanged();
+}
+
+void SynthInstrument::setFilterEnvAmount(qreal v)
+{
+    if (patch_.filterEnvAmount == v) return;
+    patch_.filterEnvAmount = v;
+    oscInst_->setDefaultPatch(patch_);
+    emit filterEnvAmountChanged();
+}
+
 void SynthInstrument::setVolume(qreal v)
 {
     v = std::clamp(v, 0.0, 1.0);
@@ -177,6 +267,42 @@ void SynthInstrument::setVolume(qreal v)
     volume_ = v;
     if (oscInst_) oscInst_->setGain(static_cast<float>(v));
     emit volumeChanged();
+}
+
+void SynthInstrument::setPan(qreal v)
+{
+    v = std::clamp(v, -1.0, 1.0);
+    if (pan_ == v) return;
+    pan_ = v;
+    if (oscInst_) oscInst_->setPan(static_cast<float>(v));
+    emit panChanged();
+}
+
+QString SynthInstrument::bus() const
+{
+    return cs::AudioOutput::busName(bus_);
+}
+
+void SynthInstrument::setBus(const QString &name)
+{
+    cs::Bus b = bus_;
+    if (!cs::AudioOutput::busFromName(name, b)) {
+        qWarning() << "SynthInstrument: unknown bus" << name << "- use sfx, music or voice";
+        return;
+    }
+    if (b == bus_) return;
+    bus_ = b;
+    if (oscInst_) oscInst_->setBus(b);
+    emit busChanged();
+}
+
+void SynthInstrument::setMaxVoices(int n)
+{
+    n = std::max(0, n);
+    if (maxVoices_ == n) return;
+    maxVoices_ = n;
+    if (oscInst_) oscInst_->setMaxVoices(n);
+    emit maxVoicesChanged();
 }
 
 int SynthInstrument::activeVoices() const
@@ -206,22 +332,26 @@ bool SynthInstrument::trigger(qreal freqHz, qreal velocity, qreal durationSecond
     output.start(); // idempotent; opens the sink on first triggered note
 
     auto& eng = output.engine();
-    cs::NoteEvent ev;
-    ev.timeFrames     = eng.currentFrame();  // fire on the next render pass
-    ev.durationFrames = static_cast<int64_t>(std::llround(durationSeconds * SAMPLE_RATE));
-    ev.freqHz         = freqHz;
-    ev.velocity       = static_cast<float>(std::clamp(velocity, 0.0, 1.0));
-    ev.instrumentId   = oscInstId_;
-
-    const cs::EventId id = eng.schedule(ev);
-    oscInst_->pushPatch(id, patch_);
-    return true;
+    // Fire on the next render pass.
+    return cs::scheduleNote(eng, oscInstId_, *oscInst_, spec(), freqHz, velocity,
+                            durationSeconds, eng.currentFrame(), output.triggerGainStage());
 }
 
 bool SynthInstrument::triggerNote(int midiNote, qreal velocity, qreal durationSeconds)
 {
-    const qreal freq = 440.0 * std::pow(2.0, (midiNote - 69) / 12.0);
-    return trigger(freq, velocity, durationSeconds);
+    return trigger(cs::midiToHz(midiNote), velocity, durationSeconds);
+}
+
+cs::InstrumentSpec SynthInstrument::spec() const
+{
+    cs::InstrumentSpec s;
+    s.kind = cs::InstrumentSpec::Kind::Synth;
+    s.synth = patch_;
+    s.gain = static_cast<float>(volume_);
+    s.pan = static_cast<float>(pan_);
+    s.bus = bus_;
+    s.maxVoices = maxVoices_;
+    return s;
 }
 
 QVector<float> SynthInstrument::renderOffline(qreal durationSeconds)
@@ -299,6 +429,15 @@ QString SynthInstrument::bake(int midiNote, qreal durationSeconds, qreal velocit
     signature += QByteArray::number(patch_.lfoRate,    'g', 6) + '|';
     signature += QByteArray::number(patch_.lfoDepth,   'g', 6) + '|';
     signature += lfoTargetName_.toUtf8() + '|';
+    signature += QByteArray::number(patch_.pulseWidth,      'g', 6) + '|';
+    signature += filterTypeName_.toUtf8() + '|';
+    signature += QByteArray::number(patch_.cutoff,          'g', 6) + '|';
+    signature += QByteArray::number(patch_.resonance,       'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterAttack,    'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterDecay,     'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterSustain,   'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterRelease,   'g', 6) + '|';
+    signature += QByteArray::number(patch_.filterEnvAmount, 'g', 6) + '|';
     signature += QByteArray::number(midiNote) + '|';
     signature += QByteArray::number(durationSeconds, 'g', 6) + '|';
     signature += QByteArray::number(velocity, 'g', 6);

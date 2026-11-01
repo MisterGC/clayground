@@ -8,6 +8,8 @@
 #ifndef SAMPLE_INSTRUMENT_H
 #define SAMPLE_INSTRUMENT_H
 
+#include "engine/bus.h"
+#include "engine/instrument_spec.h"
 #include "engine/sample_voice.h"
 
 #include <QByteArray>
@@ -43,6 +45,10 @@ class SampleInstrument : public QObject
     Q_PROPERTY(qreal   attack     READ attack     WRITE setAttack     NOTIFY attackChanged)
     Q_PROPERTY(qreal   release    READ release    WRITE setRelease    NOTIFY releaseChanged)
     Q_PROPERTY(qreal   volume     READ volume     WRITE setVolume     NOTIFY volumeChanged)
+    Q_PROPERTY(qreal   pan        READ pan        WRITE setPan        NOTIFY panChanged)
+    Q_PROPERTY(QString bus        READ bus        WRITE setBus        NOTIFY busChanged)
+    Q_PROPERTY(QString interpolation READ interpolation WRITE setInterpolation NOTIFY interpolationChanged)
+    Q_PROPERTY(int     maxVoices  READ maxVoices  WRITE setMaxVoices  NOTIFY maxVoicesChanged)
     Q_PROPERTY(bool    loaded     READ loaded     NOTIFY loadedChanged)
     Q_PROPERTY(int     activeVoices READ activeVoices NOTIFY activeVoicesChanged)
     Q_PROPERTY(QString errorString READ errorString NOTIFY errorStringChanged)
@@ -71,6 +77,24 @@ public:
     qreal volume() const { return volume_; }
     void  setVolume(qreal v);
 
+    // -1 left .. +1 right; 0 plays centred, the same in both channels.
+    qreal pan() const { return pan_; }
+    void  setPan(qreal v);
+
+    // The bus the voices mix into: "sfx" (default), "music" or "voice".
+    QString bus() const;
+    void    setBus(const QString &name);
+
+    // How the voices read between source samples: "nearest", "linear"
+    // (default) or "gaussian" (soft, SNES-like). Applies to new notes.
+    QString interpolation() const;
+    void    setInterpolation(const QString &name);
+
+    // At most this many voices ring at once; a note beyond it cuts the
+    // oldest. 0 (default) is no cap.
+    int  maxVoices() const { return maxVoices_; }
+    void setMaxVoices(int n);
+
     bool   loaded() const { return loaded_; }
     int    activeVoices() const;
     QString errorString() const { return error_; }
@@ -91,6 +115,11 @@ public:
     // Stop all currently playing voices at their next render step.
     Q_INVOKABLE void stopAll();
 
+    // The sample, root note, patch, volume, pan, bus and voice cap as
+    // the engine plays them: what a song's offline render needs of this
+    // instrument. No sample until the source has loaded.
+    clay::sound::InstrumentSpec spec() const;
+
     // Offline mono render of the engine state for `durationSeconds`.
     Q_INVOKABLE QVector<float> renderOffline(qreal durationSeconds);
 
@@ -103,6 +132,10 @@ signals:
     void attackChanged();
     void releaseChanged();
     void volumeChanged();
+    void panChanged();
+    void busChanged();
+    void interpolationChanged();
+    void maxVoicesChanged();
     void loadedChanged();
     void activeVoicesChanged();
     void errorStringChanged();
@@ -136,6 +169,9 @@ private:
     bool    loaded_ = false;
 
     qreal volume_     = 1.0;
+    qreal pan_ = 0.0;
+    clay::sound::Bus bus_ = clay::sound::Bus::Sfx;
+    int maxVoices_ = 0;
     int   lastActive_ = 0;
 
     // Async fetch path for http/https sources (WASM, hot-reload servers).

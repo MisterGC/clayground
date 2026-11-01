@@ -17,7 +17,8 @@ struct NoteEvent
     double   freqHz         = 440.0;  // Pitch. MIDI-note helpers live at a higher layer.
     float    velocity       = 1.0f;   // 0..1
     int      instrumentId   = -1;     // -1 = unbound; engine ignores
-    float    pan            = 0.0f;   // -1 left .. +1 right (mono engine ignores for now)
+    float    pan            = 0.0f;   // -1 left .. +1 right, added to the instrument's pan
+    int      gainStage      = -1;     // Engine::addGainStage() id scaling this note; -1 = none
     uint32_t effectPayload  = 0;      // Reserved for tracker effects; opaque in Stage 0
 };
 

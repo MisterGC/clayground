@@ -10,3 +10,7 @@
 # and the recorder writes LF everywhere; a CRLF checkout failed every lab
 # gate with records on Windows (#330).
 *.labrec text eol=lf
+
+# A compiled effect recipe is compared byte for byte with what the design
+# compiler writes, and it writes LF everywhere (#446).
+*.sfx.json text eol=lf

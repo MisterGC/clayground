@@ -9,9 +9,18 @@
 // the source instrument's current gain to that voice's contribution,
 // so multiple instruments sharing one engine + sink can each have
 // independent volume.
+//
+// It also carries a `pan` (-1 left .. +1 right, default 0 = centre)
+// and the `bus` its voices mix into (see bus.h). Both are read on
+// every mix pass, like the gain, so they move notes already ringing.
+//
+// `maxVoices` caps how many of its voices ring at once: a note that
+// would exceed it cuts the instrument's oldest voice. 0, the default,
+// is no cap.
 
 #pragma once
 
+#include "bus.h"
 #include "scheduler.h"
 #include <atomic>
 #include <memory>
@@ -40,9 +49,22 @@ public:
     void  setGain(float g) { gain_.store(clampGain(g), std::memory_order_relaxed); }
     float gain() const     { return gain_.load(std::memory_order_relaxed); }
 
+    void  setPan(float p) { pan_.store(p < -1.0f ? -1.0f : (p > 1.0f ? 1.0f : p),
+                                       std::memory_order_relaxed); }
+    float pan() const     { return pan_.load(std::memory_order_relaxed); }
+
+    void setBus(Bus b) { bus_.store(b, std::memory_order_relaxed); }
+    Bus  bus() const   { return bus_.load(std::memory_order_relaxed); }
+
+    void setMaxVoices(int n) { maxVoices_.store(n < 0 ? 0 : n, std::memory_order_relaxed); }
+    int  maxVoices() const   { return maxVoices_.load(std::memory_order_relaxed); }
+
 private:
     static float clampGain(float g) { return g < 0.0f ? 0.0f : (g > 1.0f ? 1.0f : g); }
     std::atomic<float> gain_{1.0f};
+    std::atomic<float> pan_{0.0f};
+    std::atomic<Bus>   bus_{Bus::Sfx};
+    std::atomic<int>   maxVoices_{0};
 };
 
 } // namespace clay::sound

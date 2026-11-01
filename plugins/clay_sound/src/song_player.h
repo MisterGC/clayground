@@ -15,11 +15,29 @@
 // `objectName` of the provided instruments, then advances playback
 // position in beats on an internal timer, firing `triggerNote()` on
 // the matching instrument.
+//
+// `volume` scales every note the player triggers, on whichever
+// instrument, and keeps scaling them while they ring, so animating it
+// fades a whole song. It is a gain stage of the shared engine that the
+// player names around each triggerNote() it sends.
+//
+// A version 2 song plays on the instruments it defines (`instruments`
+// is not read) and follows the game: `state` names the segment to move
+// to, `intensity` fades its layers, playStinger() plays one on top.
+// Such a song is not ticked note by note: a SongSequencer
+// (song/song_sequencer.h) hands out its notes on exact frames and the
+// player schedules them kScheduleAheadFrames ahead of the engine, the
+// path renderOffline() takes too. A control reaches the song that far
+// ahead of the engine's frame, so the same controls at the same song
+// frames sound the same live and offline. Its playhead is the engine's:
+// it moves while the sink renders. v1 songs keep the tick.
 
 #ifndef CLAY_SOUND_SONG_PLAYER_H
 #define CLAY_SOUND_SONG_PLAYER_H
 
 #include "song/song_model.h"
+#include "song/song_render.h"
+#include "song/song_sequencer.h"
 
 #include <QElapsedTimer>
 #include <QFileSystemWatcher>
@@ -32,6 +50,10 @@
 #include <QUrl>
 #include <QVariantList>
 #include <QVector>
+
+#include <deque>
+#include <memory>
+#include <utility>
 
 QT_BEGIN_NAMESPACE
 class QNetworkAccessManager;
@@ -51,7 +73,12 @@ class SongPlayer : public QObject
     Q_PROPERTY(qreal         tempo       READ tempo       NOTIFY tempoChanged)
     Q_PROPERTY(qreal         totalBeats  READ totalBeats  NOTIFY totalBeatsChanged)
     Q_PROPERTY(bool          loop        READ loop        WRITE setLoop        NOTIFY loopChanged)
+    Q_PROPERTY(qreal         volume      READ volume      WRITE setVolume      NOTIFY volumeChanged)
     Q_PROPERTY(QString       error       READ error       NOTIFY errorChanged)
+    Q_PROPERTY(int           version     READ version     NOTIFY loadedChanged)
+    Q_PROPERTY(QString       state       READ state       WRITE setState       NOTIFY stateChanged)
+    Q_PROPERTY(qreal         intensity   READ intensity   WRITE setIntensity   NOTIFY intensityChanged)
+    Q_PROPERTY(QString       segment     READ segment     NOTIFY segmentChanged)
 
 public:
     explicit SongPlayer(QObject *parent = nullptr);
@@ -70,12 +97,46 @@ public:
     qreal  totalBeats() const { return totalBeats_; }
     bool   loop() const { return loop_; }
     void   setLoop(bool v);
+    qreal  volume() const { return volume_; }
+    void   setVolume(qreal v);
     QString error() const { return error_; }
+
+    // v2: the song's file version, its state (a segment), intensity
+    // 0..1 and the segment playing now. Before play() the state and
+    // intensity are where the song starts.
+    int     version() const { return model_.version; }
+    QString state() const { return state_; }
+    void    setState(const QString &s);
+    qreal   intensity() const { return intensity_; }
+    void    setIntensity(qreal v);
+    QString segment() const { return segment_; }
+
+    // How far ahead of the engine a v2 song's notes are scheduled: more
+    // than the sink renders in one pull, so none starts late.
+    static constexpr int kScheduleAheadFrames = 11025;     // 0.25 s
 
     Q_INVOKABLE void play();
     Q_INVOKABLE void pause();
     Q_INVOKABLE void stop();
     Q_INVOKABLE void seek(qreal beats);
+
+    // `seconds` of the song from its start (<= 0: its length) on a
+    // scratch engine, with the instruments' current patches and the
+    // player's volume and loop: mono samples at the engine rate. Notes
+    // start on their exact frame (song/song_render.h); the live sink,
+    // the playhead and the buses are not touched. Only SynthInstrument
+    // and SampleInstrument play here; other instruments stay silent.
+    //
+    // A v2 song renders on its own instruments, from the state and at
+    // the intensity the player has, and `cues` steer it as the game
+    // would: [{ at: 2.0, state: "combat" }, { at: 3, intensity: 1 },
+    // { at: 4, stinger: "alarm" }], `at` in seconds from the start.
+    Q_INVOKABLE QVector<float> renderOffline(qreal seconds = 0.0,
+                                             const QVariantList &cues = {}) const;
+
+    // v2: play the stinger on its sync point. False when there is no
+    // such stinger (or no v2 song).
+    Q_INVOKABLE bool playStinger(const QString &name);
 
 signals:
     void sourceChanged();
@@ -86,7 +147,11 @@ signals:
     void tempoChanged();
     void totalBeatsChanged();
     void loopChanged();
+    void volumeChanged();
     void errorChanged();
+    void stateChanged();
+    void intensityChanged();
+    void segmentChanged();
     void finished();
     void parseError(const QString &message);
 
@@ -95,19 +160,22 @@ private slots:
     void onWatchedFileChanged(const QString &path);
 
 private:
-    struct ScheduledEvent
-    {
-        double  beat = 0.0;
-        double  durBeats = 0.0;
-        double  vel = 0.8;
-        int     midi = 60;
-        QString track;
-    };
-
     void reload();      // full load: drops schedule, resets position
     void hotReload();   // re-parse; keep position, rebuild schedule
     void rebuildSchedule();
     void rebuildInstrumentMap();
+
+    // v2: commit a parsed model (its samples decoded), or start loading
+    // its samples and commit once all arrived.
+    bool isV2() const { return model_.version >= 2; }
+    void loadSamples(const clay::sound::SongModel &model, bool hot);
+    void sampleArrived(int generation, const QString &instrument, const QByteArray &bytes);
+    void commitModel(const clay::sound::SongModel &model, bool hot);
+    void restartSequencer(const QString &segment, double beat);
+    void scheduleAhead();
+    void cancelPendingNotes();
+    void tickV2();
+    void updateSegment(int64_t songFrame);
     void setError(const QString &err);
     void updateWatchedFile(const QString &path);
     QObject *resolveInstrument(const QString &name) const;
@@ -127,13 +195,15 @@ private:
     QHash<QString, QObject *> nameToInstrument_;
 
     clay::sound::SongModel model_;
-    QVector<ScheduledEvent> schedule_;
+    QVector<clay::sound::SongNote> schedule_;
     double            totalBeats_ = 0.0;
     int               nextIdx_ = 0;
 
     bool              loaded_  = false;
     bool              playing_ = false;
     bool              loop_    = false;
+    qreal             volume_  = 1.0;
+    int               gainStage_ = -1;  // in AudioOutput's engine
     double            position_ = 0.0;
     QString           error_;
 
@@ -146,6 +216,22 @@ private:
 
     QNetworkAccessManager *nam_ = nullptr;     // lazily created on first remote fetch
     QPointer<QNetworkReply> activeReply_;      // in-flight load; aborted on a newer one
+
+    // v2 playback on the shared engine.
+    std::unique_ptr<clay::sound::SongSequencer> seq_;
+    clay::sound::SongVoices voices_;
+    bool    anchored_ = false;      // anchor_ is set: the song has played
+    int64_t anchor_ = 0;            // engine frame of song frame 0
+    std::deque<std::pair<clay::sound::EventId, int64_t>> pendingNotes_;  // ticket, frame
+    QString state_;
+    QString segment_;
+    qreal   intensity_ = 0.0;
+
+    // v2 samples on their way; a newer load drops an older one's.
+    int     loadGeneration_ = 0;
+    int     samplesLeft_ = 0;
+    bool    loadHot_ = false;
+    clay::sound::SongModel loading_;
 
 signals:
     void hotReloaded();
