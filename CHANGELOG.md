@@ -5,6 +5,45 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are
 calendar-style (`VERSION` at the repository root). Releases up to 2026.7 are
 described on their [GitHub release pages](https://github.com/MisterGC/clayground/releases).
 
+## [2026.11] - 2026-11-01
+
+Games read physical gamepads on Linux (the Steam Deck included), Windows,
+macOS, iOS and in the browser, through the one `GameController` a game already
+uses, and a controller picks a `layout` with two sticks, ABXY, shoulders and
+triggers. `clay_sound` designs effects from templates and gains grains, FM,
+coloured noise, drive and envelope curves.
+
+### Added
+
+#### Gamepads
+
+- **`GameController` takes a `layout`**: `nes` (stick and A/B, as before) or `full` (two sticks, ABXY, shoulders, triggers, Start and Select). Keyboard, touch and the Dojo's synthetic pad deliver in the layout's terms. (#463)
+- **Physical gamepads through SDL3** on Linux (the Steam Deck included), Windows and macOS: `selectGamepad(i)` drives every input of the layout from a pad, and the demo lists each pad by name with every button and axis it reports, live. (#82)
+- **Gamepads in the browser** through `navigator.getGamepads()`, listed once a button is pressed. Firefox is not supported yet: a pad there is listed but drives no input (#474). (#464)
+- **Gamepads on iOS** through SDL3 and Apple's GameController framework, and an `examples/gamecontroller` app that runs the demo on a device. (#465)
+- **`InputAction` takes a controller button**, like `key` and `mouseButton`, with the same tap, hold and buffered press. (#466)
+
+#### Sound
+
+- **Effect design files**: a template, macro values and overrides compile to a recipe in the engine library. (#446)
+- **Grains**: a recipe layer can emit a seeded burst of grains, capped by the recipe's `maxVoices`. (#448)
+- **Two-operator FM and ring modulation** on a layer. (#450)
+- **Noise has a colour and a rate**, and detune moves a clocked noise layer. (#449)
+- **Random LFO shapes**, and the LFO can drive the filter cutoff. (#451)
+- **Drive and bit-crush** on a layer. (#452)
+- **Envelope segments and the pitch sweep take a curve** from linear to exponential. (#447)
+- **`SfxPlayer` plays a recipe transposed** by a detune in semitones. (#439)
+- **`SynthInstrument` voices get a resonant filter** with its own cutoff envelope, and square waves a pulse width. (#424)
+- **`CLAY_SOUND_MUTE=1`** opens every `clay_sound` output at volume 0, so test runs stay silent. (#478)
+
+### Changed
+
+- **iOS builds leave `clay_network` and `clay_ai` out for now**, so an app builds for iOS again. (#472)
+
+### Fixed
+
+- **WASM pages start their sound on the first click**, and Chrome 156's uncaught `resume()` error is gone. (#480)
+
 ## [2026.9] - 2026-10-10
 
 Input gets a game's timing: one action reads its tap, hold and buffered press
@@ -105,5 +144,6 @@ is opt-in.
 - A note card exactly as tall as the annotation list was scrolled 6 px past its top. (#330)
 - `Poly.closed` was always true, so every open poly drew a closing edge. (#272)
 
+[2026.11]: https://github.com/MisterGC/clayground/compare/v2026.9...v2026.11
 [2026.9]: https://github.com/MisterGC/clayground/compare/v2026.8...v2026.9
 [2026.8]: https://github.com/MisterGC/clayground/compare/v2026.7...v2026.8
