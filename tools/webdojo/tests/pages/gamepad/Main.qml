@@ -5,8 +5,9 @@
 // for navigator.getGamepads(); this page selects the first pad that shows up
 // and prints every input of the full layout as it changes, so each step of
 // steps.json can name the line it has to produce. steps-firefox.json, run
-// with a Firefox user agent, plays Firefox's noise on a pad that must drive
-// nothing.
+// with the user agent of Firefox on macOS, plays Firefox's noise on a Switch
+// Pro Controller that must drive nothing; steps-firefox-linux.json, with the
+// one of Firefox on Linux, has the same pad drive every input (#474).
 
 import QtQuick
 import Clayground.GameController

@@ -418,13 +418,21 @@ jobs:
           --expect "gamepad: ready backend=browser pads=0" \
           --gamepad tools/webdojo/tests/pages/gamepad/steps.json \
           --timeout 120
-        # Firefox reports an untouched pad as pressed, so it reads none
-        # yet (#474): with its user agent the page plays that noise on a
-        # pad that must be listed as unsupported and drive no input
+        # Firefox on macOS reports an untouched Switch Pro Controller as
+        # pressed (#474): with its user agent the page plays that noise on
+        # a pad that must be listed as unsupported and drive no input
         python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
           --overlay tools/webdojo/tests/pages/gamepad \
           --expect "gamepad: ready backend=browser pads=0" \
           --gamepad tools/webdojo/tests/pages/gamepad/steps-firefox.json \
+          --user-agent "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:158.0) Gecko/20100101 Firefox/158.0" \
+          --timeout 120
+        # On Linux - SteamOS - the kernel parses that pad for Firefox, so
+        # there the same pad drives every input
+        python3 tools/webdojo/tests/wasm_smoke_test.py build/clayground-starter \
+          --overlay tools/webdojo/tests/pages/gamepad \
+          --expect "gamepad: ready backend=browser pads=0" \
+          --gamepad tools/webdojo/tests/pages/gamepad/steps-firefox-linux.json \
           --user-agent "Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0" \
           --timeout 120
 

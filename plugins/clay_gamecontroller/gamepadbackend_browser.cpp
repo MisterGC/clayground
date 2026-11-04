@@ -60,6 +60,31 @@ QString BrowserGamepadBackend::padName(const QString &id)
     return name.isEmpty() ? QStringLiteral("Gamepad") : name;
 }
 
+bool BrowserGamepadBackend::firefoxMisreads(const QString &userAgent, const QString &id)
+{
+    static const QRegularExpression firefox(QStringLiteral("Firefox/(\\d+)"));
+    const QRegularExpressionMatch browser = firefox.match(userAgent);
+    if (!browser.hasMatch()) return false;
+
+    // Firefox names a pad "<vendor>-<product>-<name>", both in four hex digits
+    static const QRegularExpression usb(
+        QStringLiteral("^([0-9a-fA-F]{4})-([0-9a-fA-F]{4})-"));
+    const QRegularExpressionMatch pad = usb.match(id);
+    if (!pad.hasMatch()) return false;
+    if (pad.captured(1).toLower() != QStringLiteral("057e")) return false;
+    const QString product = pad.captured(2).toLower();
+    static const QStringList switchPads{
+        QStringLiteral("2006"), QStringLiteral("2007"),
+        QStringLiteral("2009"), QStringLiteral("200e")};
+    if (!switchPads.contains(product)) return false;
+
+    // Linux and Android hand Firefox the pad through the system's own driver
+    if (userAgent.contains(QStringLiteral("Macintosh"))) return true;
+    if (userAgent.contains(QStringLiteral("Windows")))
+        return product != QStringLiteral("2009") || browser.captured(1).toInt() < 155;
+    return false;
+}
+
 QList<BrowserPadState> BrowserGamepadBackend::sample()
 {
     QList<BrowserPadState> pads;
@@ -102,7 +127,7 @@ void BrowserGamepadBackend::poll()
 {
     if (!checkedBrowser_) {
         checkedBrowser_ = true;
-        unsupported_ = userAgent().contains(QStringLiteral("Firefox/"));
+        userAgent_ = userAgent();
     }
     const QList<BrowserPadState> browser = sample();
 
@@ -140,7 +165,7 @@ void BrowserGamepadBackend::open(int slot, const BrowserPadState &state, int dev
     info.type = state.mapping == QStringLiteral("standard") ?
         QStringLiteral("standard") : QStringLiteral("unmapped");
 
-    if (unsupported_) {
+    if (firefoxMisreads(userAgent_, state.id)) {
         // Listed, so the game can say why it does not move: no inputs at all
         info.type = QStringLiteral("unsupported");
         Pad pad;

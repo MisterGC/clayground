@@ -28,10 +28,11 @@ struct BrowserPadState
 // its type says "unmapped". The browser shows a pad to the page only after
 // it was pressed with the page in front - until then there is none.
 //
-// Firefox is not read yet: it reports buttons pressed and a stick moved on an
-// untouched pad (a Switch Pro Controller on macOS, Firefox 158), so a pad
-// there is listed with type "unsupported" and no inputs, and drives nothing
-// until #474 lifts that.
+// Firefox misreads Nintendo's Switch pads where it has no parser for their
+// full input report (firefoxMisreads()): an untouched Switch Pro Controller
+// read with buttons pressed and a stick moving there (Firefox 158 on macOS,
+// #474). Such a pad is listed with type "unsupported" and no inputs, and
+// drives nothing; every other pad in Firefox is read as in any browser.
 class BrowserGamepadBackend : public GamepadBackend
 {
     Q_OBJECT
@@ -51,6 +52,17 @@ public:
     // "(STANDARD GAMEPAD Vendor: 054c Product: 09cc)" to it, Firefox puts
     // "054c-09cc-" in front
     static QString padName(const QString &id);
+
+    // Whether the browser with this user agent reads noise from the pad with
+    // this id. Firefox reads a pad through its HID report descriptor, and the
+    // Switch pads (Nintendo 057e: Joy-Con 2006 and 2007, Pro Controller 2009,
+    // also 8BitDo pads in Switch mode, charging grip 200e) stream a full
+    // report, 0x30, that their descriptor does not describe: its running
+    // timer and battery byte come up as buttons. Firefox parses that report
+    // itself only for the Pro Controller on Windows, from Firefox 155 on; on
+    // Linux the kernel's hid-nintendo driver parses it before Firefox reads
+    // the pad. Chrome has a driver of its own for these pads everywhere.
+    static bool firefoxMisreads(const QString &userAgent, const QString &id);
 
 protected:
     // The browser's slots, in order; empty where there is no Gamepad API.
@@ -77,7 +89,7 @@ private:
     QHash<int, BrowserPadState> virtual_; // by deviceId
     int nextDeviceId_ = 1;
     bool checkedBrowser_ = false;
-    bool unsupported_ = false; // Firefox, see above
+    QString userAgent_;
 };
 
 #endif // GAMEPADBACKEND_BROWSER_H
