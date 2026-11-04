@@ -17,6 +17,15 @@ protected:
 
 static const char *kFirefox =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:158.0) Gecko/20100101 Firefox/158.0";
+static const char *kFirefoxWindows =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:158.0) Gecko/20100101 Firefox/158.0";
+static const char *kFirefoxWindows154 =
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:154.0) Gecko/20100101 Firefox/154.0";
+// SteamOS, the Steam Deck's desktop mode
+static const char *kFirefoxLinux =
+    "Mozilla/5.0 (X11; Linux x86_64; rv:158.0) Gecko/20100101 Firefox/158.0";
+static const char *kFirefoxAndroid =
+    "Mozilla/5.0 (Android 15; Mobile; rv:158.0) Gecko/158.0 Firefox/158.0";
 static const char *kChrome =
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 "
     "(KHTML, like Gecko) Chrome/155.0.0.0 Safari/537.36";
@@ -289,6 +298,74 @@ private slots:
         backend_->pads.clear();
         pollOnce();
         QCOMPARE(removed_.size(), 1);
+    }
+
+    void firefox_misreads_switch_pads_where_it_has_no_parser_data()
+    {
+        QTest::addColumn<QString>("ua");
+        QTest::addColumn<QString>("id");
+        QTest::addColumn<bool>("misreads");
+        const QString pro = "057e-2009-Pro Controller";
+        QTest::newRow("macos pro") << kFirefox << pro << true;
+        QTest::newRow("macos joy-con l") << kFirefox << "057e-2006-Joy-Con (L)" << true;
+        QTest::newRow("macos joy-con r") << kFirefox << "057e-2007-Joy-Con (R)" << true;
+        QTest::newRow("macos grip") << kFirefox << "057e-200e-Joy-Con Charging Grip" << true;
+        QTest::newRow("macos upper case") << kFirefox << "057E-2009-Pro Controller" << true;
+        QTest::newRow("macos dualsense") << kFirefox << "054c-0ce6-DualSense Wireless Controller" << false;
+        QTest::newRow("macos xbox") << kFirefox << "045e-0b13-Xbox Wireless Controller" << false;
+        QTest::newRow("macos other nintendo") << kFirefox << "057e-0337-WUP-028" << false;
+        QTest::newRow("windows pro") << kFirefoxWindows << pro << false;
+        QTest::newRow("windows 154 pro") << kFirefoxWindows154 << pro << true;
+        QTest::newRow("windows joy-con") << kFirefoxWindows << "057e-2006-Joy-Con (L)" << true;
+        QTest::newRow("linux pro") << kFirefoxLinux << pro << false;
+        QTest::newRow("linux steam deck") << kFirefoxLinux << "28de-1205-Steam Deck" << false;
+        QTest::newRow("android pro") << kFirefoxAndroid << pro << false;
+        QTest::newRow("chrome pro") << kChrome
+                                    << "Pro Controller (STANDARD GAMEPAD Vendor: 057e Product: 2009)"
+                                    << false;
+        QTest::newRow("chrome firefox-shaped id") << kChrome << pro << false;
+        QTest::newRow("no user agent") << "" << pro << false;
+    }
+
+    void firefox_misreads_switch_pads_where_it_has_no_parser()
+    {
+        QFETCH(QString, ua);
+        QFETCH(QString, id);
+        QFETCH(bool, misreads);
+        QCOMPARE(BrowserGamepadBackend::firefoxMisreads(ua, id), misreads);
+    }
+
+    void firefox_reads_every_other_pad()
+    {
+        backend_->ua = kFirefox;
+        backend_->pads = {standardPad("054c-0ce6-DualSense Wireless Controller"),
+                          noisyProController("057e-2009-Pro Controller", 0)};
+        pollOnce();
+        QCOMPARE(added_.size(), 2);
+        QCOMPARE(added_[0].type, QStringLiteral("standard"));
+        QCOMPARE(added_[0].axes.size(), 6);
+        QCOMPARE(added_[1].type, QStringLiteral("unsupported"));
+        const int dualSense = added_[0].deviceId;
+
+        // The DualSense drives; the Pro Controller beside it still does not
+        backend_->pads[0].buttonPressed[0] = true;
+        backend_->pads[1] = noisyProController("057e-2009-Pro Controller", 1);
+        pollOnce();
+        QCOMPARE(changes_.size(), 1);
+        QCOMPARE(changes_.first().deviceId, dualSense);
+        QCOMPARE(changes_.first().input, QStringLiteral("south"));
+    }
+
+    void firefox_on_linux_reads_the_pro_controller()
+    {
+        backend_->ua = kFirefoxLinux;
+        backend_->pads = {standardPad("057e-2009-Pro Controller")};
+        pollOnce();
+        QCOMPARE(added_.first().name, QStringLiteral("Pro Controller"));
+        QCOMPARE(added_.first().type, QStringLiteral("standard"));
+        backend_->pads[0].axes[0] = -.5;
+        pollOnce();
+        QCOMPARE(changed().value("leftX"), -.5);
     }
 
     void chrome_reads_the_same_pad()
