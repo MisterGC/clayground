@@ -191,12 +191,20 @@ In the browser - the WebAssembly build, the WebDojo included - pads come from
 `navigator.getGamepads()`, read 125 times a second like SDL on the desktop.
 What the browser decides:
 
-- **Firefox is not supported yet.** Firefox 158 on macOS reported an untouched
-  Switch Pro Controller with buttons pressed and its stick moving, while
-  Chrome on the same Mac read it clean. So in Firefox a pad is listed, with
-  `type` `unsupported` and no buttons or axes, and drives no input; the demo
-  asks the player to use Chrome. Lifting this where Firefox delivers clean
-  input is [#474](https://github.com/MisterGC/clayground/issues/474).
+- **Firefox reads every pad but the Switch pads, on macOS and Windows.**
+  Firefox reads a pad by its HID report descriptor, and Nintendo's Switch
+  pads - the Pro Controller, the Joy-Cons, the charging grip, and 8BitDo pads
+  in Switch mode - stream a full report their descriptor does not describe.
+  On macOS an untouched Switch Pro Controller read with buttons pressed and
+  its stick moving, while Chrome, which has a driver of its own for these
+  pads, read it clean. So there such a pad is listed with `type`
+  `unsupported` and no buttons or axes, and drives no input; the demo asks
+  the player to use Chrome. On Windows Firefox parses the Pro Controller
+  itself from Firefox 155 on, and on Linux, SteamOS included, the kernel
+  parses all of them, so there they are read like any other pad
+  ([#474](https://github.com/MisterGC/clayground/issues/474)). The
+  [gamepad check](https://clayground.mistergc.dev/tools/gamepad/) shows what
+  `navigator.getGamepads()` returns, raw, to check a pad in a browser.
 
 - **A pad shows up only after it is pressed.** A browser hides the pads from
   a page until someone presses a button or moves a stick on one while the
