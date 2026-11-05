@@ -5,6 +5,12 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are
 calendar-style (`VERSION` at the repository root). Releases up to 2026.7 are
 described on their [GitHub release pages](https://github.com/MisterGC/clayground/releases).
 
+## [Unreleased]
+
+### Changed
+
+- **Firefox reads gamepads**: every pad on Linux, SteamOS included, and every pad but Nintendo's Switch pads on macOS and Windows, where Firefox misreads their input; there such a pad stays listed as `unsupported`, and on Windows the Pro Controller is read from Firefox 155 on. A page on the website shows what `navigator.getGamepads()` returns, raw. (#474)
+
 ## [2026.11] - 2026-11-01
 
 Games read physical gamepads on Linux (the Steam Deck included), Windows,
