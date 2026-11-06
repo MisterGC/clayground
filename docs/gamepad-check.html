@@ -1,0 +1,240 @@
+---
+layout: null
+permalink: /tools/gamepad/
+sitemap: false
+---
+<!doctype html>
+<html lang="en">
+<!--
+  (c) Clayground Contributors - MIT License, see "LICENSE" file
+
+  Gamepad check: what navigator.getGamepads() returns, raw, in this browser.
+  No clayground involved - this is the input a game's GameController starts
+  from, so a pad that is noisy here is noisy in every web game (#474).
+  Every value is counted while the pad lies still: a clean pad changes
+  nothing, a noisy one shows its changes and its range.
+-->
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gamepad check</title>
+<style>
+  :root {
+    --bg: #1e1c19; --panel: #282520; --line: #3b372f; --text: #e8e4dd;
+    --muted: #8c877f; --on: #d4ba6a; --noise: #f0a050; --link: #94d1ff;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #f6f4ef; --panel: #ffffff; --line: #ddd8ce; --text: #26231f;
+            --muted: #6f6a62; --on: #9a7a12; --noise: #b85c00; --link: #0b62a8; }
+  }
+  html, body { margin: 0; background: var(--bg); color: var(--text);
+               font: 14px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+  main { max-width: 60rem; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+  h1 { font-size: 1.3rem; margin: 0 0 .5rem; }
+  p { margin: .4rem 0; }
+  .muted { color: var(--muted); }
+  .bar { display: flex; flex-wrap: wrap; gap: .5rem; margin: 1rem 0; align-items: center; }
+  button { font: inherit; padding: .35rem .8rem; border-radius: 4px; cursor: pointer;
+           background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+  .pad { background: var(--panel); border: 1px solid var(--line); border-radius: 6px;
+         padding: .8rem 1rem; margin: 1rem 0; overflow-wrap: anywhere; }
+  .pad h2 { font-size: 1rem; margin: 0 0 .3rem; }
+  table { border-collapse: collapse; width: 100%; margin-top: .5rem; }
+  th, td { text-align: right; padding: .1rem .5rem; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { text-align: left; }
+  tr.on td { color: var(--on); font-weight: bold; }
+  td.noise { color: var(--noise); font-weight: bold; }
+  textarea { width: 100%; box-sizing: border-box; min-height: 12rem; font: inherit;
+             background: var(--panel); color: var(--text); border: 1px solid var(--line); }
+  a { color: var(--link); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: 0 1.5rem;
+          align-items: start; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Gamepad check</h1>
+  <p>What this browser's <code>navigator.getGamepads()</code> returns, raw, for every pad.</p>
+  <p class="muted">A browser lists a pad only after a button on it was pressed with this
+    page in front. To look for noise: press a button, let go, put the pad down, press
+    <b>Reset counts</b> and wait ten seconds without touching it. A clean pad shows 0
+    changes everywhere; a changed count, in orange, is input nobody gave.</p>
+  <p id="browser" class="muted"></p>
+  <div class="bar">
+    <button id="reset">Reset counts</button>
+    <button id="copy">Copy report</button>
+    <span id="since" class="muted"></span>
+  </div>
+  <div id="pads"><p>No pad yet - press a button on one.</p></div>
+  <h2 style="font-size:1rem">Report</h2>
+  <p class="muted">Filled by <b>Copy report</b>, ready to paste.</p>
+  <textarea id="report" readonly></textarea>
+  <h2 style="font-size:1rem">Events</h2>
+  <div id="events" class="muted"></div>
+</main>
+<script>
+(function () {
+  "use strict";
+  var hasApi = typeof navigator.getGamepads === "function";
+  document.getElementById("browser").textContent =
+    "User agent: " + navigator.userAgent + (hasApi ? "" : "  -  this browser has no Gamepad API");
+
+  // Per pad index: what was seen since the last reset
+  var stats = {};
+  var since = performance.now();
+
+  function fresh(pad) {
+    var s = { id: pad.id, buttons: [], axes: [] };
+    pad.buttons.forEach(function (b) {
+      s.buttons.push({ pressed: b.pressed, value: b.value, flips: 0, min: b.value, max: b.value });
+    });
+    pad.axes.forEach(function (v) { s.axes.push({ value: v, changes: 0, min: v, max: v }); });
+    return s;
+  }
+
+  function reset() {
+    stats = {};
+    since = performance.now();
+  }
+
+  function track(pad) {
+    var s = stats[pad.index];
+    if (!s || s.id !== pad.id || s.buttons.length !== pad.buttons.length ||
+        s.axes.length !== pad.axes.length) {
+      s = stats[pad.index] = fresh(pad);
+      return s;
+    }
+    pad.buttons.forEach(function (b, i) {
+      var t = s.buttons[i];
+      if (b.pressed !== t.pressed) t.flips++;
+      t.pressed = b.pressed;
+      t.value = b.value;
+      t.min = Math.min(t.min, b.value);
+      t.max = Math.max(t.max, b.value);
+    });
+    pad.axes.forEach(function (v, i) {
+      var t = s.axes[i];
+      if (v !== t.value) t.changes++;
+      t.value = v;
+      t.min = Math.min(t.min, v);
+      t.max = Math.max(t.max, v);
+    });
+    return s;
+  }
+
+  // Chrome: "Name (STANDARD GAMEPAD Vendor: 054c Product: 0ce6)",
+  // Firefox: "054c-0ce6-Name"
+  function usbIds(id) {
+    var m = /Vendor:\s*([0-9a-f]{4})\s*Product:\s*([0-9a-f]{4})/i.exec(id) ||
+            /^([0-9a-f]{4})-([0-9a-f]{4})-/i.exec(id);
+    return m ? m[1].toLowerCase() + ":" + m[2].toLowerCase() : "unknown";
+  }
+
+  function num(v) { return v.toFixed(3); }
+
+  function esc(t) {
+    return String(t).replace(/[&<>"]/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
+    });
+  }
+
+  function render(pads) {
+    var html = "";
+    pads.forEach(function (pad) {
+      var s = stats[pad.index];
+      html += '<div class="pad"><h2>#' + pad.index + "  " + esc(pad.id) + "</h2>" +
+        "<p>usb " + usbIds(pad.id) + " - mapping " + (pad.mapping ? esc(pad.mapping) : '"" (unmapped)') +
+        " - " + pad.buttons.length + " buttons, " + pad.axes.length + " axes - connected " +
+        pad.connected + " - timestamp " + Math.round(pad.timestamp) + "</p>" +
+        '<div class="grid"><table><tr><th>button</th><th>pressed</th><th>value</th><th>changes</th></tr>';
+      pad.buttons.forEach(function (b, i) {
+        var t = s.buttons[i];
+        html += "<tr" + (b.pressed ? ' class="on"' : "") + "><td>" + i + "</td><td>" +
+          (b.pressed ? "yes" : "no") + "</td><td>" + num(b.value) + "</td><td" +
+          (t.flips ? ' class="noise"' : "") + ">" + t.flips + "</td></tr>";
+      });
+      html += "</table><table><tr><th>axis</th><th>value</th><th>min</th><th>max</th><th>changes</th></tr>";
+      pad.axes.forEach(function (v, i) {
+        var t = s.axes[i];
+        html += "<tr><td>" + i + "</td><td>" + num(v) + "</td><td>" + num(t.min) + "</td><td>" +
+          num(t.max) + "</td><td" + (t.changes ? ' class="noise"' : "") + ">" + t.changes + "</td></tr>";
+      });
+      html += "</table></div></div>";
+    });
+    document.getElementById("pads").innerHTML =
+      html || "<p>No pad yet - press a button on one.</p>";
+    document.getElementById("since").textContent =
+      "counting for " + ((performance.now() - since) / 1000).toFixed(1) + " s";
+  }
+
+  function present() {
+    if (!hasApi) return [];
+    var list = navigator.getGamepads() || [];
+    var pads = [];
+    for (var i = 0; i < list.length; ++i) if (list[i]) pads.push(list[i]);
+    return pads;
+  }
+
+  function report() {
+    var secs = ((performance.now() - since) / 1000).toFixed(1);
+    var lines = ["Gamepad check, " + new Date().toISOString(),
+                 "User agent: " + navigator.userAgent,
+                 "Counted for " + secs + " s"];
+    var pads = present();
+    if (!pads.length) lines.push("No pad listed.");
+    pads.forEach(function (pad) {
+      var s = stats[pad.index];
+      lines.push("", "#" + pad.index + " " + pad.id,
+                 "usb " + usbIds(pad.id) + ", mapping " + (pad.mapping || '""') + ", " +
+                 pad.buttons.length + " buttons, " + pad.axes.length + " axes");
+      var noisy = [];
+      s.buttons.forEach(function (t, i) {
+        if (t.flips) noisy.push("button " + i + ": " + t.flips + " changes, value " +
+                                num(t.min) + ".." + num(t.max));
+      });
+      s.axes.forEach(function (t, i) {
+        if (t.changes) noisy.push("axis " + i + ": " + t.changes + " changes, " +
+                                  num(t.min) + ".." + num(t.max));
+      });
+      lines.push(noisy.length ? noisy.join("\n") : "no change in any button or axis");
+      lines.push("now pressed: " + (pad.buttons.map(function (b, i) { return b.pressed ? i : -1; })
+                                       .filter(function (i) { return i >= 0; }).join(", ") || "none"),
+                 "now axes: " + pad.axes.map(num).join(", "));
+    });
+    return lines.join("\n");
+  }
+
+  function log(text) {
+    var div = document.createElement("div");
+    div.textContent = new Date().toLocaleTimeString() + "  " + text;
+    var events = document.getElementById("events");
+    events.insertBefore(div, events.firstChild);
+  }
+
+  window.addEventListener("gamepadconnected", function (e) {
+    log("connected #" + e.gamepad.index + " " + e.gamepad.id);
+  });
+  window.addEventListener("gamepaddisconnected", function (e) {
+    log("disconnected #" + e.gamepad.index + " " + e.gamepad.id);
+    delete stats[e.gamepad.index];
+  });
+
+  document.getElementById("reset").addEventListener("click", reset);
+  document.getElementById("copy").addEventListener("click", function () {
+    var area = document.getElementById("report");
+    area.value = report();
+    area.select();
+    if (navigator.clipboard) navigator.clipboard.writeText(area.value).catch(function () {});
+  });
+
+  function frame() {
+    var pads = present();
+    pads.forEach(track);
+    render(pads);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

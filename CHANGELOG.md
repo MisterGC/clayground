@@ -5,6 +5,15 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are
 calendar-style (`VERSION` at the repository root). Releases up to 2026.7 are
 described on their [GitHub release pages](https://github.com/MisterGC/clayground/releases).
 
+## [2026.11.1] - 2026-11-05
+
+Firefox reads gamepads wherever it reads them correctly; until now a pad in
+Firefox was listed but drove no input.
+
+### Changed
+
+- **Firefox reads gamepads**: every pad on Linux, SteamOS included, and every pad but Nintendo's Switch pads on macOS and Windows, where Firefox misreads their input; there such a pad stays listed as `unsupported`, and on Windows the Pro Controller is read from Firefox 155 on. A page on the website shows what `navigator.getGamepads()` returns, raw. (#474)
+
 ## [2026.11] - 2026-11-01
 
 Games read physical gamepads on Linux (the Steam Deck included), Windows,
@@ -144,6 +153,7 @@ is opt-in.
 - A note card exactly as tall as the annotation list was scrolled 6 px past its top. (#330)
 - `Poly.closed` was always true, so every open poly drew a closing edge. (#272)
 
+[2026.11.1]: https://github.com/MisterGC/clayground/compare/v2026.11...v2026.11.1
 [2026.11]: https://github.com/MisterGC/clayground/compare/v2026.9...v2026.11
 [2026.9]: https://github.com/MisterGC/clayground/compare/v2026.8...v2026.9
 [2026.8]: https://github.com/MisterGC/clayground/compare/v2026.7...v2026.8
