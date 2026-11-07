@@ -530,7 +530,8 @@
     its exact frame, where live playback starts it on the tick it falls
     into. Renders on an engine of its own and does not touch the live
     sound or the playhead. Only SynthInstrument and SampleInstrument
-    play here; the bus volume, echo and reverb are not part of it. A C++
+    play here; the bus volume, echo and reverb are not part of it, a
+    version 2 song's own \c echo and \c reverb are. A C++
     program without QML renders the same samples through \c renderSong()
     of \c Clayground::SoundEngine.
 
