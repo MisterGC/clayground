@@ -45,6 +45,7 @@ private slots:
     void renderOfflinePlacesNotesOnTheirFrame();
 
     void v2LivePlaybackRendersWhatRenderOfflineReturns();
+    void v2EchoAndReverbPlayLiveAsRenderOfflineReturns();
     void v2StateAndIntensityBeforePlayAreWhereItStarts();
     void v2SampleInstrumentsLoadBesideTheSong();
     void v2HotReloadStaysInTheSegment();
@@ -477,6 +478,92 @@ void TestSongPlayer::v2LivePlaybackRendersWhatRenderOfflineReturns()
 
     // Stopped, the notes handed out ahead are taken back.
     QCOMPARE(eng.pendingEvents(), size_t(0));
+}
+
+// The adaptive demo song with an echo on two of its five tracks and a
+// reverb: live on the shared engine and offline on a scratch engine,
+// the same samples, across a move from one segment to the next.
+void TestSongPlayer::v2EchoAndReverbPlayLiveAsRenderOfflineReturns()
+{
+    namespace cs = clay::sound;
+    auto &eng = cs::AudioOutput::instance().engine();
+    const int rate = cs::AudioOutput::instance().sampleRate();
+
+    QFile demo(CLAY_SOUND_DEMO_ADAPTIVE);
+    QVERIFY(demo.open(QIODevice::ReadOnly));
+    QByteArray json = demo.readAll();
+    const int end = json.lastIndexOf('}');
+    QVERIFY(end > 0);
+    json = json.left(end) + R"(, "echo": { "delay": 176, "feedback": 0.45, "volume": 0.4,
+        "fir": [0.4, 0.3, 0.2, 0.1], "tracks": ["melody", "arp"] },
+        "reverb": { "roomSize": 0.6, "damping": 0.4, "volume": 0.2 } })";
+    QTemporaryDir dir;
+    QVERIFY(dir.isValid());
+    const QString path = writeSong(dir, json);
+
+    SongPlayer p;
+    p.setSource(QUrl::fromLocalFile(path));
+    QVERIFY2(p.loaded(), qPrintable(p.error()));
+    p.setIntensity(1.0);
+
+    std::vector<float> skip(rate / 2 + 777);
+    eng.renderOffline(skip.data(), static_cast<int>(skip.size()));
+    QCOMPARE(eng.activeVoices(), size_t(0));
+
+    p.play();
+    const int64_t start = eng.currentFrame();
+    // One pass of explore is 4 s; the move to combat lands on a bar.
+    const int64_t stateAt = 3 * rate;
+    cs::SongCue combat;
+    combat.kind = cs::SongCue::Kind::State;
+    combat.name = QStringLiteral("combat");
+    bool sent = false;
+    const int64_t frames = 10 * rate;
+    std::vector<float> live(static_cast<size_t>(frames));
+    const int passes[] = {256, 1000, 441, 1777, 882, 613};
+    for (int64_t at = 0, k = 0; at < frames; ++k) {
+        if (!sent && eng.currentFrame() - start >= stateAt) {
+            combat.frame = eng.currentFrame() - start + SongPlayer::kScheduleAheadFrames;
+            p.setState("combat");
+            sent = true;
+        }
+        const int n = static_cast<int>(std::min<int64_t>(passes[k % 6], frames - at));
+        eng.renderOffline(live.data() + at, n);
+        at += n;
+        QMetaObject::invokeMethod(&p, "tick");
+    }
+    for (auto &s : live) s = std::clamp(s, -1.0f, 1.0f);
+    QVERIFY(sent);
+
+    cs::SongModel model;
+    std::string error;
+    QVERIFY2(cs::loadSong(path.toStdString(), &model, &error), error.c_str());
+    QVERIFY(model.echo.on && model.reverb.on);
+    cs::SongPerformance perf;
+    perf.intensity = 1.0;
+    perf.cues = {combat};
+    const auto offline = cs::renderSong(model, perf, 10.0, 1.0f, false, rate, false);
+    QCOMPARE(offline.size(), live.size());
+    for (size_t i = 0; i < live.size(); ++i)
+        if (live[i] != offline[i])
+            QFAIL(qPrintable(QStringLiteral("frame %1: live %2, offline %3").arg(i).arg(live[i]).arg(offline[i])));
+
+    // The echo and the reverb are in it: the same song without them
+    // renders other samples, and the same before the first repeat.
+    cs::SongModel dry = model;
+    dry.echo = {};
+    dry.reverb = {};
+    const auto plain = cs::renderSong(dry, perf, 10.0, 1.0f, false, rate, false);
+    double diff = 0.0;
+    for (size_t i = 0; i < plain.size(); ++i) diff += std::abs(double(plain[i]) - offline[i]);
+    QVERIFY2(diff / plain.size() > 1e-3, qPrintable(QString("mean |wet - dry| %1").arg(diff / plain.size())));
+
+    // renderOffline() from QML returns them too.
+    p.stop();
+    p.setState("explore");
+    QVariantList cues{QVariantMap{{"at", double(combat.frame) / rate}, {"state", "combat"}}};
+    const QVector<float> fromQml = p.renderOffline(10.0, cues);
+    QCOMPARE(fromQml, QVector<float>(offline.begin(), offline.end()));
 }
 
 // Before play() the state is the segment the song starts in and the
