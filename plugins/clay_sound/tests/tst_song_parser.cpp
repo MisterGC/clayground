@@ -34,6 +34,7 @@ private slots:
     void v2WithoutSegmentsPlaysOneSegment();
     void v2KeysNeedVersion2();
     void v2NeedsASectionToPlay();
+    void v2EchoAndReverb();
     void v2Errors_data();
     void v2Errors();
 };
@@ -267,7 +268,10 @@ static const QByteArray kV2Song = R"({
     "layers": { "beat": { "tracks": ["drums"], "intensity": [0.25, 0.75], "fade": 2 } },
     "transitions": [ { "from": "calm", "to": "fight", "sync": "exit", "stinger": "hit" },
                      { "to": "calm", "sync": "end" } ],
-    "stingers": { "hit": { "pattern": "Hit" } }
+    "stingers": { "hit": { "pattern": "Hit" } },
+    "echo": { "delay": 240, "feedback": -0.4, "volume": 0.35, "fir": [0.5, 0.25, 0.125],
+              "tracks": ["melody"] },
+    "reverb": { "roomSize": 0.7, "damping": 0.2, "volume": 0.25 }
 })";
 
 void TestSongParser::v2DefinesItsInstruments()
@@ -413,6 +417,59 @@ void TestSongParser::v2NeedsASectionToPlay()
     }
 }
 
+void TestSongParser::v2EchoAndReverb()
+{
+    const auto r = SongParser::parse(kV2Song);
+    QVERIFY2(r.ok, qPrintable(r.error));
+    const auto &echo = r.model.echo;
+    QVERIFY(echo.on);
+    QCOMPARE(echo.delay, 240.0);
+    QCOMPARE(echo.feedback, -0.4);
+    QCOMPARE(echo.volume, 0.35);
+    // Taps not written are 0.
+    const double fir[8] = {0.5, 0.25, 0.125, 0, 0, 0, 0, 0};
+    for (int k = 0; k < 8; ++k) QCOMPARE(echo.fir[k], fir[k]);
+    QCOMPARE(echo.tracks, QStringList{"melody"});
+    const auto &reverb = r.model.reverb;
+    QVERIFY(reverb.on);
+    QCOMPARE(reverb.roomSize, 0.7);
+    QCOMPARE(reverb.damping, 0.2);
+    QCOMPARE(reverb.volume, 0.25);
+
+    // Empty objects turn both on with the bus effects' defaults; the
+    // echo then hears every track.
+    QByteArray song = kV2Song;
+    const int at = song.indexOf(R"("echo":)");
+    song = song.left(at) + R"("echo": {}, "reverb": {} })";
+    const auto d = SongParser::parse(song);
+    QVERIFY2(d.ok, qPrintable(d.error));
+    QVERIFY(d.model.echo.on);
+    QCOMPARE(d.model.echo.delay, 120.0);
+    QCOMPARE(d.model.echo.feedback, 0.5);
+    QCOMPARE(d.model.echo.volume, 0.5);
+    QCOMPARE(d.model.echo.fir[0], 1.0);
+    QCOMPARE(d.model.echo.fir[7], 0.0);
+    QVERIFY(d.model.echo.tracks.isEmpty());
+    QVERIFY(d.model.reverb.on);
+    QCOMPARE(d.model.reverb.roomSize, 0.5);
+    QCOMPARE(d.model.reverb.damping, 0.5);
+    QCOMPARE(d.model.reverb.volume, 0.3);
+
+    // Without them a song has neither.
+    song = kV2Song;
+    song = song.left(song.lastIndexOf(',', song.indexOf(R"("echo":)"))) + " }";
+    const auto none = SongParser::parse(song);
+    QVERIFY2(none.ok, qPrintable(none.error));
+    QVERIFY(!none.model.echo.on);
+    QVERIFY(!none.model.reverb.on);
+
+    // Both are v2 keys.
+    const auto v1 = SongParser::parse(R"({ "tempo": 120, "tracks": { "t": { "instrument": "i" } },
+        "echo": {} })");
+    QVERIFY(!v1.ok);
+    QVERIFY2(v1.error.contains("unknown key 'echo'"), qPrintable(v1.error));
+}
+
 void TestSongParser::v2Errors_data()
 {
     QTest::addColumn<QByteArray>("edit");       // "<from>|<to>" applied to kV2Song
@@ -466,6 +523,27 @@ void TestSongParser::v2Errors_data()
     QTest::newRow("unknown stinger")
         << QByteArray(R"("stinger": "hit"|"stinger": "boom")")
         << "transitions[0].stinger: unknown stinger 'boom'";
+    QTest::newRow("echo delay too long")
+        << QByteArray(R"("delay": 240|"delay": 1200)")
+        << "echo.delay: 1200 is outside 1..1000";
+    QTest::newRow("echo too many taps")
+        << QByteArray(R"([0.5, 0.25, 0.125]|[1, 0, 0, 0, 0, 0, 0, 0, 0])")
+        << "echo.fir: must be an array of 1 to 8 taps, the newest sample first";
+    QTest::newRow("echo tap out of range")
+        << QByteArray(R"([0.5, 0.25, 0.125]|[0.5, 1.5])")
+        << "echo.fir[1]: must be a number in -1..1";
+    QTest::newRow("echo unknown track")
+        << QByteArray(R"("tracks": ["melody"] }|"tracks": ["lead"] })")
+        << "echo.tracks: unknown track 'lead'";
+    QTest::newRow("echo no tracks")
+        << QByteArray(R"("tracks": ["melody"] }|"tracks": [] })")
+        << "echo.tracks: must be a non-empty array of track names (leave it out: every track)";
+    QTest::newRow("echo unknown field")
+        << QByteArray(R"("volume": 0.35,|"level": 0.35,)")
+        << "echo: unknown field 'level' (known: delay, feedback, volume, fir, tracks)";
+    QTest::newRow("reverb room too large")
+        << QByteArray(R"("roomSize": 0.7|"roomSize": 1.2)")
+        << "reverb.roomSize: 1.2 is outside 0..1";
     QTest::newRow("stinger pattern unknown")
         << QByteArray(R"("pattern": "Hit" }|"pattern": "Miss" })")
         << "stingers.hit.pattern: unknown pattern 'Miss'";
