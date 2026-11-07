@@ -439,7 +439,11 @@
     follows \l state, \l intensity and \l playStinger(). Its notes are
     scheduled 0.25 s ahead of the engine on their exact frames, the path
     \l renderOffline() takes, so live and offline render the same
-    samples; a control reaches the music that much later.
+    samples; a control reaches the music that much later. A song with
+    \c{"output": "snes"} plays through the SNES-style output of the buses
+    its instruments play on - resampled to 32 kHz with the soft top end
+    of the chip's gaussian - from its first frame, live and offline; a
+    song without it turns that output off on those buses.
 
     \qml
     SongPlayer {

@@ -230,6 +230,12 @@ needs. `demo/songs/adaptive.song.json` uses all of it:
   or the segment's `end`, optionally with a stinger where the new segment
   starts. The first that matches wins; without one, the next bar.
 - **Stingers** play a pattern once on top of the music, on their sync.
+- **Output** `"output": "snes"` (not in the demo) plays the song through
+  the SNES-style output of every bus its instruments play on (see "SNES
+  output per bus" below): 32 kHz and the soft top end of the chip's
+  gaussian. `"clean"`, the default, leaves the buses as they are. It is
+  set when the song starts playing, and an offline render has it from the
+  first frame, so both give the same samples.
 
 ```qml
 SongPlayer {
@@ -768,6 +774,24 @@ higher frequencies here. The echo runs before the reverb, and both before
 the bus volume. Turning an effect off drops its tail; on again, it starts
 from silence. The effects play the same way live and in an offline render.
 
+### SNES output per bus
+
+The SNES played everything at 32 kHz, and every sample went through the
+S-DSP's gaussian interpolation, which takes the top end off softly. Every
+bus can sound like that, after its echo and its reverb: the mix is
+resampled to 32 kHz through that gaussian and brought back to the
+engine's rate with nothing above 16 kHz. Measured with tones at 44.1 kHz:
+-0.07 dB at 1 kHz, -4.3 dB at 8 kHz, -6.8 dB at 10 kHz, -11 dB at 12 kHz,
+-19 dB at 14 kHz, nothing left at its own frequency from 16 kHz up;
+what lies above folds down quietly, as on the chip (18 kHz comes out at
+14 kHz, -28 dB). The bus sounds 16 frames (0.36 ms) later with it on.
+
+A version 2 song turns it on with `"output": "snes"`; in C++ it is
+`engine.snesOutput(Bus::Music).start(frame)`, the 32 kHz grid starting at
+`frame`, or `setEnabled(true)`. Off, the default, the bus renders exactly
+the samples it did before. On the adaptive demo song it takes 15 dB off
+above 10 kHz and leaves what lies below 4 kHz within 0.05 dB.
+
 ## The engine without QML
 
 A C++ program links the engine as `Clayground::SoundEngine` - a static
@@ -806,7 +830,7 @@ cs::writeWav("song.wav", music, 1, cs::kSampleRate, cs::WavFormat::Pcm16);
 | `loadSong(path, &model, &error)` | parses a `.song.json`; a v2 song's sample instruments get their WAVs decoded, each relative to the song |
 | `renderRecipe(recipe, samples, seed, velocity, gain, pan, rate, stereo, seconds, detune)` | the samples `SfxPlayer.renderOffline(seed, velocity, detune)` returns at that `volume` and `pan`; `seconds` 0 = until the last layer ends, `detune` 0 = as written |
 | `renderSong(model, instruments, seconds, volume, loop, rate, stereo)` | the samples `SongPlayer.renderOffline(seconds)` returns; `seconds` 0 = the song's length |
-| `renderSong(model, performance, seconds, volume, loop, rate, stereo)` | a v2 song on its own instruments, from `performance.start` at `performance.intensity`, each of `performance.cues` (state, intensity or stinger) at its song frame: what live playback renders for the same controls; `seconds` 0 = one pass of the start segment |
+| `renderSong(model, performance, seconds, volume, loop, rate, stereo)` | a v2 song on its own instruments, from `performance.start` at `performance.intensity`, each of `performance.cues` (state, intensity or stinger) at its song frame: what live playback renders for the same controls; `seconds` 0 = one pass of the start segment; with the song's `output` |
 | `writeWav(path, samples, channels, rate, format, &error)` | 32-bit float (default, the samples exactly) or 16-bit wav; stereo samples interleaved |
 
 A v1 song names its instruments but does not define them, so the program
