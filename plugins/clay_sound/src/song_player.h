@@ -36,8 +36,10 @@
 // bus its instruments play on when it starts playing, its 32 kHz grid
 // on the song's first frame, as renderOffline() has it; a v2 song
 // without it turns that output off on those buses. The player turns
-// off what it turned on when it goes; stop() leaves it on, so what
-// still rings rings out through it.
+// off what it turned on when it goes or loads a song that does not ask
+// for it - unless another player started it since: the last one to
+// play keeps it. stop() leaves it on, so what still rings rings out
+// through it.
 
 #ifndef CLAY_SOUND_SONG_PLAYER_H
 #define CLAY_SOUND_SONG_PLAYER_H
@@ -184,6 +186,7 @@ private:
     void tickV2();
     void updateSegment(int64_t songFrame);
     void applyOutput();     // the song's output on its buses, from anchor_
+    void releaseOutput();   // off what this player turned on, unless restarted since
     void setError(const QString &err);
     void updateWatchedFile(const QString &path);
     QObject *resolveInstrument(const QString &name) const;
@@ -231,7 +234,9 @@ private:
     bool    anchored_ = false;      // anchor_ is set: the song has played
     int64_t anchor_ = 0;            // engine frame of song frame 0
     std::deque<std::pair<clay::sound::EventId, int64_t>> pendingNotes_;  // ticket, frame
-    QVector<clay::sound::Bus> snesBuses_;   // whose SNES output this player turned on
+    // The buses whose SNES output this player started, with the token
+    // of that start (SnesOutput::release()).
+    QVector<std::pair<clay::sound::Bus, unsigned>> snesClaims_;
     QString state_;
     QString segment_;
     qreal   intensity_ = 0.0;

@@ -55,8 +55,13 @@ public:
 
     // On, the grid at engine frame `originFrame`, the history silent.
     // An origin already rendered is fine: the stage starts at the next
-    // pass with the phase that origin gives it.
-    void start(int64_t originFrame);
+    // pass with the phase that origin gives it. Returns this start's
+    // token for release().
+    unsigned start(int64_t originFrame);
+
+    // Off, unless the stage was started again (or switched on) since the
+    // start that returned `token`: whoever started it last keeps it.
+    void release(unsigned token);
 
     // How late the bus sounds with the stage on, in engine frames.
     static int latencyFrames(int sampleRate);

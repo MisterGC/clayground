@@ -141,14 +141,18 @@ EventId SongVoices::play(Engine &engine, const SequencedNote &note, int64_t at, 
                         note.durSeconds, at, gainStage);
 }
 
-QVector<Bus> applySongOutput(Engine &engine, const SongModel &model, int64_t songStart)
+QVector<Bus> applySongOutput(Engine &engine, const SongModel &model, int64_t songStart,
+                             QVector<unsigned> *starts)
 {
     QVector<Bus> buses;
     for (const SongInstrument &inst : model.instruments)
         if (!buses.contains(inst.spec.bus)) buses.append(inst.spec.bus);
+    if (starts) starts->clear();
     for (Bus b : std::as_const(buses)) {
-        if (model.output == SongOutput::Snes) engine.snesOutput(b).start(songStart);
+        unsigned token = 0;
+        if (model.output == SongOutput::Snes) token = engine.snesOutput(b).start(songStart);
         else engine.snesOutput(b).setEnabled(false);
+        if (starts) starts->append(token);
     }
     return buses;
 }

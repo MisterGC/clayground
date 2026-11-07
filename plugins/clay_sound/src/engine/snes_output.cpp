@@ -41,11 +41,17 @@ void SnesOutput::setEnabled(bool on)
     enabled_.store(on, std::memory_order_relaxed);
 }
 
-void SnesOutput::start(int64_t originFrame)
+unsigned SnesOutput::start(int64_t originFrame)
 {
     origin_.store(originFrame, std::memory_order_relaxed);
-    starts_.fetch_add(1, std::memory_order_release);
+    const unsigned token = starts_.fetch_add(1, std::memory_order_release) + 1;
     enabled_.store(true, std::memory_order_relaxed);
+    return token;
+}
+
+void SnesOutput::release(unsigned token)
+{
+    if (starts_.load(std::memory_order_relaxed) == token) setEnabled(false);
 }
 
 int SnesOutput::latencyFrames(int sampleRate)

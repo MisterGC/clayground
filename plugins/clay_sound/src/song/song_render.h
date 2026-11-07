@@ -97,8 +97,10 @@ private:
 // The output a v2 song asks for, on every bus its instruments play on:
 // with SongOutput::Snes each bus's SnesOutput starts with its grid at
 // engine frame `songStart`, the song's frame 0, so live and offline
-// sound the same; with Clean it is turned off. Returns those buses.
-QVector<Bus> applySongOutput(Engine &engine, const SongModel &model, int64_t songStart);
+// sound the same; with Clean it is turned off. Returns those buses and,
+// in `starts` if given, each one's SnesOutput::start() token (0: off).
+QVector<Bus> applySongOutput(Engine &engine, const SongModel &model, int64_t songStart,
+                             QVector<unsigned> *starts = nullptr);
 
 // What a game does to a playing v2 song, at a song frame.
 struct SongCue

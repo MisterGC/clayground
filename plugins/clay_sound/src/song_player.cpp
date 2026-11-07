@@ -52,7 +52,7 @@ SongPlayer::~SongPlayer()
     cancelPendingNotes();
     auto &engine = clay::sound::AudioOutput::instance().engine();
     voices_.detach(engine);
-    for (clay::sound::Bus b : std::as_const(snesBuses_)) engine.snesOutput(b).setEnabled(false);
+    releaseOutput();
 }
 
 void SongPlayer::setSource(const QUrl &url)
@@ -399,6 +399,9 @@ void SongPlayer::commitModel(const clay::sound::SongModel &model, bool hot)
     const double prevTempo = model_.tempo;
     const bool outputChanged = isV2() && model.output != model_.output;
     model_ = model;
+    // A song that does not ask for the SNES output gives up what the
+    // last one turned on (a v1 song never asks for it).
+    if (!isV2() || model_.output != clay::sound::SongOutput::Snes) releaseOutput();
     if (isV2()) {
         schedule_.clear();
         nextIdx_ = 0;
@@ -511,10 +514,20 @@ void SongPlayer::restartSequencer(const QString &segment, double beat)
 void SongPlayer::applyOutput()
 {
     auto &engine = clay::sound::AudioOutput::instance().engine();
-    const auto buses = clay::sound::applySongOutput(engine, model_, anchor_);
-    for (clay::sound::Bus b : std::as_const(snesBuses_))
-        if (!buses.contains(b)) engine.snesOutput(b).setEnabled(false);
-    snesBuses_ = model_.output == clay::sound::SongOutput::Snes ? buses : QVector<clay::sound::Bus>{};
+    QVector<unsigned> starts;
+    const auto buses = clay::sound::applySongOutput(engine, model_, anchor_, &starts);
+    for (const auto &[bus, token] : std::as_const(snesClaims_))
+        if (!buses.contains(bus)) engine.snesOutput(bus).release(token);
+    snesClaims_.clear();
+    if (model_.output == clay::sound::SongOutput::Snes)
+        for (int i = 0; i < buses.size(); ++i) snesClaims_.append({buses[i], starts[i]});
+}
+
+void SongPlayer::releaseOutput()
+{
+    auto &engine = clay::sound::AudioOutput::instance().engine();
+    for (const auto &[bus, token] : std::as_const(snesClaims_)) engine.snesOutput(bus).release(token);
+    snesClaims_.clear();
 }
 
 void SongPlayer::scheduleAhead()
