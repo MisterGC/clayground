@@ -102,6 +102,30 @@ struct Stinger
     SongSync sync = SongSync::Beat;
 };
 
+// v2: the SNES echo of the song: a delay line whose repeats run
+// through an 8-tap FIR filter and are fed back (engine/bus_effects.h).
+// Only the tracks listed feed it - on the SNES the echo is switched
+// per voice; empty: every track. Its repeats play beside the dry
+// tracks, which sound as they do without it.
+struct SongEcho
+{
+    bool        on = false;         // the song has an "echo"
+    double      delay = 120.0;      // ms
+    double      feedback = 0.5;
+    double      volume = 0.5;
+    double      fir[8] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    QStringList tracks;
+};
+
+// v2: a small reverb over every track of the song and its echo.
+struct SongReverb
+{
+    bool   on = false;              // the song has a "reverb"
+    double roomSize = 0.5;
+    double damping = 0.5;
+    double volume = 0.3;
+};
+
 struct SongModel
 {
     int    version = 1;
@@ -118,6 +142,8 @@ struct SongModel
     QMap<QString, Layer>          layers;
     QVector<Transition>           transitions;  // the first match wins
     QMap<QString, Stinger>        stingers;
+    SongEcho                      echo;
+    SongReverb                    reverb;
 
     bool isValid() const { return tempo > 0.0 && !tracks.isEmpty(); }
 };
