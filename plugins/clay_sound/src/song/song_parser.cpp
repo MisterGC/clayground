@@ -623,6 +623,19 @@ static bool parseStructure(const QJsonObject &root, SongModel &model, QString *e
     return true;
 }
 
+// "output": "clean" (the default) or "snes".
+static bool parseOutput(const QJsonObject &root, SongModel &model, QString *errorOut)
+{
+    if (!root.contains("output")) return true;
+    QString name;
+    if (!stringOf(root, "output", QString(), &name, errorOut)) return false;
+    if (name == QLatin1String("clean"))     model.output = SongOutput::Clean;
+    else if (name == QLatin1String("snes")) model.output = SongOutput::Snes;
+    else return fail(errorOut, QStringLiteral("output"),
+                     QStringLiteral("unknown output '%1' (clean, snes)").arg(name));
+    return true;
+}
+
 } // namespace
 
 bool SongParser::parseNote(const QString &raw, int *midiOut, QString *errorOut)
@@ -687,7 +700,7 @@ SongParseResult SongParser::parse(const QByteArray &json)
 
     static const QSet<QString> allowedTop = { "version", "tempo", "tracks", "patterns", "sections" };
     static const QSet<QString> allowedTopV2 = allowedTop + QSet<QString>{
-        "beatsPerBar", "instruments", "segments", "start", "layers", "transitions", "stingers" };
+        "beatsPerBar", "instruments", "segments", "start", "layers", "transitions", "stingers", "output" };
     QString why;
     if (!requireKeysOnly(root, r.model.version >= 2 ? allowedTopV2 : allowedTop, &why)) {
         r.error = why;
@@ -791,6 +804,8 @@ SongParseResult SongParser::parse(const QByteArray &json)
     }
 
     if (r.model.version >= 2 && !parseStructure(root, r.model, &r.error))
+        return r;
+    if (r.model.version >= 2 && !parseOutput(root, r.model, &r.error))
         return r;
 
     r.ok = true;

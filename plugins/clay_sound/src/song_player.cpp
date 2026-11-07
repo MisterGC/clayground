@@ -50,7 +50,9 @@ void SongPlayer::setVolume(qreal v)
 SongPlayer::~SongPlayer()
 {
     cancelPendingNotes();
-    voices_.detach(clay::sound::AudioOutput::instance().engine());
+    auto &engine = clay::sound::AudioOutput::instance().engine();
+    voices_.detach(engine);
+    for (clay::sound::Bus b : std::as_const(snesBuses_)) engine.snesOutput(b).setEnabled(false);
 }
 
 void SongPlayer::setSource(const QUrl &url)
@@ -135,6 +137,7 @@ void SongPlayer::play()
         if (!anchored_ || anchor_ + seq_->scheduled() < now) {
             anchor_ = now - seq_->scheduled();
             anchored_ = true;
+            applyOutput();
         }
         scheduleAhead();
         tickTimer_.start();
@@ -394,6 +397,7 @@ void SongPlayer::commitModel(const clay::sound::SongModel &model, bool hot)
     }
 
     const double prevTempo = model_.tempo;
+    const bool outputChanged = isV2() && model.output != model_.output;
     model_ = model;
     if (isV2()) {
         schedule_.clear();
@@ -401,6 +405,7 @@ void SongPlayer::commitModel(const clay::sound::SongModel &model, bool hot)
         voices_.attach(engine, model_);
         if (!hot || !model_.segments.contains(keepSegment)) keepBeat = 0.0;
         restartSequencer(keepSegment, keepBeat);
+        if (playing_ && outputChanged) applyOutput();
         if (playing_) scheduleAhead();
     } else {
         seq_.reset();
@@ -501,6 +506,15 @@ void SongPlayer::restartSequencer(const QString &segment, double beat)
     anchored_ = playing_;
     if (playing_) anchor_ = clay::sound::AudioOutput::instance().engine().currentFrame();
     updateSegment(0);
+}
+
+void SongPlayer::applyOutput()
+{
+    auto &engine = clay::sound::AudioOutput::instance().engine();
+    const auto buses = clay::sound::applySongOutput(engine, model_, anchor_);
+    for (clay::sound::Bus b : std::as_const(snesBuses_))
+        if (!buses.contains(b)) engine.snesOutput(b).setEnabled(false);
+    snesBuses_ = model_.output == clay::sound::SongOutput::Snes ? buses : QVector<clay::sound::Bus>{};
 }
 
 void SongPlayer::scheduleAhead()

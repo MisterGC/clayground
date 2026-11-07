@@ -27,7 +27,9 @@
 //   (SequencedNote::noiseSeed), not the engine frame it starts on.
 //
 // What the buses do afterwards (volume, echo, reverb) is not part of an
-// offline render, as for an effect recipe.
+// offline render, as for an effect recipe - but a v2 song's SNES output
+// is: the song turns it on, from its first frame, on every bus its
+// instruments play on (applySongOutput), live and offline alike.
 
 #ifndef CLAY_SOUND_SONG_RENDER_H
 #define CLAY_SOUND_SONG_RENDER_H
@@ -91,6 +93,12 @@ private:
     struct Bound { int id = -1; InstrumentSpec spec; };
     QMap<QString, Bound> bound_;
 };
+
+// The output a v2 song asks for, on every bus its instruments play on:
+// with SongOutput::Snes each bus's SnesOutput starts with its grid at
+// engine frame `songStart`, the song's frame 0, so live and offline
+// sound the same; with Clean it is turned off. Returns those buses.
+QVector<Bus> applySongOutput(Engine &engine, const SongModel &model, int64_t songStart);
 
 // What a game does to a playing v2 song, at a song frame.
 struct SongCue

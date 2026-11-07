@@ -141,6 +141,18 @@ EventId SongVoices::play(Engine &engine, const SequencedNote &note, int64_t at, 
                         note.durSeconds, at, gainStage);
 }
 
+QVector<Bus> applySongOutput(Engine &engine, const SongModel &model, int64_t songStart)
+{
+    QVector<Bus> buses;
+    for (const SongInstrument &inst : model.instruments)
+        if (!buses.contains(inst.spec.bus)) buses.append(inst.spec.bus);
+    for (Bus b : std::as_const(buses)) {
+        if (model.output == SongOutput::Snes) engine.snesOutput(b).start(songStart);
+        else engine.snesOutput(b).setEnabled(false);
+    }
+    return buses;
+}
+
 std::vector<float> renderSong(const SongModel &model, const SongPerformance &performance,
                               double seconds, float volume, bool loop,
                               int sampleRate, bool stereo)
@@ -159,6 +171,7 @@ std::vector<float> renderSong(const SongModel &model, const SongPerformance &per
     const int stage = scratch.addGainStage(std::clamp(volume, 0.0f, 1.0f));
     SongVoices voices;
     voices.attach(scratch, model);
+    applySongOutput(scratch, model, 0);
 
     // Every note up to a cue, then the cue, as SongPlayer does live.
     std::vector<SequencedNote> notes;
