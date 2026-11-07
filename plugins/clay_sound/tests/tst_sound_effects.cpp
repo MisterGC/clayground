@@ -51,9 +51,12 @@ struct Rig
         id = eng.addInstrument(std::move(osc));
     }
 
-    void note(double freq, double seconds, double vel = 0.5)
+    // `send`, `echo`: the send the note also feeds, and whether its echo.
+    void note(double freq, double seconds, double vel = 0.5, int send = -1, bool echo = false)
     {
         cs::NoteEvent ev;
+        ev.send = send;
+        ev.sendEcho = echo;
         ev.instrumentId = id;
         ev.timeFrames = eng.currentFrame();
         ev.durationFrames = frames(seconds);
@@ -129,6 +132,10 @@ private slots:
     void reverbTailDecaysAndGrowsWithRoomSize();
     void sameNotesRenderSameSamples();
     void clampsAndSignals();
+    void sendEchoHearsOnlyTheNotesThatFeedIt();
+    void sendLeavesTheDryNotesAsTheyWere();
+    void sendReverbHearsEveryNoteAndTheEcho();
+    void sendPlaysOnItsBusAndRendersAlikeInAnyPasses();
     void settableFromQml();
     void cleanup();
 };
@@ -389,6 +396,120 @@ void SoundEffectsTest::sameNotesRenderSameSamples()
     };
     const auto a = run(kChunk);
     QCOMPARE(a, run(kChunk));
+    QCOMPARE(a, run(int(a.size())));
+    QCOMPARE(a, run(37));
+}
+
+// A send (Engine::addSend) is a song's echo: the 500 Hz note feeds it,
+// the 800 Hz note plays beside it, dry. What the send adds is the echo
+// a bus would give the 500 Hz note alone.
+static int echoSend(cs::Engine &eng, cs::Bus bus = cs::Bus::Sfx)
+{
+    const int s = eng.addSend(bus);
+    cs::Echo *e = eng.sendEcho(s);
+    e->setEnabled(true);
+    e->setDelayMs(60.0f);
+    e->setFeedback(0.5f);
+    e->setVolume(1.0f);
+    return s;
+}
+
+void SoundEffectsTest::sendEchoHearsOnlyTheNotesThatFeedIt()
+{
+    const double seconds = 0.4;
+    Rig withSend, dry, busEcho, alone;
+    const int s = echoSend(withSend.eng);
+    withSend.note(500.0, 0.02, 0.5, s, true);
+    withSend.note(800.0, 0.02, 0.5, s, false);
+    dry.note(500.0, 0.02);
+    dry.note(800.0, 0.02);
+    auto &e = busEcho.eng.echo(cs::Bus::Sfx);
+    e.setEnabled(true);
+    e.setDelayMs(60.0f);
+    e.setFeedback(0.5f);
+    e.setVolume(1.0f);
+    busEcho.note(500.0, 0.02);
+    alone.note(500.0, 0.02);
+
+    const auto wet = minus(withSend.render(seconds), dry.render(seconds));
+    const auto expected = minus(busEcho.render(seconds), alone.render(seconds));
+    double worst = 0.0;
+    for (size_t i = 0; i < wet.size(); ++i) worst = std::max(worst, double(std::abs(wet[i] - expected[i])));
+    QVERIFY2(worst < 1e-6, qPrintable(QString("send echo differs from a bus echo by %1").arg(worst)));
+    const int d = frames(0.06);
+    QVERIFY(amplitudeAt(wet, d, frames(0.02), 500.0) > 0.4);
+    QVERIFY(amplitudeAt(wet, d, frames(0.02), 800.0) < 1e-3);
+}
+
+void SoundEffectsTest::sendLeavesTheDryNotesAsTheyWere()
+{
+    // Before the first repeat, a song with an echo sounds exactly as
+    // one without.
+    Rig withSend, dry;
+    const int s = echoSend(withSend.eng);
+    withSend.note(500.0, 0.02, 0.5, s, true);
+    dry.note(500.0, 0.02);
+    const auto a = withSend.render(0.3);
+    const auto b = dry.render(0.3);
+    const int d = frames(0.06);
+    QCOMPARE(std::vector<float>(a.begin(), a.begin() + d), std::vector<float>(b.begin(), b.begin() + d));
+
+    // A send with nothing on adds nothing at all, and a removed send
+    // leaves its notes dry.
+    Rig off, removed;
+    const int so = off.eng.addSend(cs::Bus::Sfx);
+    off.note(500.0, 0.02, 0.5, so, true);
+    const int sr = echoSend(removed.eng);
+    removed.eng.removeSend(sr);
+    QVERIFY(!removed.eng.sendEcho(sr));
+    removed.note(500.0, 0.02, 0.5, sr, true);
+    QCOMPARE(off.render(0.3), b);
+    QCOMPARE(removed.render(0.3), b);
+}
+
+void SoundEffectsTest::sendReverbHearsEveryNoteAndTheEcho()
+{
+    // The 800 Hz note does not feed the echo, but it reverberates.
+    auto tail = [](bool echoOn) {
+        Rig r;
+        const int s = r.eng.addSend(cs::Bus::Sfx);
+        r.eng.sendEcho(s)->setEnabled(echoOn);
+        r.eng.sendReverb(s)->setEnabled(true);
+        r.eng.sendReverb(s)->setVolume(1.0f);
+        r.note(500.0, 0.05, 0.5, s, true);
+        r.note(800.0, 0.05, 0.5, s, false);
+        return r.render(1.0);
+    };
+    const auto reverb = tail(false);
+    QVERIFY(amplitudeAt(reverb, frames(0.1), frames(0.1), 800.0) > 1e-3);
+    QVERIFY(amplitudeAt(reverb, frames(0.1), frames(0.1), 500.0) > 1e-3);
+    // The echo's repeats add to the reverb's tail.
+    QVERIFY(rms(tail(true), frames(0.5), frames(0.2)) > rms(reverb, frames(0.5), frames(0.2)));
+}
+
+void SoundEffectsTest::sendPlaysOnItsBusAndRendersAlikeInAnyPasses()
+{
+    // The send's echo plays on the music bus: silenced with it, while
+    // the note stays on its own bus.
+    Rig r;
+    const int s = echoSend(r.eng, cs::Bus::Music);
+    r.eng.setBusGain(cs::Bus::Music, 0.0f);
+    r.note(500.0, 0.02, 0.5, s, true);
+    const auto out = r.render(0.3);
+    QVERIFY(rms(out, 0, frames(0.02)) > 0.1);
+    QCOMPARE(rms(out, frames(0.03), frames(0.25)), 0.0);
+
+    auto run = [](int chunk) {
+        Rig r;
+        const int s = echoSend(r.eng);
+        cs::Echo *e = r.eng.sendEcho(s);
+        for (int k = 0; k < cs::Echo::kTaps; ++k) e->setFirTap(k, 0.125f);
+        r.eng.sendReverb(s)->setEnabled(true);
+        r.note(330.0, 0.1, 0.5, s, true);
+        r.note(550.0, 0.1, 0.5, s, false);
+        return r.render(0.6, chunk);
+    };
+    const auto a = run(kChunk);
     QCOMPARE(a, run(int(a.size())));
     QCOMPARE(a, run(37));
 }
