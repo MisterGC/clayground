@@ -113,12 +113,37 @@ void SongVoices::attach(Engine &engine, const SongModel &model)
     detach(engine);
     for (auto it = model.instruments.begin(); it != model.instruments.end(); ++it)
         bound_.insert(it.key(), {addInstrument(engine, it->spec), it->spec});
+    // Without an echo or a reverb the song has no send, and its notes
+    // render exactly as before there were any.
+    if (!model.echo.on && !model.reverb.on) return;
+    send_ = engine.addSend(Bus::Music);
+    if (model.echo.on) {
+        Echo &e = *engine.sendEcho(send_);
+        e.setDelayMs(static_cast<float>(model.echo.delay));
+        e.setFeedback(static_cast<float>(model.echo.feedback));
+        e.setVolume(static_cast<float>(model.echo.volume));
+        for (int k = 0; k < Echo::kTaps; ++k) e.setFirTap(k, static_cast<float>(model.echo.fir[k]));
+        e.setEnabled(true);
+        echoAll_ = model.echo.tracks.isEmpty();
+        echoTracks_ = model.echo.tracks;
+    }
+    if (model.reverb.on) {
+        Reverb &r = *engine.sendReverb(send_);
+        r.setRoomSize(static_cast<float>(model.reverb.roomSize));
+        r.setDamping(static_cast<float>(model.reverb.damping));
+        r.setVolume(static_cast<float>(model.reverb.volume));
+        r.setEnabled(true);
+    }
 }
 
 void SongVoices::detach(Engine &engine)
 {
     for (const Bound &b : std::as_const(bound_)) engine.removeInstrument(b.id);
     bound_.clear();
+    if (send_ >= 0) engine.removeSend(send_);
+    send_ = -1;
+    echoAll_ = false;
+    echoTracks_.clear();
 }
 
 EventId SongVoices::play(Engine &engine, const SequencedNote &note, int64_t at, int gainStage) const
@@ -137,8 +162,9 @@ EventId SongVoices::play(Engine &engine, const SequencedNote &note, int64_t at, 
         seeded.synth.noiseSeed = note.noiseSeed;
         spec = &seeded;
     }
+    const bool echo = send_ >= 0 && (echoAll_ || echoTracks_.contains(note.track));
     return scheduleNote(engine, it->id, *inst, *spec, midiToHz(note.midi), note.vel,
-                        note.durSeconds, at, gainStage);
+                        note.durSeconds, at, gainStage, send_, echo);
 }
 
 std::vector<float> renderSong(const SongModel &model, const SongPerformance &performance,

@@ -39,6 +39,7 @@ struct SequencedNote
     // segment pass or stinger, so a pass hisses alike wherever it
     // starts. Never 0, which would fall back to the engine frame.
     uint32_t noiseSeed = 1;
+    QString track;              // the song's track that plays it
 };
 
 class SongSequencer
@@ -87,6 +88,7 @@ private:
         int     midi;
         QString instrument;
         int     layer;          // index into layers_, -1: always full
+        QString track;
     };
     struct Run                  // one pass of a segment
     {

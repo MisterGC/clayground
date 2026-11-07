@@ -40,7 +40,7 @@ SongSequencer::SongSequencer(const SongModel &model, int sampleRate, const QStri
             const QString instrument = model_.tracks.value(tit.key()).instrument;
             const int layer = layered ? layerOfTrack.value(tit.key(), -1) : -1;
             for (const NoteCell &n : tit.value())
-                notes.append({offset + n.t, n.dur, n.vel, n.midi, instrument, layer});
+                notes.append({offset + n.t, n.dur, n.vel, n.midi, instrument, layer, tit.key()});
         }
     };
     auto byBeat = [](const SegNote &a, const SegNote &b) { return a.beat < b.beat; };
@@ -116,7 +116,7 @@ void SongSequencer::emitNotes(const QVector<SegNote> &notes, double startBeat, i
         if (vel <= 0.0) continue;
         uint32_t seed = 12345u + static_cast<uint32_t>(frameOf(n.beat) & 0xffffffff);
         if (seed == 0) seed = 1;
-        out.push_back({frame, n.durBeats * secondsPerBeat, vel, n.midi, n.instrument, seed});
+        out.push_back({frame, n.durBeats * secondsPerBeat, vel, n.midi, n.instrument, seed, n.track});
     }
 }
 
