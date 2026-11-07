@@ -23,6 +23,7 @@ set(ENGINE_SRC
     src/engine/instrument_spec.cpp src/engine/instrument_spec.h
     src/engine/scheduler.cpp src/engine/scheduler.h
     src/engine/segment_curve.h
+    src/engine/snes_output.cpp src/engine/snes_output.h
     src/engine/drive_crush.h
     src/engine/engine.cpp src/engine/engine.h
     src/engine/oscillator_voice.cpp src/engine/oscillator_voice.h
