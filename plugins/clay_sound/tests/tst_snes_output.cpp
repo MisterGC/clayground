@@ -22,6 +22,7 @@
 #include <cmath>
 #include <complex>
 #include <functional>
+#include <memory>
 #include <vector>
 
 namespace cs = clay::sound;
@@ -160,6 +161,8 @@ private slots:
     void snesSongHasLessEnergyAboveTenKilohertz();
     void liveRendersWhatRenderOfflineReturns();
     void playerTurnsItsBusesOnAndOff();
+    void playerGoneLeavesTheStageToTheOneStillPlaying();
+    void playerSwitchedToAV1SongGivesTheStageUp();
 
     void cleanup();
 };
@@ -411,6 +414,68 @@ void SnesOutputTest::playerTurnsItsBusesOnAndOff()
         QVERIFY(music.enabled());
     }
     QVERIFY(!music.enabled());                  // gone with the player that turned it on
+}
+
+void SnesOutputTest::playerGoneLeavesTheStageToTheOneStillPlaying()
+{
+    auto &eng = cs::AudioOutput::instance().engine();
+    auto &music = eng.snesOutput(cs::Bus::Music);
+    QTemporaryDir dir;
+    const QString path = dir.filePath("snes.song.json");
+    {
+        QFile f(path);
+        QVERIFY(f.open(QIODevice::WriteOnly));
+        f.write(adaptiveWith("snes"));
+    }
+
+    // B plays after A, so B keeps the stage when A goes.
+    auto b = std::make_unique<SongPlayer>();
+    {
+        SongPlayer a;
+        a.setSource(QUrl::fromLocalFile(path));
+        a.play();
+        QVERIFY(music.enabled());
+        b->setSource(QUrl::fromLocalFile(path));
+        b->play();
+        QVERIFY(music.enabled());
+    }
+    QVERIFY2(music.enabled(), "b still plays a snes song, its Music output is off");
+    b.reset();
+    QVERIFY(!music.enabled());                  // the last one to play turns it off
+}
+
+void SnesOutputTest::playerSwitchedToAV1SongGivesTheStageUp()
+{
+    auto &eng = cs::AudioOutput::instance().engine();
+    auto &music = eng.snesOutput(cs::Bus::Music);
+    QTemporaryDir dir;
+    auto write = [&](const QString &name, const QByteArray &json) {
+        QFile f(dir.filePath(name));
+        if (f.open(QIODevice::WriteOnly)) f.write(json);
+        return QUrl::fromLocalFile(dir.filePath(name));
+    };
+    const QUrl snes = write("snes.song.json", adaptiveWith("snes"));
+    const QUrl v1 = write("v1.song.json", R"({"tempo": 120, "tracks": {"a": {"instrument": "x"}},
+        "patterns": {"P": {"a": [{"t": 0, "note": "C4"}]}}})");
+
+    {
+        SongPlayer p;
+        p.setSource(snes);
+        p.play();
+        QVERIFY(music.enabled());
+        p.stop();
+        p.setSource(v1);
+        QVERIFY2(p.loaded(), qPrintable(p.error()));
+        QCOMPARE(p.version(), 1);
+        p.play();
+        QVERIFY2(!music.enabled(), "a v1 song plays through the SNES output the previous song turned on");
+        p.stop();
+
+        // The player holds nothing now: a stage someone else starts
+        // outlives it.
+        music.start(eng.currentFrame());
+    }
+    QVERIFY(music.enabled());
 }
 
 QTEST_MAIN(SnesOutputTest)
