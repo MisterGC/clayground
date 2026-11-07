@@ -76,8 +76,10 @@ public:
     // its instrument's `gain()`, its note's gain stage and the pan
     // gains of instrument pan + note pan, mixed into the instrument's
     // bus; every bus runs its echo, then its reverb, and is scaled by
-    // its gain into `out`. A bus with an effect on renders even while
-    // none of its voices ring, so the tail plays out.
+    // its gain into `out`. A send (addSend()) runs its echo, then its
+    // reverb, and adds them to its bus before the bus effects. A bus or
+    // a send with an effect on renders even while none of its voices
+    // ring, so the tail plays out.
     void renderStereo(float* out, int frames);
 
     // Render `frames` mono samples into `out`: the stereo mix folded
@@ -94,6 +96,21 @@ public:
     // while the audio thread renders; process() is the engine's.
     Echo&   echo(Bus bus)   { return echo_[static_cast<int>(bus)]; }
     Reverb& reverb(Bus bus) { return reverb_[static_cast<int>(bus)]; }
+
+    // A send is an echo and a reverb of their own that a set of notes
+    // feeds besides its bus (a song's, so that its echo hears only the
+    // tracks the song lets into it). Every note naming the send through
+    // NoteEvent::send feeds its reverb; one that also sets sendEcho
+    // feeds the echo, whose repeats then feed the reverb too. What both
+    // add plays on the send's bus; the notes themselves play on their
+    // instrument's bus exactly as without a send. Gains and pans are
+    // the note's, as on the bus. Both effects start off; a send with
+    // neither on adds nothing. Ids are never reused; a removed or
+    // unknown id is no send, and its effects are nullptr.
+    int     addSend(Bus bus);
+    void    removeSend(int id);
+    Echo*   sendEcho(int id);
+    Reverb* sendReverb(int id);
 
     // A gain stage is a volume a set of notes shares, whatever
     // instrument plays them (a SongPlayer's volume). A note names one
@@ -117,7 +134,21 @@ private:
         std::unique_ptr<IVoice> voice;
         float pan = 0.0f;               // the note's own pan
         int gainStage = -1;
+        int send = -1;
+        bool sendEcho = false;
     };
+
+    struct Send {
+        Bus bus = Bus::Music;
+        Echo echo;
+        Reverb reverb;
+        std::vector<float> echoIn;      // interleaved stereo, the notes the echo hears
+        std::vector<float> reverbIn;    // every note of the send, then the echo
+        std::vector<float> wet;         // what the send adds to its bus
+        bool echoFed = false;           // per pass: a voice fed echoIn
+        bool reverbFed = false;
+    };
+    Send* sendAt(int id) const;
 
     int sampleRate_;
     int64_t currentFrame_ = 0;
@@ -133,6 +164,7 @@ private:
     Reverb reverb_[kBusCount];
     // unique_ptr so the atomics stay put when the vector grows.
     std::vector<std::unique_ptr<std::atomic<float>>> gainStages_;
+    std::vector<std::unique_ptr<Send>> sends_;  // sparse: nullptr after remove
 };
 
 } // namespace clay::sound
