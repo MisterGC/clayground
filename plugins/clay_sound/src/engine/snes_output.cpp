@@ -33,6 +33,10 @@ int gaussReachFrames(int sampleRate)
 
 void SnesOutput::setEnabled(bool on)
 {
+    // Switching on claims the stage even when it is on already, so that
+    // a release() of an earlier start no longer turns it off. The grid
+    // restarts only when the stage was off.
+    if (on) claims_.fetch_add(1, std::memory_order_relaxed);
     if (enabled_.load(std::memory_order_relaxed) == on) return;
     if (on) {
         origin_.store(kNextPass, std::memory_order_relaxed);
@@ -44,14 +48,15 @@ void SnesOutput::setEnabled(bool on)
 unsigned SnesOutput::start(int64_t originFrame)
 {
     origin_.store(originFrame, std::memory_order_relaxed);
-    const unsigned token = starts_.fetch_add(1, std::memory_order_release) + 1;
+    starts_.fetch_add(1, std::memory_order_release);
+    const unsigned token = claims_.fetch_add(1, std::memory_order_relaxed) + 1;
     enabled_.store(true, std::memory_order_relaxed);
     return token;
 }
 
 void SnesOutput::release(unsigned token)
 {
-    if (starts_.load(std::memory_order_relaxed) == token) setEnabled(false);
+    if (claims_.load(std::memory_order_relaxed) == token) setEnabled(false);
 }
 
 int SnesOutput::latencyFrames(int sampleRate)

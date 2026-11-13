@@ -49,7 +49,9 @@ public:
     static constexpr double kSincCutoffHz  = 14000.0;
 
     // On: the grid starts at the first frame of the next pass. Off: the
-    // bus is dry again, its delay and its history dropped.
+    // bus is dry again, its delay and its history dropped. On while
+    // already on leaves the grid where it is, but holds the stage like
+    // start() does: no earlier start's release() turns it off any more.
     void setEnabled(bool on);
     bool enabled() const { return enabled_.load(std::memory_order_relaxed); }
 
@@ -81,7 +83,8 @@ private:
     void sincWeights(int64_t rem, float* w) const;    // 2 * kSincReach taps
 
     std::atomic<bool>     enabled_{false};
-    std::atomic<unsigned> starts_{0};
+    std::atomic<unsigned> starts_{0};  // restarts of the grid, watched by process()
+    std::atomic<unsigned> claims_{0};  // who holds the stage: start() and setEnabled(true)
     std::atomic<int64_t>  origin_{kNextPass};
 
     // Audio-thread state. Frames are counted from the origin: input j is
