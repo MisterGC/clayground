@@ -155,6 +155,7 @@ private slots:
     void delayIsLatencyFrames();
     void samplesDoNotDependOnPassesOrStartFrame();
     void offLeavesTheBusDry();
+    void setEnabledOnHoldsTheStageLikeStart();
 
     void parserReadsOutput();
     void songWithoutOutputRendersAsClean();
@@ -274,6 +275,39 @@ void SnesOutputTest::offLeavesTheBusDry()
     auto rest = dry;
     out.process(rest.data() + 2 * 882, 882, 882, kRate);
     QCOMPARE(rest, dry);
+}
+
+void SnesOutputTest::setEnabledOnHoldsTheStageLikeStart()
+{
+    // An earlier start's release() turns the stage off only while nobody
+    // switched it on since - also when it was on already.
+    cs::SnesOutput out;
+    const unsigned token = out.start(0);
+    out.setEnabled(true);
+    out.release(token);
+    QVERIFY2(out.enabled(), "setEnabled(true) on a stage already on did not hold it");
+
+    // Holding it leaves the grid alone: a pass after the claim gives the
+    // samples of a stage that was only started.
+    cs::SnesOutput claimed, started;
+    claimed.start(0);
+    started.start(0);
+    auto a = stereoSine(1000.0, 0.1);
+    auto b = a;
+    claimed.process(a.data(), 441, 0, kRate);
+    started.process(b.data(), 441, 0, kRate);
+    claimed.setEnabled(true);
+    claimed.process(a.data() + 2 * 441, 441, 441, kRate);
+    started.process(b.data() + 2 * 441, 441, 441, kRate);
+    QCOMPARE(a, b);
+
+    // Without the claim the release still turns it off, and a start
+    // after the claim takes the stage over again.
+    cs::SnesOutput plain;
+    plain.release(plain.start(0));
+    QVERIFY(!plain.enabled());
+    out.release(out.start(0));
+    QVERIFY(!out.enabled());
 }
 
 void SnesOutputTest::parserReadsOutput()
