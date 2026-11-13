@@ -445,6 +445,15 @@
     of the chip's gaussian - from its first frame, live and offline; a
     song without it turns that output off on those buses.
 
+    Two players that share a bus share its SNES output: the last one to
+    play sets it. A player turns off what it turned on when it is
+    destroyed or loads a song that does not ask for it, but only if no
+    player started the output since; stop() leaves it on, so what still
+    rings rings out through it. In C++ the same rule holds through the
+    engine: \c{engine.snesOutput(bus).start(frame)} returns a token, and
+    \c{release(token)} turns the output off only if nothing started it,
+    or switched it on with \c{setEnabled(true)}, after that start.
+
     \qml
     SongPlayer {
         source: "songs/adaptive.song.json"

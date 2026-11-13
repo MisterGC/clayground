@@ -812,7 +812,17 @@ what lies above folds down quietly, as on the chip (18 kHz comes out at
 A version 2 song turns it on with `"output": "snes"`; in C++ it is
 `engine.snesOutput(Bus::Music).start(frame)`, the 32 kHz grid starting at
 `frame`, or `setEnabled(true)`. Off, the default, the bus renders exactly
-the samples it did before. On the adaptive demo song it takes 15 dB off
+the samples it did before.
+
+Two song players on one bus share its SNES output: the last one to play
+sets it. A player turns off what it turned on when it goes or loads a
+song without `"output": "snes"`, but only if no player started it since;
+`stop()` leaves it on, so the tail rings out through it. The rule is the
+engine's: `start(frame)` returns a token, and `release(token)` turns the
+output off only if nobody started it again, or switched it on with
+`setEnabled(true)`, after that start. `setEnabled(true)` on an output
+already on keeps its 32 kHz grid where it is and still counts as such a
+start. On the adaptive demo song it takes 15 dB off
 above 10 kHz and leaves what lies below 4 kHz within 0.05 dB.
 
 ## The engine without QML
