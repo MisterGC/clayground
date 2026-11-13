@@ -7,8 +7,8 @@
 // The mix is stereo: every voice renders mono, is panned into the
 // stereo buffer of its instrument's bus, and the buses are summed into
 // the output, each scaled by its volume. A bus runs its echo and its
-// reverb (bus_effects.h) over its mix before the volume, both off by
-// default. Live playback and offline renders run this one mix; a mono
+// reverb (bus_effects.h) and then its SNES output (snes_output.h) over
+// its mix before the volume, all off by default. Live playback and offline renders run this one mix; a mono
 // render is its downmix.
 
 #pragma once
@@ -16,6 +16,7 @@
 #include "bus.h"
 #include "bus_effects.h"
 #include "scheduler.h"
+#include "snes_output.h"
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -76,10 +77,11 @@ public:
     // its instrument's `gain()`, its note's gain stage and the pan
     // gains of instrument pan + note pan, mixed into the instrument's
     // bus; every bus runs its echo, then its reverb, and is scaled by
-    // its gain into `out`. A send (addSend()) runs its echo, then its
-    // reverb, and adds them to its bus before the bus effects. A bus or
-    // a send with an effect on renders even while none of its voices
-    // ring, so the tail plays out.
+    // its gain into `out`; a bus with its SNES output on runs that
+    // last. A send (addSend()) runs its echo, then its reverb, and adds
+    // them to its bus before the bus effects. A bus or a send with an
+    // effect on renders even while none of its voices ring, so the tail
+    // plays out.
     void renderStereo(float* out, int frames);
 
     // Render `frames` mono samples into `out`: the stereo mix folded
@@ -96,6 +98,8 @@ public:
     // while the audio thread renders; process() is the engine's.
     Echo&   echo(Bus bus)   { return echo_[static_cast<int>(bus)]; }
     Reverb& reverb(Bus bus) { return reverb_[static_cast<int>(bus)]; }
+    // The SNES-style output of a bus: 32 kHz and its soft top end.
+    SnesOutput& snesOutput(Bus bus) { return snes_[static_cast<int>(bus)]; }
 
     // A send is an echo and a reverb of their own that a set of notes
     // feeds besides its bus (a song's, so that its echo hears only the
@@ -162,6 +166,7 @@ private:
     std::atomic<float> busGain_[kBusCount] = {1.0f, 1.0f, 1.0f};
     Echo   echo_[kBusCount];
     Reverb reverb_[kBusCount];
+    SnesOutput snes_[kBusCount];
     // unique_ptr so the atomics stay put when the vector grows.
     std::vector<std::unique_ptr<std::atomic<float>>> gainStages_;
     std::vector<std::unique_ptr<Send>> sends_;  // sparse: nullptr after remove
