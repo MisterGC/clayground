@@ -5,6 +5,23 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are
 calendar-style (`VERSION` at the repository root). Releases up to 2026.7 are
 described on their [GitHub release pages](https://github.com/MisterGC/clayground/releases).
 
+## [2026.13] - 2026-11-14
+
+A world can run a slow motion on simulated time, so a bench that steps it by
+hand sees it end on the same step every run; a song moves on where no audio
+output device opens; and the dojo and the inspector log nothing a sandbox did
+not cause.
+
+### Added
+
+- **A slow motion that runs on simulated time.** `ClayWorld2d.slowMotion(ms, scale)` slows the world to `scale` for `ms` milliseconds of physics time: at 0.25, 300 ms of slow motion take 1.2 s on the wall clock. A pause or a full hit stop holds it, and a test or bench that steps the world by hand sees it end on the same step every run; with the dojo's single step of 1/60 s, 300 ms are 18 steps. Its scale multiplies with a running hit stop's and the global time scale, and `slowMotionActive` and `clayInspect().slowMotion` tell whether one runs. In `hitStopMode: "view"` it holds the picture instead and lets it move on at `scale`, for as long as it would have slowed the physics. Why: `hitStop()` ends on the wall clock, so a bench could not tell which steps a slow motion covered, and a game that needed that had to set the physics time scale itself. ([#506](https://github.com/MisterGC/clayground/issues/506))
+
+### Fixed
+
+- **The inspector reports only what a sandbox logged.** A sandbox without errors gets an `errors` answer with no errors and no warnings from the loader itself: on macOS every answer carried one from the annotation overlay and one about the missing font "Monospace". The loader's and the dojo's own text now use the system's fixed-width font (Menlo on macOS), so it is monospaced there too. Under `QT_QPA_PLATFORM=offscreen` on macOS, Qt itself still warns once that its default font "Sans Serif" is missing; that warning comes from Qt's offscreen platform, so the loader leaves it. Why: an agent reading the answer could not tell those warnings from the sandbox's own. ([#408](https://github.com/MisterGC/clayground/issues/408))
+- **Closing the dojo logs no `TypeError`.** It used to print three, `Cannot read property 'openAnnotations' of null`, on every shutdown. ([#408](https://github.com/MisterGC/clayground/issues/408))
+- **A song moves on where no audio output device opens.** On a machine without one, such as a CI runner, the sound engine now runs on a clock of its own: it renders in real time and nothing is heard. A version 2 song's playhead moves, its `segment` follows its `state` on the bar, and its transitions and stingers play, with or without `CLAY_SOUND_MUTE=1`. Until now the engine stood still there, so a muted bench could not check the music moving from one part to the next. A device that opens later takes over where the clock is. ([#507](https://github.com/MisterGC/clayground/issues/507))
+
 ## [2026.12] - 2026-11-14
 
 A song can sound like the SNES: it sets the console's echo and a reverb, and

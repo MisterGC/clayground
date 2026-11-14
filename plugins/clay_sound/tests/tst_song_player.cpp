@@ -11,6 +11,7 @@
 
 #include <QtTest/QtTest>
 #include <QFile>
+#include <QScopeGuard>
 #include <QSignalSpy>
 #include <QTemporaryDir>
 #include <QVariantList>
@@ -49,6 +50,9 @@ private slots:
     void v2StateAndIntensityBeforePlayAreWhereItStarts();
     void v2SampleInstrumentsLoadBesideTheSong();
     void v2HotReloadStaysInTheSegment();
+    void v2SegmentFollowsItsStateWithoutADevice_data();
+    void v2SegmentFollowsItsStateWithoutADevice();
+    void clockHandsOverToASinkThatOpensLater();
 
 private:
     QString writeSong(QTemporaryDir &dir, const QByteArray &content);
@@ -667,6 +671,127 @@ void TestSongPlayer::v2HotReloadStaysInTheSegment()
     QVERIFY(p.playing());
     QVERIFY(p.position() > 1.0);
     p.stop();
+}
+
+void TestSongPlayer::v2SegmentFollowsItsStateWithoutADevice_data()
+{
+    QTest::addColumn<bool>("muted");
+    QTest::newRow("no device") << false;
+    QTest::newRow("no device, CLAY_SOUND_MUTE=1") << true;
+}
+
+// With no output device to open (#507) the engine runs on its own clock:
+// nobody renders it here, yet the song plays in real time and moves from
+// explore to combat on the bar, as its transition says.
+void TestSongPlayer::v2SegmentFollowsItsStateWithoutADevice()
+{
+    namespace cs = clay::sound;
+    QFETCH(bool, muted);
+    auto &out = cs::AudioOutput::instance();
+    auto &eng = out.engine();
+    const int rate = out.sampleRate();
+    const int64_t bar = 4 * rate / 2;           // 4 beats at 120 bpm
+
+    if (muted) qputenv("CLAY_SOUND_MUTE", "1");
+    else       qunsetenv("CLAY_SOUND_MUTE");
+    out.stop();
+    out.setOpensDevices(false);
+    const auto restore = qScopeGuard([&] {
+        out.stop();
+        out.setOpensDevices(true);
+        qunsetenv("CLAY_SOUND_MUTE");
+    });
+
+    SongPlayer p;
+    p.setSource(QUrl::fromLocalFile(CLAY_SOUND_DEMO_ADAPTIVE));
+    QVERIFY2(p.loaded(), qPrintable(p.error()));
+    QCOMPARE(p.segment(), QStringLiteral("explore"));
+    p.play();
+    QVERIFY(p.playing());
+    QVERIFY(!out.isRunning());
+    QVERIFY(out.isClockRunning());
+    const int64_t start = eng.currentFrame();   // song frame 0
+
+    // The clock keeps real time: never ahead of it, and not far behind.
+    QElapsedTimer wall;
+    wall.start();
+    QVERIFY(waitUntil([&] { return eng.currentFrame() - start >= rate / 2; }, 3000));
+    const double ran = double(eng.currentFrame() - start) / rate;
+    const double took = wall.nsecsElapsed() / 1e9;
+    QVERIFY2(ran <= took + 0.03 && took < 1.5,
+             qPrintable(QStringLiteral("%1 s of song in %2 s").arg(ran).arg(took)));
+    QVERIFY(p.position() > 0.5);
+
+    int64_t changedAt = -1;
+    double beatAtChange = -1.0;
+    connect(&p, &SongPlayer::segmentChanged, this, [&] {
+        changedAt = eng.currentFrame() - start;
+        beatAtChange = p.position();
+    });
+    // The state reaches the song kScheduleAheadFrames after the engine's
+    // frame; the transition waits for the next bar from there.
+    const int64_t reaches = eng.currentFrame() - start + SongPlayer::kScheduleAheadFrames;
+    const int64_t onBar = (reaches / bar + 1) * bar;
+    p.setState("combat");
+    QCOMPARE(p.segment(), QStringLiteral("explore"));
+    QVERIFY(waitUntil([&] { return p.segment() == QStringLiteral("combat"); }, 5000));
+    // Seen by the next tick after the engine passed the bar.
+    QVERIFY2(changedAt >= onBar && changedAt - onBar < rate / 4,
+             qPrintable(QStringLiteral("combat at song frame %1, the bar at %2")
+                            .arg(changedAt).arg(onBar)));
+    QVERIFY(beatAtChange >= 0.0 && beatAtChange < 0.5);
+    QVERIFY(out.isClockRunning());
+    p.stop();
+}
+
+// A device that opens after the clock started (#507) takes over from it:
+// the engine then plays through the sink, and its frame goes on from where
+// the clock left it, never back. On the web this retry is what makes a page
+// audible after its first open failed (#262). Needs a device that opens.
+void TestSongPlayer::clockHandsOverToASinkThatOpensLater()
+{
+    namespace cs = clay::sound;
+    auto &out = cs::AudioOutput::instance();
+    auto &eng = out.engine();
+    const int rate = out.sampleRate();
+
+    qputenv("CLAY_SOUND_MUTE", "1");            // the sink opens at volume 0
+    out.stop();
+    out.setOpensDevices(false);
+    const auto restore = qScopeGuard([&] {
+        out.stop();
+        out.setOpensDevices(true);
+        qunsetenv("CLAY_SOUND_MUTE");
+    });
+
+    out.start();
+    QVERIFY(out.isClockRunning());
+    QVERIFY(!out.isRunning());
+    const int64_t onClock = eng.currentFrame();
+    QVERIFY(waitUntil([&] { return eng.currentFrame() >= onClock + rate / 10; }, 3000));
+
+    // Past AudioOutput's RETRY_MIN_MS (500 ms) since the failed open, the
+    // next start() tries the devices again; the clock runs meanwhile.
+    out.setOpensDevices(true);
+    QTest::qWait(600);
+    const int64_t beforeOpen = eng.currentFrame();
+    out.start();
+    if (!out.isRunning())
+        QSKIP("no audio output device opened - nothing to hand over to");
+    QVERIFY(!out.isClockRunning());
+
+    int64_t last = eng.currentFrame();
+    QVERIFY(last >= beforeOpen);
+    bool wentBack = false;
+    QVERIFY(waitUntil([&] {
+        const int64_t now = eng.currentFrame();
+        wentBack = wentBack || now < last;
+        last = now;
+        return now >= beforeOpen + rate / 10;
+    }, 3000));
+    QVERIFY(!wentBack);
+    QVERIFY(out.isRunning());
+    QVERIFY(!out.isClockRunning());
 }
 
 QTEST_MAIN(TestSongPlayer)

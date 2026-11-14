@@ -30,7 +30,8 @@
 // path renderOffline() takes too. A control reaches the song that far
 // ahead of the engine's frame, so the same controls at the same song
 // frames sound the same live and offline. Its playhead is the engine's:
-// it moves while the sink renders. v1 songs keep the tick.
+// it moves while the sink renders, or, where no output device opens, on
+// the engine's own clock (AudioOutput). v1 songs keep the tick.
 //
 // A v2 song with "output": "snes" turns the SNES output on for every
 // bus its instruments play on when it starts playing, its 32 kHz grid

@@ -9,8 +9,8 @@
     physics world: after every step it adds the step's time to \l elapsed
     and fires once that reaches \l interval. Whatever holds the physics
     holds the timer with it - a pause fires nothing, single-stepping fires
-    after as many steps as the interval takes, a hit stop or a lower time
-    scale slows it exactly as much as the simulation. Game logic on it
+    after as many steps as the interval takes, a hit stop, a slow motion
+    or a lower time scale slows it exactly as much as the simulation. Game logic on it
     (enemy AI, cooldowns, telegraphs) stays in step with the bodies it
     moves, where a QML Timer runs on wall clock.
 
@@ -27,7 +27,7 @@
     }
     \endqml
 
-    \sa ClayWorld2d::hitStop()
+    \sa ClayWorld2d::hitStop(), ClayWorld2d::slowMotion()
 */
 import QtQuick
 import Box2D

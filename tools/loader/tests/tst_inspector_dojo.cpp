@@ -22,6 +22,7 @@ private slots:
     void cleanupTestCase();
 
     void testSnapshotRootProperties();
+    void cleanSandboxGetsAnEmptyErrorsAnswer();
     void testSnapshotFlagInfo();
     void snapshotIncludesViewState();
     void viewStateSurvivesReload();
@@ -171,6 +172,46 @@ void TestInspectorDojo::testSnapshotRootProperties()
 
     // Private property should NOT be captured
     QVERIFY(!props.contains("_internalCounter"));
+}
+
+// A sandbox without errors gets an errors answer without errors, and nothing
+// the loader's own QML (qrc:/clayground/) logged: those hid a sandbox's own
+// warnings from an agent reading the answer (#408).
+void TestInspectorDojo::cleanSandboxGetsAnEmptyErrorsAnswer()
+{
+    // The overlays load a moment after the sandbox; until they have, their
+    // warnings could not have been logged yet and the check would pass empty.
+    bool overlaysUp = false;
+    for (int i = 0; i < 25 && !overlaysUp; ++i) {
+        QJsonObject snap;
+        snap["action"] = "snapshot";
+        QVERIFY(writeRequest(snap));
+        const auto resp = waitForResponse();
+        QVERIFY(!resp.isEmpty());
+        for (const auto& line : resp["logTail"].toArray()) {
+            if (line.toString().contains("Overlays created successfully"))
+                overlaysUp = true;
+        }
+        if (!overlaysUp)
+            QTest::qWait(200);
+    }
+    QVERIFY2(overlaysUp, "the loader's overlays never reported being created");
+
+    QJsonObject req;
+    req["action"] = "errors";
+    QVERIFY(writeRequest(req));
+    const auto resp = waitForResponse();
+    QVERIFY2(!resp.isEmpty(), "No response received for errors");
+    QCOMPARE(resp["action"].toString(), "errors");
+
+    const auto errors = resp["errors"].toArray();
+    QVERIFY2(errors.isEmpty(),
+             qPrintable(QJsonDocument(errors).toJson(QJsonDocument::Compact)));
+    for (const auto& w : resp["warnings"].toArray()) {
+        const auto file = w.toObject()["file"].toString();
+        QVERIFY2(!file.startsWith("qrc:/clayground/"),
+                 qPrintable("loader warning: " + w.toObject()["text"].toString()));
+    }
 }
 
 void TestInspectorDojo::testSnapshotFlagInfo()

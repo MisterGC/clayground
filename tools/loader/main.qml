@@ -115,7 +115,7 @@ Window {
                color: "white"
                text: ClayLiveLoader.altMessage
                font.pixelSize: messageShow.height * .04
-               font.family: "Monospace"
+               font.family: ClayFixedFont
            }
        }
 

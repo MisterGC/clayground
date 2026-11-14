@@ -27,6 +27,16 @@
 //
 // The sink is stereo. A device that reports it cannot take two channels
 // gets the engine's mono downmix instead, so it still plays everything.
+//
+// Where no sink opens - a machine without an output device, such as CI's
+// runners, or one whose devices all fail to open - start() runs the engine
+// on a clock of its own: the pull timer renders it in real time and drops
+// the samples (#507). Everything that follows the engine's frame then moves
+// as it would with a device - a song's playhead, its segment, its
+// transitions and stingers, voices that start and end - only nothing is
+// heard. Every later start() still tries the devices, at most every
+// RETRY_MIN_MS, and the first sink that opens takes over from the clock;
+// the engine's frame goes on from where the clock left it.
 
 #ifndef CLAY_SOUND_AUDIO_OUTPUT_H
 #define CLAY_SOUND_AUDIO_OUTPUT_H
@@ -92,20 +102,32 @@ public:
     static QString busName(Bus bus);
 
     int sampleRate() const { return engine_.sampleRate(); }
+
+    // A sink is open and the engine plays through it.
     bool isRunning() const { return sinkRunning_; }
 
-    // Open the audio sink and start the pull timer. Safe to call from a
-    // user-gesture handler in QML (e.g. a Play button) so subsequent
-    // triggers play immediately. Idempotent.
+    // No sink opened, and the engine runs on its own clock, silent.
+    bool isClockRunning() const { return clockRunning_; }
+
+    // Open the audio sink and start the pull timer; where no sink opens,
+    // run the engine on its own clock. Safe to call from a user-gesture
+    // handler in QML (e.g. a Play button) so subsequent triggers play
+    // immediately. Idempotent once a sink is open.
     Q_INVOKABLE void start();
+
+    // False: start() opens no output device, as on a machine without one,
+    // and the engine runs on its own clock. True by default. For tests on
+    // a machine that has a device; call it before start(), or stop() first.
+    void setOpensDevices(bool on) { opensDevices_ = on; }
 
     // Set a bus volume, clamped to [0, 1], and emit busGainChanged when
     // it moved. The way QML changes a bus (SoundMixer), so a player that
     // does not play on the engine (Music) can follow the music bus.
     void setBusGain(Bus bus, float g);
 
-    // Close the sink and stop the pull timer. Active scheduled notes
-    // are not cancelled; calling start() again resumes mixing.
+    // Close the sink (or stop the clock) and the pull timer. Active
+    // scheduled notes are not cancelled; calling start() again resumes
+    // mixing.
     Q_INVOKABLE void stop();
 
 signals:
@@ -124,6 +146,8 @@ private:
     AudioOutput& operator=(const AudioOutput&) = delete;
 
     void onPull();
+    void onClockPull();
+    void startClock();
 
     // Open the sink on one specific device. Returns false (and leaves no
     // sink behind) when the device cannot be opened.
@@ -133,6 +157,10 @@ private:
     static constexpr int BUFFER_MS   = 20;
     // Shortest gap between a failed attempt to open the sink and the next.
     static constexpr int RETRY_MIN_MS = 500;
+    // The most the clock renders in one pull, as much as the sink buffers:
+    // after the event loop stalled longer, the rest is skipped, as a sink
+    // underruns, rather than the engine racing to catch up.
+    static constexpr int CLOCK_MAX_FRAMES = SAMPLE_RATE / 5;
 
     Engine      engine_{SAMPLE_RATE};
     QAudioSink* sink_     = nullptr;
@@ -142,6 +170,12 @@ private:
     QTimer      pullTimer_;
     bool        sinkRunning_ = false;
     QElapsedTimer sinceFailedOpen_;
+    bool        opensDevices_ = true;
+    // The engine's own clock where no sink opened: frames rendered since
+    // clock_ started.
+    bool        clockRunning_ = false;
+    QElapsedTimer clock_;
+    int64_t     clockFrames_ = 0;
 };
 
 } // namespace clay::sound
