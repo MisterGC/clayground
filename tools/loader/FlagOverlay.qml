@@ -76,7 +76,7 @@ Rectangle {
             id: annotationInput
             wrapMode: TextEdit.Wrap
             color: "#e0e0e0"
-            font.family: "monospace"
+            font.family: ClayFixedFont
             font.pixelSize: Math.max(14, screenshot.height * 0.05)
             placeholderText: "Describe what you see ..."
             placeholderTextColor: "#666666"
@@ -102,7 +102,7 @@ Rectangle {
 
         Text {
             color: "#999999"
-            font.family: "monospace"
+            font.family: ClayFixedFont
             font.pixelSize: Math.max(11, screenshot.height * 0.028)
             text: "Return to confirm, Esc to cancel"
         }

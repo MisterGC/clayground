@@ -7,6 +7,7 @@
 #include <QGuiApplication>
 #include <QQmlApplicationEngine>
 #include <QQmlContext>
+#include <QFontDatabase>
 #include <QDir>
 #include <QCoreApplication>
 #include <QDebug>
@@ -87,6 +88,8 @@ int main(int argc, char *argv[])
     if (!processCmdLineArgs(app, dojo))
         return 1;
     engine.rootContext()->setContextProperty("ClayDojo", &dojo);
+    // Instead of "Monospace", which macOS does not have (#408).
+    engine.rootContext()->setContextProperty("ClayFixedFont", QFontDatabase::systemFont(QFontDatabase::FixedFont).family());
     engine.load(QUrl("qrc:/clayground/main.qml"));
 
     QTimer::singleShot(0, &dojo, SLOT(run()));

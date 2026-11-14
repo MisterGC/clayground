@@ -21,6 +21,7 @@
 #include <QDir>
 #include <QCoreApplication>
 #include <QTextEdit>
+#include <QFontDatabase>
 
 
 MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
@@ -141,10 +142,11 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
 
     // Trace recording indicator
     m_traceIndicator = new QLabel(" \u25CF REC ", this);
-    m_traceIndicator->setStyleSheet(
+    m_traceIndicator->setStyleSheet(QString(
         "QLabel { background-color: rgba(180, 30, 30, 180); color: white;"
-        " font-family: monospace; font-size: 13px; font-weight: bold;"
-        " padding: 3px 8px; border-radius: 4px; }");
+        " font-family: '%1'; font-size: 13px; font-weight: bold;"
+        " padding: 3px 8px; border-radius: 4px; }")
+        .arg(QFontDatabase::systemFont(QFontDatabase::FixedFont).family()));
     m_traceIndicator->setAttribute(Qt::WA_TransparentForMouseEvents);
     m_traceIndicator->hide();
     connect(m_inspector, &ClayInspector::traceStarted, this, [this]() {
@@ -253,6 +255,10 @@ void MainWindow::configureEngine(QQmlEngine* engine)
         context->setContextProperty("ClayTimeCtrl", m_timeCtrl);
         context->setContextProperty("ClayInputCtrl", m_inputCtrl);
         context->setContextProperty("ClayAnnotations", m_annotations);
+        // The loader's own QML asks for this instead of "monospace", a family
+        // macOS does not have: the miss logged a font warning into every
+        // sandbox's diagnostics and fell back to a proportional font (#408).
+        context->setContextProperty("ClayFixedFont", QFontDatabase::systemFont(QFontDatabase::FixedFont).family());
     }
 
     // Absolute, off the binary rather than off the working directory. The
@@ -656,8 +662,9 @@ void MainWindow::showAltMessage()
     auto* textWidget = new QTextEdit(this);
     textWidget->setReadOnly(true);
     textWidget->setHtml(m_liveLoader->altMessage());
-    textWidget->setStyleSheet("QTextEdit { background-color: black; color: white; "
-                             "font-family: monospace; font-size: 16px; }");
+    textWidget->setStyleSheet(QString("QTextEdit { background-color: black; color: white; "
+                             "font-family: '%1'; font-size: 16px; }")
+                             .arg(QFontDatabase::systemFont(QFontDatabase::FixedFont).family()));
 
     // Replace central widget
     setCentralWidget(textWidget);
