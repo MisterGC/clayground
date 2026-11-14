@@ -37,7 +37,7 @@ float Echo::firTap(int tap) const
     return fir_[tap].load(std::memory_order_relaxed);
 }
 
-void Echo::process(float* mix, int frames, int sampleRate)
+void Echo::process(const float* in, float* out, int frames, int sampleRate)
 {
     if (!enabled()) return;
     // The count may still lag the switch it belongs to by a pass; an
@@ -70,9 +70,9 @@ void Echo::process(float* mix, int frames, int sampleRate)
             h[head_] = line_[2 * static_cast<size_t>(read) + ch];
             float fir = 0.0f;
             for (int k = 0; k < kTaps; ++k) fir += c[k] * h[(head_ - k + kTaps) % kTaps];
-            const float in = mix[2 * i + ch];
-            line_[2 * static_cast<size_t>(write_) + ch] = clampTo(in + fb * fir, -kClip, kClip);
-            mix[2 * i + ch] = in + vol * fir;
+            const float x = in[2 * i + ch];
+            line_[2 * static_cast<size_t>(write_) + ch] = clampTo(x + fb * fir, -kClip, kClip);
+            out[2 * i + ch] += vol * fir;
         }
         head_ = (head_ + 1) % kTaps;
         if (++write_ == capacity_) write_ = 0;
@@ -92,7 +92,7 @@ void Reverb::setRoomSize(float r) { roomSize_.store(clampTo(r, 0.0f, 1.0f), std:
 void Reverb::setDamping(float d)  { damping_.store(clampTo(d, 0.0f, 1.0f), std::memory_order_relaxed); }
 void Reverb::setVolume(float v)   { volume_.store(clampTo(v, 0.0f, 1.0f), std::memory_order_relaxed); }
 
-void Reverb::process(float* mix, int frames, int sampleRate)
+void Reverb::process(const float* in, float* out, int frames, int sampleRate)
 {
     if (!enabled()) return;
     if (const unsigned s = starts_.load(std::memory_order_relaxed);
@@ -116,18 +116,19 @@ void Reverb::process(float* mix, int frames, int sampleRate)
     const float vol = volume();
 
     for (int i = 0; i < frames; ++i) {
-        const float in = (mix[2 * i] + mix[2 * i + 1]) * 0.5f * kInputGain;
+        // Both channels are read before either is written: `in` may be `out`.
+        const float x = (in[2 * i] + in[2 * i + 1]) * 0.5f * kInputGain;
         for (int ch = 0; ch < 2; ++ch) {
             float wet = 0.0f;
             for (Line& comb : combs_[ch]) {
-                const float out = comb.buf[comb.pos];
-                comb.filter = out * (1.0f - damp) + comb.filter * damp;
+                const float y = comb.buf[comb.pos];
+                comb.filter = y * (1.0f - damp) + comb.filter * damp;
                 // A decaying tail ends in denormals, which are slow on
                 // some CPUs; it is silence long before that.
                 if (std::abs(comb.filter) < 1e-15f) comb.filter = 0.0f;
-                comb.buf[comb.pos] = in + comb.filter * fb;
+                comb.buf[comb.pos] = x + comb.filter * fb;
                 if (++comb.pos == static_cast<int>(comb.buf.size())) comb.pos = 0;
-                wet += out;
+                wet += y;
             }
             for (Line& ap : allpasses_[ch]) {
                 const float delayed = ap.buf[ap.pos];
@@ -135,7 +136,7 @@ void Reverb::process(float* mix, int frames, int sampleRate)
                 if (++ap.pos == static_cast<int>(ap.buf.size())) ap.pos = 0;
                 wet = delayed - wet;
             }
-            mix[2 * i + ch] += vol * wet;
+            out[2 * i + ch] += vol * wet;
         }
     }
 }

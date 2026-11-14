@@ -53,7 +53,10 @@ public:
 
     // Add the echo to `mix` (interleaved stereo, `frames` frames) in
     // place. Audio thread only. Does nothing while disabled.
-    void process(float* mix, int frames, int sampleRate);
+    void process(float* mix, int frames, int sampleRate) { process(mix, mix, frames, sampleRate); }
+    // The same with the delay line fed from `in` and the echo added to
+    // `out`, as a send does (Engine::addSend()). `in` may be `out`.
+    void process(const float* in, float* out, int frames, int sampleRate);
 
 private:
     static constexpr float kClip = 4.0f;
@@ -99,7 +102,10 @@ public:
 
     // Add the reverb to `mix` (interleaved stereo) in place. Audio
     // thread only. Does nothing while disabled.
-    void process(float* mix, int frames, int sampleRate);
+    void process(float* mix, int frames, int sampleRate) { process(mix, mix, frames, sampleRate); }
+    // The same with the reverb fed from `in` and added to `out`. `in`
+    // may be `out`.
+    void process(const float* in, float* out, int frames, int sampleRate);
 
 private:
     static constexpr int kCombs = 4;

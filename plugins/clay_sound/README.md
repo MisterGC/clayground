@@ -230,6 +230,28 @@ needs. `demo/songs/adaptive.song.json` uses all of it:
   or the segment's `end`, optionally with a stinger where the new segment
   starts. The first that matches wins; without one, the next bar.
 - **Stingers** play a pattern once on top of the music, on their sync.
+- **Echo** (not in the demo song; the lines below give it one) is the SNES
+  echo of the song: the bus echo of "Echo and reverb per bus" below, with
+  the same fields, ranges and defaults: `delay` in ms
+  (1..1000, default 120), `feedback` (-1..1, 0.5), `volume` (0..1, 0.5) and
+  up to 8 `fir` taps (newest sample first, missing ones 0; default
+  `[1]`). As on the SNES, where the echo is switched per voice, only the
+  `tracks` listed feed it; left out, every track does.
+- **Reverb** is the small reverb of a bus, over every track of the song and
+  the echo's repeats: `roomSize`, `damping` and `volume`, 0..1, defaults
+  0.5, 0.5 and 0.3.
+
+  ```json
+  "echo": { "delay": 176, "feedback": 0.45, "volume": 0.4,
+            "fir": [0.4, 0.3, 0.2, 0.1], "tracks": ["melody", "arp"] },
+  "reverb": { "roomSize": 0.6, "damping": 0.4, "volume": 0.2 }
+  ```
+
+  Both are the song's own: they play on the music bus beside the dry tracks,
+  which sound exactly as without them, and before the bus volume and the bus
+  effects. Live playback and `renderOffline()` render the same samples with
+  them, and a song without `echo` and `reverb` renders as before they
+  existed. Stopped, the tail rings out; a reload starts both from silence.
 
 ```qml
 SongPlayer {
@@ -250,7 +272,8 @@ sink renders. `renderOffline(seconds, cues)` takes the same path: from the
 player's state and intensity, steered by cues such as
 `[{ at: 2, state: "combat" }, { at: 3, intensity: 1 }, { at: 4, stinger: "pickup" }]`
 (`at` in seconds), it renders the samples live playback renders for the
-same controls at the same song frames. A v1 song plays as before.
+same controls at the same song frames, the song's echo and reverb included.
+A v1 song plays as before.
 
 ### SfxPlayer and effect recipes
 
@@ -817,8 +840,9 @@ of a `SampleInstrument`, with `gain` (the QML `volume`), `pan`, `bus` and
 samples as the QML players on the same machine - `tst_clay_sound_outside`
 compares the two sample for sample. A v2 song defines its instruments, so it
 needs no `SongInstruments`; `SongSequencer` hands out its notes on frames
-for a program that schedules them itself. As in the QML offline renders, the bus
-volume, echo and reverb are not applied.
+for a program that schedules them itself. As in the QML offline renders, a v2
+song's own echo and reverb are applied and the bus volume, echo and reverb are
+not.
 
 ## Platform Support
 

@@ -58,9 +58,11 @@ void applyMix(IInstrument &inst, const InstrumentSpec &spec);
 // a sampler note of durationSeconds <= 0 plays to the sample's end, or
 // 60 s when it loops. Returns the scheduler ticket (Engine::cancel()),
 // 0 when the note cannot sound (no frequency, no duration for a synth,
-// no sample for a sampler).
+// no sample for a sampler). The note plays through gain stage
+// `gainStage` and also feeds send `send` (Engine::addSend()), its echo
+// too when `sendEcho`.
 EventId scheduleNote(Engine &engine, int id, IInstrument &inst, const InstrumentSpec &spec,
                      double freqHz, double velocity, double durationSeconds,
-                     int64_t at, int gainStage = -1);
+                     int64_t at, int gainStage = -1, int send = -1, bool sendEcho = false);
 
 } // namespace clay::sound

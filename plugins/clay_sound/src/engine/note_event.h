@@ -19,6 +19,8 @@ struct NoteEvent
     int      instrumentId   = -1;     // -1 = unbound; engine ignores
     float    pan            = 0.0f;   // -1 left .. +1 right, added to the instrument's pan
     int      gainStage      = -1;     // Engine::addGainStage() id scaling this note; -1 = none
+    int      send           = -1;     // Engine::addSend() id the note also feeds; -1 = none
+    bool     sendEcho       = false;  // the note feeds the send's echo, not only its reverb
     uint32_t effectPayload  = 0;      // Reserved for tracker effects; opaque in Stage 0
 };
 
