@@ -177,11 +177,13 @@ ClayWorldBase {
             id: _physicsWorld
             gravity: Qt.point(0,15*9.81)
             timeStep: 1/60.0
-            // hitStop() multiplies on top of the global time scale, so the
-            // dojo's time control and a hit stop never overwrite each other.
-            // A view-only hit stop leaves the simulation at full speed.
+            // hitStop() and slowMotion() multiply on top of the global time
+            // scale, so the dojo's time control, a hit stop and a slow motion
+            // never overwrite each other. In view mode both leave the
+            // simulation at full speed.
             timeScale: Clayground.timeScale
-                       * (_world.hitStopMode === "view" ? 1 : _world._hitStopScale)
+                       * (_world.hitStopMode === "view"
+                          ? 1 : _world._hitStopScale * _world._slowScale)
             pixelsPerMeter: _theCanvas.pixelPerUnit ? _theCanvas.pixelPerUnit : 1
             running: true
         }
@@ -224,6 +226,11 @@ ClayWorldBase {
         cooldowns, telegraphs) belongs on a PhysicsTimer, which counts the
         simulated time of \l physics. Typical: 50..90 ms at 0 on a heavy
         hit, 120 ms at 0.2 on a parry.
+
+        The length is wall clock: a pause does not hold it, and a test or
+        bench that steps the world by hand cannot tell which steps it
+        covers. A slow motion that must count simulated time is
+        slowMotion().
     */
     function hitStop(ms, scale) {
         var s = (scale === undefined || scale === null) ? 0 : Math.max(0, Math.min(1, scale));
@@ -239,9 +246,48 @@ ClayWorldBase {
     }
 
     /*!
+        \qmlmethod void ClayWorld2d::slowMotion(int ms, real scale)
+        \brief Slows the world to \a scale for \a ms milliseconds of
+        simulated time - the physics clock, not the wall clock.
+
+        The physics speed meanwhile is \a scale times the global time scale
+        times the scale of a hitStop() that runs at the same time. The
+        slow motion counts the time each step of \l physics simulated, as a
+        PhysicsTimer does, so whatever holds the simulation holds the slow
+        motion with it: a pause, a full hit stop. At 0.25, 300 ms of slow
+        motion take 1.2 s on the wall clock while the world runs on its own.
+        A test or bench that steps the world by hand ends it on the same
+        step every run - with \c Clayground.physicsStep(), which simulates
+        1/60 s per step whatever the time scale, 300 ms are 18 steps.
+
+        \a scale is clamped to at most 1; a \a scale of 0 or less, or an
+        \a ms of 0 or less, does nothing, since a stopped clock would never
+        end the slow motion: a freeze is hitStop(). Overlapping calls merge:
+        the lower scale and the longer remaining time win.
+
+        In \l hitStopMode \c "view" the simulation keeps its speed and the
+        held picture moves on in steps at \a scale, as a view-only hit stop
+        with that scale does. The slow motion then counts the simulated time
+        times \a scale, so it lasts as long on the wall clock as it would in
+        \c "physics" mode.
+
+        \sa slowMotionActive, hitStop()
+    */
+    function slowMotion(ms, scale) {
+        if (!(ms > 0) || !(scale > 0)) return;
+        var s = Math.min(1, scale);
+        if (slowMotionActive) {
+            s = Math.min(s, _slowScale);
+            ms = Math.max(ms, _slowLeftMs);
+        }
+        _slowScale = s;
+        _slowLeftMs = ms;
+    }
+
+    /*!
         \qmlproperty string ClayWorld2d::hitStopMode
-        \brief What a hitStop() freezes: \c "physics" (default) or
-        \c "view".
+        \brief What a hitStop() or slowMotion() freezes or slows:
+        \c "physics" (default) or \c "view".
 
         \c "physics" scales the physics world's time, so the simulation
         itself halts. \c "view" keeps the physics stepping at full rate and
@@ -275,11 +321,20 @@ ClayWorldBase {
     readonly property bool hitStopActive: _hitStopTimer.running
 
     /*!
+        \qmlproperty bool ClayWorld2d::slowMotionActive
+        \readonly
+        \brief True while a slowMotion() is slowing the physics or holding
+        the picture.
+    */
+    readonly property bool slowMotionActive: _slowLeftMs > 0
+
+    /*!
         \qmlproperty Item ClayWorld2d::picture
         \readonly
         \brief The item that shows the world: the \l canvas, or the held
-        frame while a view-only hitStop() runs. Effects that redraw the
-        world from a texture read this item, so they see what is shown.
+        frame while a view-only hitStop() or slowMotion() runs. Effects that
+        redraw the world from a texture read this item, so they see what is
+        shown.
     */
     readonly property Item picture: !_holding ? _theCanvas
                                               : (_softwareHold ? _held : _heldView)
@@ -292,7 +347,38 @@ ClayWorldBase {
         onTriggered: _world._hitStopScale = 1
     }
 
-    readonly property bool _holding: hitStopActive && hitStopMode === "view"
+    // A slow motion's remaining simulated milliseconds, counted down after
+    // every step of the physics world.
+    property real _slowScale: 1
+    property real _slowLeftMs: 0
+    Connections {
+        target: _physicsWorld
+        enabled: _world.slowMotionActive
+        function onStepped() {
+            // In view mode the simulation runs at full speed: the slow
+            // motion's own clock is the step times the scales it would have
+            // slowed the simulation by.
+            var ms = _physicsWorld.timeStep * 1000
+                     * (_world.hitStopMode === "view"
+                        ? _world._hitStopScale * _world._slowScale : 1);
+            // timeStep is a float: six steps of 1/60 s sum to 99.99999 ms,
+            // not 100. The tolerance ends the slow motion on the step its
+            // length names, as PhysicsTimer does.
+            var left = _world._slowLeftMs - ms;
+            if (left > 1e-3) {
+                _world._slowLeftMs = left;
+                return;
+            }
+            _world._slowLeftMs = 0;
+            _world._slowScale = 1;
+        }
+    }
+
+    readonly property bool _holding: (hitStopActive || slowMotionActive)
+                                     && hitStopMode === "view"
+    // How fast the held picture of a view-mode stop moves on: both scales
+    // multiplied, as they multiply the physics speed in physics mode.
+    readonly property real _heldRate: _hitStopScale * _slowScale
     // The software backend runs no ShaderEffect: there the capture itself is
     // shown, moved by a plain translation.
     readonly property bool _softwareHold: GraphicsInfo.api === GraphicsInfo.Software
@@ -362,9 +448,9 @@ ClayWorldBase {
 
     // A slowed view stop: a new capture every 1 / scale frames.
     FrameAnimation {
-        running: _world._holding && _world._hitStopScale > 0
+        running: _world._holding && _world._heldRate > 0
         onTriggered: {
-            _world._heldDue += _world._hitStopScale;
+            _world._heldDue += _world._heldRate;
             if (_world._heldDue >= 1) {
                 _world._heldDue -= 1;
                 _world._captureHeld();
@@ -431,6 +517,8 @@ ClayWorldBase {
                            "heldCaptures": _heldGrabs,
                            "remainingMs": hitStopActive
                                ? Math.max(0, _hitStopUntil - Date.now()) : 0};
+        info["slowMotion"] = {"active": slowMotionActive, "scale": _slowScale,
+                              "remainingMs": _slowLeftMs};
         info["baseZCoord"] = baseZCoord;
         info["lastZCoord"] = lastZCoord;
         return info;
