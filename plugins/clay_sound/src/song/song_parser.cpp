@@ -598,6 +598,59 @@ static bool parseStructure(const QJsonObject &root, SongModel &model, QString *e
         }
     }
 
+    if (root.contains("echo")) {
+        const QString path = QStringLiteral("echo");
+        QJsonObject eo;
+        if (!objectOf(root, "echo", QString(), &eo, errorOut)
+            || !keysOnly(eo, {"delay", "feedback", "volume", "fir", "tracks"}, path, errorOut))
+            return false;
+        SongEcho &echo = model.echo;
+        echo.on = true;
+        if (!numberOf(eo, "delay", path, 1.0, 1000.0, &echo.delay, errorOut)
+            || !numberOf(eo, "feedback", path, -1.0, 1.0, &echo.feedback, errorOut)
+            || !numberOf(eo, "volume", path, 0.0, 1.0, &echo.volume, errorOut))
+            return false;
+        if (eo.contains("fir")) {
+            const QString fp = path + QStringLiteral(".fir");
+            const QJsonArray taps = eo.value("fir").toArray();
+            if (!eo.value("fir").isArray() || taps.isEmpty() || taps.size() > 8)
+                return fail(errorOut, fp, QStringLiteral("must be an array of 1 to 8 taps, the newest sample first"));
+            for (int k = 0; k < 8; ++k) {
+                if (k >= taps.size()) { echo.fir[k] = 0.0; continue; }
+                const double c = taps.at(k).toDouble(2.0);
+                if (!taps.at(k).isDouble() || c < -1.0 || c > 1.0)
+                    return fail(errorOut, QStringLiteral("%1[%2]").arg(fp).arg(k), QStringLiteral("must be a number in -1..1"));
+                echo.fir[k] = c;
+            }
+        }
+        if (eo.contains("tracks")) {
+            const QString tp = path + QStringLiteral(".tracks");
+            const QJsonArray tracks = eo.value("tracks").toArray();
+            if (!eo.value("tracks").isArray() || tracks.isEmpty())
+                return fail(errorOut, tp, QStringLiteral("must be a non-empty array of track names (leave it out: every track)"));
+            for (const QJsonValue &t : tracks) {
+                const QString name = t.toString();
+                if (!model.tracks.contains(name))
+                    return fail(errorOut, tp, QStringLiteral("unknown track '%1'").arg(name));
+                if (!echo.tracks.contains(name)) echo.tracks << name;
+            }
+        }
+    }
+
+    if (root.contains("reverb")) {
+        const QString path = QStringLiteral("reverb");
+        QJsonObject ro;
+        if (!objectOf(root, "reverb", QString(), &ro, errorOut)
+            || !keysOnly(ro, {"roomSize", "damping", "volume"}, path, errorOut))
+            return false;
+        SongReverb &reverb = model.reverb;
+        reverb.on = true;
+        if (!numberOf(ro, "roomSize", path, 0.0, 1.0, &reverb.roomSize, errorOut)
+            || !numberOf(ro, "damping", path, 0.0, 1.0, &reverb.damping, errorOut)
+            || !numberOf(ro, "volume", path, 0.0, 1.0, &reverb.volume, errorOut))
+            return false;
+    }
+
     if (root.contains("transitions")) {
         if (!root.value("transitions").isArray()) return fail(errorOut, QStringLiteral("transitions"), QStringLiteral("must be an array"));
         const QJsonArray all = root.value("transitions").toArray();
@@ -620,6 +673,19 @@ static bool parseStructure(const QJsonObject &root, SongModel &model, QString *e
             model.transitions.append(tr);
         }
     }
+    return true;
+}
+
+// "output": "clean" (the default) or "snes".
+static bool parseOutput(const QJsonObject &root, SongModel &model, QString *errorOut)
+{
+    if (!root.contains("output")) return true;
+    QString name;
+    if (!stringOf(root, "output", QString(), &name, errorOut)) return false;
+    if (name == QLatin1String("clean"))     model.output = SongOutput::Clean;
+    else if (name == QLatin1String("snes")) model.output = SongOutput::Snes;
+    else return fail(errorOut, QStringLiteral("output"),
+                     QStringLiteral("unknown output '%1' (clean, snes)").arg(name));
     return true;
 }
 
@@ -687,7 +753,8 @@ SongParseResult SongParser::parse(const QByteArray &json)
 
     static const QSet<QString> allowedTop = { "version", "tempo", "tracks", "patterns", "sections" };
     static const QSet<QString> allowedTopV2 = allowedTop + QSet<QString>{
-        "beatsPerBar", "instruments", "segments", "start", "layers", "transitions", "stingers" };
+        "beatsPerBar", "instruments", "segments", "start", "layers", "transitions", "stingers",
+        "echo", "reverb", "output" };
     QString why;
     if (!requireKeysOnly(root, r.model.version >= 2 ? allowedTopV2 : allowedTop, &why)) {
         r.error = why;
@@ -791,6 +858,8 @@ SongParseResult SongParser::parse(const QByteArray &json)
     }
 
     if (r.model.version >= 2 && !parseStructure(root, r.model, &r.error))
+        return r;
+    if (r.model.version >= 2 && !parseOutput(root, r.model, &r.error))
         return r;
 
     r.ok = true;

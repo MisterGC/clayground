@@ -439,7 +439,20 @@
     follows \l state, \l intensity and \l playStinger(). Its notes are
     scheduled 0.25 s ahead of the engine on their exact frames, the path
     \l renderOffline() takes, so live and offline render the same
-    samples; a control reaches the music that much later.
+    samples; a control reaches the music that much later. A song with
+    \c{"output": "snes"} plays through the SNES-style output of the buses
+    its instruments play on - resampled to 32 kHz with the soft top end
+    of the chip's gaussian - from its first frame, live and offline; a
+    song without it turns that output off on those buses.
+
+    Two players that share a bus share its SNES output: the last one to
+    play sets it. A player turns off what it turned on when it is
+    destroyed or loads a song that does not ask for it, but only if no
+    player started the output since; stop() leaves it on, so what still
+    rings rings out through it. In C++ the same rule holds through the
+    engine: \c{engine.snesOutput(bus).start(frame)} returns a token, and
+    \c{release(token)} turns the output off only if nothing started it,
+    or switched it on with \c{setEnabled(true)}, after that start.
 
     \qml
     SongPlayer {
@@ -530,7 +543,8 @@
     its exact frame, where live playback starts it on the tick it falls
     into. Renders on an engine of its own and does not touch the live
     sound or the playhead. Only SynthInstrument and SampleInstrument
-    play here; the bus volume, echo and reverb are not part of it. A C++
+    play here; the bus volume, echo and reverb are not part of it, a
+    version 2 song's own \c echo and \c reverb are. A C++
     program without QML renders the same samples through \c renderSong()
     of \c Clayground::SoundEngine.
 

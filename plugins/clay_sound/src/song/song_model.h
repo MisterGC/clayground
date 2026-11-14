@@ -7,7 +7,8 @@
 // adaptive game music needs: the instruments its tracks play (as
 // InstrumentSpecs), segments the music moves between, layers that an
 // intensity 0..1 fades in, transitions synced to beat, bar or a
-// segment's exit cues, and stingers played on top.
+// segment's exit cues, and stingers played on top. It may also play
+// through a SNES-style output (engine/snes_output.h).
 
 #ifndef CLAY_SOUND_SONG_MODEL_H
 #define CLAY_SOUND_SONG_MODEL_H
@@ -95,11 +96,39 @@ struct Transition
     QString  stinger;               // played where the new segment starts
 };
 
+// v2: what the buses the song plays on sound like: as they are, or
+// resampled to 32 kHz through the SNES's gaussian (engine/snes_output.h).
+enum class SongOutput { Clean, Snes };
+
 // v2: a pattern played once on top of the music.
 struct Stinger
 {
     QString  pattern;
     SongSync sync = SongSync::Beat;
+};
+
+// v2: the SNES echo of the song: a delay line whose repeats run
+// through an 8-tap FIR filter and are fed back (engine/bus_effects.h).
+// Only the tracks listed feed it - on the SNES the echo is switched
+// per voice; empty: every track. Its repeats play beside the dry
+// tracks, which sound as they do without it.
+struct SongEcho
+{
+    bool        on = false;         // the song has an "echo"
+    double      delay = 120.0;      // ms
+    double      feedback = 0.5;
+    double      volume = 0.5;
+    double      fir[8] = {1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0};
+    QStringList tracks;
+};
+
+// v2: a small reverb over every track of the song and its echo.
+struct SongReverb
+{
+    bool   on = false;              // the song has a "reverb"
+    double roomSize = 0.5;
+    double damping = 0.5;
+    double volume = 0.3;
 };
 
 struct SongModel
@@ -118,6 +147,9 @@ struct SongModel
     QMap<QString, Layer>          layers;
     QVector<Transition>           transitions;  // the first match wins
     QMap<QString, Stinger>        stingers;
+    SongEcho                      echo;
+    SongReverb                    reverb;
+    SongOutput                    output = SongOutput::Clean;
 
     bool isValid() const { return tempo > 0.0 && !tracks.isEmpty(); }
 };

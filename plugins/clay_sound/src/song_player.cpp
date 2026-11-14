@@ -50,7 +50,9 @@ void SongPlayer::setVolume(qreal v)
 SongPlayer::~SongPlayer()
 {
     cancelPendingNotes();
-    voices_.detach(clay::sound::AudioOutput::instance().engine());
+    auto &engine = clay::sound::AudioOutput::instance().engine();
+    voices_.detach(engine);
+    releaseOutput();
 }
 
 void SongPlayer::setSource(const QUrl &url)
@@ -135,6 +137,7 @@ void SongPlayer::play()
         if (!anchored_ || anchor_ + seq_->scheduled() < now) {
             anchor_ = now - seq_->scheduled();
             anchored_ = true;
+            applyOutput();
         }
         scheduleAhead();
         tickTimer_.start();
@@ -394,13 +397,18 @@ void SongPlayer::commitModel(const clay::sound::SongModel &model, bool hot)
     }
 
     const double prevTempo = model_.tempo;
+    const bool outputChanged = isV2() && model.output != model_.output;
     model_ = model;
+    // A song that does not ask for the SNES output gives up what the
+    // last one turned on (a v1 song never asks for it).
+    if (!isV2() || model_.output != clay::sound::SongOutput::Snes) releaseOutput();
     if (isV2()) {
         schedule_.clear();
         nextIdx_ = 0;
         voices_.attach(engine, model_);
         if (!hot || !model_.segments.contains(keepSegment)) keepBeat = 0.0;
         restartSequencer(keepSegment, keepBeat);
+        if (playing_ && outputChanged) applyOutput();
         if (playing_) scheduleAhead();
     } else {
         seq_.reset();
@@ -501,6 +509,25 @@ void SongPlayer::restartSequencer(const QString &segment, double beat)
     anchored_ = playing_;
     if (playing_) anchor_ = clay::sound::AudioOutput::instance().engine().currentFrame();
     updateSegment(0);
+}
+
+void SongPlayer::applyOutput()
+{
+    auto &engine = clay::sound::AudioOutput::instance().engine();
+    QVector<unsigned> starts;
+    const auto buses = clay::sound::applySongOutput(engine, model_, anchor_, &starts);
+    for (const auto &[bus, token] : std::as_const(snesClaims_))
+        if (!buses.contains(bus)) engine.snesOutput(bus).release(token);
+    snesClaims_.clear();
+    if (model_.output == clay::sound::SongOutput::Snes)
+        for (int i = 0; i < buses.size(); ++i) snesClaims_.append({buses[i], starts[i]});
+}
+
+void SongPlayer::releaseOutput()
+{
+    auto &engine = clay::sound::AudioOutput::instance().engine();
+    for (const auto &[bus, token] : std::as_const(snesClaims_)) engine.snesOutput(bus).release(token);
+    snesClaims_.clear();
 }
 
 void SongPlayer::scheduleAhead()

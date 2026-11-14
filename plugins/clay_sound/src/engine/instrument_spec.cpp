@@ -46,7 +46,7 @@ int addInstrument(Engine &engine, const InstrumentSpec &spec)
 
 EventId scheduleNote(Engine &engine, int id, IInstrument &inst, const InstrumentSpec &spec,
                      double freqHz, double velocity, double durationSeconds,
-                     int64_t at, int gainStage)
+                     int64_t at, int gainStage, int send, bool sendEcho)
 {
     if (freqHz <= 0.0 || id < 0) return 0;
     const int rate = engine.sampleRate();
@@ -81,6 +81,8 @@ EventId scheduleNote(Engine &engine, int id, IInstrument &inst, const Instrument
     ev.velocity       = static_cast<float>(std::clamp(velocity, 0.0, 1.0));
     ev.instrumentId   = id;
     ev.gainStage      = gainStage;
+    ev.send           = send;
+    ev.sendEcho       = sendEcho;
 
     const EventId ticket = engine.schedule(ev);
     if (sampler) static_cast<SamplerInstrument &>(inst).pushPatch(ticket, spec.sampler);

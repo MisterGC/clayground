@@ -230,6 +230,34 @@ needs. `demo/songs/adaptive.song.json` uses all of it:
   or the segment's `end`, optionally with a stinger where the new segment
   starts. The first that matches wins; without one, the next bar.
 - **Stingers** play a pattern once on top of the music, on their sync.
+- **Echo** (not in the demo song; the lines below give it one) is the SNES
+  echo of the song: the bus echo of "Echo and reverb per bus" below, with
+  the same fields, ranges and defaults: `delay` in ms
+  (1..1000, default 120), `feedback` (-1..1, 0.5), `volume` (0..1, 0.5) and
+  up to 8 `fir` taps (newest sample first, missing ones 0; default
+  `[1]`). As on the SNES, where the echo is switched per voice, only the
+  `tracks` listed feed it; left out, every track does.
+- **Reverb** is the small reverb of a bus, over every track of the song and
+  the echo's repeats: `roomSize`, `damping` and `volume`, 0..1, defaults
+  0.5, 0.5 and 0.3.
+
+  ```json
+  "echo": { "delay": 176, "feedback": 0.45, "volume": 0.4,
+            "fir": [0.4, 0.3, 0.2, 0.1], "tracks": ["melody", "arp"] },
+  "reverb": { "roomSize": 0.6, "damping": 0.4, "volume": 0.2 }
+  ```
+
+  Both are the song's own: they play on the music bus beside the dry tracks,
+  which sound exactly as without them, and before the bus volume and the bus
+  effects. Live playback and `renderOffline()` render the same samples with
+  them, and a song without `echo` and `reverb` renders as before they
+  existed. Stopped, the tail rings out; a reload starts both from silence.
+- **Output** `"output": "snes"` (not in the demo) plays the song through
+  the SNES-style output of every bus its instruments play on (see "SNES
+  output per bus" below): 32 kHz and the soft top end of the chip's
+  gaussian. `"clean"`, the default, leaves the buses as they are. It is
+  set when the song starts playing, and an offline render has it from the
+  first frame, so both give the same samples.
 
 ```qml
 SongPlayer {
@@ -250,7 +278,8 @@ sink renders. `renderOffline(seconds, cues)` takes the same path: from the
 player's state and intensity, steered by cues such as
 `[{ at: 2, state: "combat" }, { at: 3, intensity: 1 }, { at: 4, stinger: "pickup" }]`
 (`at` in seconds), it renders the samples live playback renders for the
-same controls at the same song frames. A v1 song plays as before.
+same controls at the same song frames, the song's echo and reverb included.
+A v1 song plays as before.
 
 ### SfxPlayer and effect recipes
 
@@ -768,6 +797,34 @@ higher frequencies here. The echo runs before the reverb, and both before
 the bus volume. Turning an effect off drops its tail; on again, it starts
 from silence. The effects play the same way live and in an offline render.
 
+### SNES output per bus
+
+The SNES played everything at 32 kHz, and every sample went through the
+S-DSP's gaussian interpolation, which takes the top end off softly. Every
+bus can sound like that, after its echo and its reverb: the mix is
+resampled to 32 kHz through that gaussian and brought back to the
+engine's rate with nothing above 16 kHz. Measured with tones at 44.1 kHz:
+-0.07 dB at 1 kHz, -4.3 dB at 8 kHz, -6.8 dB at 10 kHz, -11 dB at 12 kHz,
+-19 dB at 14 kHz, nothing left at its own frequency from 16 kHz up;
+what lies above folds down quietly, as on the chip (18 kHz comes out at
+14 kHz, -28 dB). The bus sounds 16 frames (0.36 ms) later with it on.
+
+A version 2 song turns it on with `"output": "snes"`; in C++ it is
+`engine.snesOutput(Bus::Music).start(frame)`, the 32 kHz grid starting at
+`frame`, or `setEnabled(true)`. Off, the default, the bus renders exactly
+the samples it did before.
+
+Two song players on one bus share its SNES output: the last one to play
+sets it. A player turns off what it turned on when it goes or loads a
+song without `"output": "snes"`, but only if no player started it since;
+`stop()` leaves it on, so the tail rings out through it. The rule is the
+engine's: `start(frame)` returns a token, and `release(token)` turns the
+output off only if nobody started it again, or switched it on with
+`setEnabled(true)`, after that start. `setEnabled(true)` on an output
+already on keeps its 32 kHz grid where it is and still counts as such a
+start. On the adaptive demo song it takes 15 dB off
+above 10 kHz and leaves what lies below 4 kHz within 0.05 dB.
+
 ## The engine without QML
 
 A C++ program links the engine as `Clayground::SoundEngine` - a static
@@ -806,7 +863,7 @@ cs::writeWav("song.wav", music, 1, cs::kSampleRate, cs::WavFormat::Pcm16);
 | `loadSong(path, &model, &error)` | parses a `.song.json`; a v2 song's sample instruments get their WAVs decoded, each relative to the song |
 | `renderRecipe(recipe, samples, seed, velocity, gain, pan, rate, stereo, seconds, detune)` | the samples `SfxPlayer.renderOffline(seed, velocity, detune)` returns at that `volume` and `pan`; `seconds` 0 = until the last layer ends, `detune` 0 = as written |
 | `renderSong(model, instruments, seconds, volume, loop, rate, stereo)` | the samples `SongPlayer.renderOffline(seconds)` returns; `seconds` 0 = the song's length |
-| `renderSong(model, performance, seconds, volume, loop, rate, stereo)` | a v2 song on its own instruments, from `performance.start` at `performance.intensity`, each of `performance.cues` (state, intensity or stinger) at its song frame: what live playback renders for the same controls; `seconds` 0 = one pass of the start segment |
+| `renderSong(model, performance, seconds, volume, loop, rate, stereo)` | a v2 song on its own instruments, from `performance.start` at `performance.intensity`, each of `performance.cues` (state, intensity or stinger) at its song frame: what live playback renders for the same controls; `seconds` 0 = one pass of the start segment; with the song's `output` |
 | `writeWav(path, samples, channels, rate, format, &error)` | 32-bit float (default, the samples exactly) or 16-bit wav; stereo samples interleaved |
 
 A v1 song names its instruments but does not define them, so the program
@@ -817,8 +874,9 @@ of a `SampleInstrument`, with `gain` (the QML `volume`), `pan`, `bus` and
 samples as the QML players on the same machine - `tst_clay_sound_outside`
 compares the two sample for sample. A v2 song defines its instruments, so it
 needs no `SongInstruments`; `SongSequencer` hands out its notes on frames
-for a program that schedules them itself. As in the QML offline renders, the bus
-volume, echo and reverb are not applied.
+for a program that schedules them itself. As in the QML offline renders, a v2
+song's own echo and reverb are applied and the bus volume, echo and reverb are
+not.
 
 ## Platform Support
 

@@ -99,6 +99,37 @@ float Engine::gainStage(int id) const
     return gainStages_[id]->load(std::memory_order_relaxed);
 }
 
+int Engine::addSend(Bus bus)
+{
+    sends_.push_back(std::make_unique<Send>());
+    sends_.back()->bus = bus;
+    return static_cast<int>(sends_.size()) - 1;
+}
+
+void Engine::removeSend(int id)
+{
+    if (id < 0 || static_cast<size_t>(id) >= sends_.size()) return;
+    sends_[id].reset(); // tombstone: a note still naming it plays dry
+}
+
+Engine::Send* Engine::sendAt(int id) const
+{
+    if (id < 0 || static_cast<size_t>(id) >= sends_.size()) return nullptr;
+    return sends_[id].get();
+}
+
+Echo* Engine::sendEcho(int id)
+{
+    Send* s = sendAt(id);
+    return s ? &s->echo : nullptr;
+}
+
+Reverb* Engine::sendReverb(int id)
+{
+    Send* s = sendAt(id);
+    return s ? &s->reverb : nullptr;
+}
+
 void Engine::renderOffline(float* out, int frames)
 {
     if (frames <= 0) return;
@@ -139,7 +170,8 @@ void Engine::renderStereo(float* out, int frames)
                 else ++it;
             }
         }
-        voices_.push_back({instId, std::move(voice), f.ev.pan, f.ev.gainStage});
+        voices_.push_back({instId, std::move(voice), f.ev.pan, f.ev.gainStage,
+                           f.ev.send, f.ev.sendEcho});
     }
 
     // Render each voice into a per-pass scratch buffer so we can apply
@@ -148,6 +180,22 @@ void Engine::renderStereo(float* out, int frames)
     if (static_cast<int>(scratch_.size()) < frames)
         scratch_.assign(static_cast<size_t>(frames), 0.0f);
     bool busUsed[kBusCount] = {};
+    for (auto& send : sends_)
+        if (send) send->echoFed = send->reverbFed = false;
+    // A buffer's first use in a pass clears it.
+    auto clearOnce = [n](std::vector<float>& buf, bool& used) {
+        if (used) return;
+        if (buf.size() < n) buf.resize(n);
+        std::fill_n(buf.begin(), n, 0.0f);
+        used = true;
+    };
+    auto feed = [&](std::vector<float>& buf, bool& used, float gl, float gr) {
+        clearOnce(buf, used);
+        for (int i = 0; i < frames; ++i) {
+            buf[2 * i]     += scratch_[i] * gl;
+            buf[2 * i + 1] += scratch_[i] * gr;
+        }
+    };
 
     for (auto& av : voices_) {
         IInstrument* inst = instrumentAt(av.instrumentId);
@@ -173,10 +221,38 @@ void Engine::renderStereo(float* out, int frames)
             mix[2 * i]     += scratch_[i] * gl;
             mix[2 * i + 1] += scratch_[i] * gr;
         }
+        // The same samples, once more, into the send.
+        if (Send* send = sendAt(av.send)) {
+            feed(send->reverbIn, send->reverbFed, gl, gr);
+            if (av.sendEcho) feed(send->echoIn, send->echoFed, gl, gr);
+        }
+    }
+
+    // Each send adds its echo and its reverb to its bus. A send with an
+    // effect on runs while no voice feeds it, so its tail plays out.
+    for (auto& owned : sends_) {
+        Send* send = owned.get();
+        if (!send) continue;
+        const bool echoOn = send->echo.enabled();
+        const bool reverbOn = send->reverb.enabled();
+        if (!echoOn && !reverbOn) continue;
+        clearOnce(send->reverbIn, send->reverbFed);
+        clearOnce(send->echoIn, send->echoFed);
+        bool wetCleared = false;
+        clearOnce(send->wet, wetCleared);
+        send->echo.process(send->echoIn.data(), send->wet.data(), frames, sampleRate_);
+        if (reverbOn) {
+            // The echo's repeats reverberate as the notes do.
+            for (size_t i = 0; i < n; ++i) send->reverbIn[i] += send->wet[i];
+            send->reverb.process(send->reverbIn.data(), send->wet.data(), frames, sampleRate_);
+        }
+        const int b = static_cast<int>(send->bus);
+        clearOnce(busMix_[b], busUsed[b]);
+        for (size_t i = 0; i < n; ++i) busMix_[b][i] += send->wet[i];
     }
 
     for (int b = 0; b < kBusCount; ++b) {
-        const bool fx = echo_[b].enabled() || reverb_[b].enabled();
+        const bool fx = echo_[b].enabled() || reverb_[b].enabled() || snes_[b].enabled();
         if (!busUsed[b]) {
             if (!fx) continue;
             // No voice this pass, but an echo or a reverb still rings.
@@ -186,6 +262,7 @@ void Engine::renderStereo(float* out, int frames)
         std::vector<float>& mix = busMix_[b];
         echo_[b].process(mix.data(), frames, sampleRate_);
         reverb_[b].process(mix.data(), frames, sampleRate_);
+        snes_[b].process(mix.data(), frames, bufStart, sampleRate_);
         const float bg = busGain_[b].load(std::memory_order_relaxed);
         for (size_t i = 0; i < n; ++i) out[i] += mix[i] * bg;
     }

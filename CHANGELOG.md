@@ -5,6 +5,19 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are
 calendar-style (`VERSION` at the repository root). Releases up to 2026.7 are
 described on their [GitHub release pages](https://github.com/MisterGC/clayground/releases).
 
+## [2026.12] - 2026-11-14
+
+A song can sound like the SNES: it sets the console's echo and a reverb, and
+it can play through a SNES-style output, resampled to 32 kHz with the chip's
+soft top end. Live playback and `renderOffline()` give the same samples with
+all three, and a song that sets none of them sounds as before.
+
+### Added
+
+- **A song has an echo and a reverb.** A version 2 song sets an `echo` with `delay` in ms, `feedback`, `volume` and up to 8 `fir` taps, and a `reverb` with `roomSize`, `damping` and `volume`. The echo is the SNES echo, and as on the console only the tracks named in `echo.tracks` feed it; left out, every track does. Both play beside the dry tracks, which sound as they did, live and in `renderOffline()` alike; a song without them renders exactly as before. Why: much of the 16-bit sound is its echo, and until now a song could not set one, so every song played dry. ([#508](https://github.com/MisterGC/clayground/issues/508))
+- **A song can play through a SNES-style output.** `"output": "snes"` in a version 2 song resamples the music to 32 kHz through the gaussian the SNES sound chip smooths every sample with, and brings it back with nothing above 16 kHz. On the adaptive demo song that takes about 15 dB off above 10 kHz and leaves what lies below 4 kHz within 0.05 dB. It works on every bus the song's instruments play on, after the echo and reverb, from the song's first frame, live and offline alike, and the bus sounds 0.36 ms (16 frames) later with it on. `"clean"`, the default, leaves the buses as they are. Why: part of the 16-bit sound is how the chip played its samples back, not the notes. In C++ every bus has the output, `engine.snesOutput(bus)`, off by default. ([#509](https://github.com/MisterGC/clayground/issues/509))
+- **Two song players on one bus share its SNES output**: the last one to play sets it. A player that is destroyed, or loads a song without `"output": "snes"`, turns it off only if no other player started it since, and `stop()` leaves it on so what still rings rings out through it. In C++ the engine keeps the same rule: `snesOutput(bus).start(frame)` returns a token, and `release(token)` turns the output off only if nothing started it again after that start; `setEnabled(true)` on an output already on counts as such a start and leaves its 32 kHz grid where it is. The `SongPlayer` docs and the sound README describe the rule. ([#509](https://github.com/MisterGC/clayground/issues/509), [#513](https://github.com/MisterGC/clayground/issues/513))
+
 ## [2026.11.1] - 2026-11-05
 
 Firefox reads gamepads wherever it reads them correctly; until now a pad in
@@ -153,6 +166,7 @@ is opt-in.
 - A note card exactly as tall as the annotation list was scrolled 6 px past its top. (#330)
 - `Poly.closed` was always true, so every open poly drew a closing edge. (#272)
 
+[2026.12]: https://github.com/MisterGC/clayground/compare/v2026.11.1...v2026.12
 [2026.11.1]: https://github.com/MisterGC/clayground/compare/v2026.11...v2026.11.1
 [2026.11]: https://github.com/MisterGC/clayground/compare/v2026.9...v2026.11
 [2026.9]: https://github.com/MisterGC/clayground/compare/v2026.8...v2026.9

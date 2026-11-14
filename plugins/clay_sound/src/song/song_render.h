@@ -26,8 +26,12 @@
 //   same samples, noise included: a noise note carries its own seed
 //   (SequencedNote::noiseSeed), not the engine frame it starts on.
 //
-// What the buses do afterwards (volume, echo, reverb) is not part of an
-// offline render, as for an effect recipe.
+// A v2 song's own echo and reverb (SongModel::echo, ::reverb) play
+// live and offline alike, in a send of the song's (SongVoices). What
+// the buses do afterwards (volume, the bus echo and reverb) is not part
+// of an offline render, as for an effect recipe - but a v2 song's SNES
+// output is: the song turns it on, from its first frame, on every bus
+// its instruments play on (applySongOutput), live and offline alike.
 
 #ifndef CLAY_SOUND_SONG_RENDER_H
 #define CLAY_SOUND_SONG_RENDER_H
@@ -75,12 +79,17 @@ std::vector<float> renderSong(const SongModel &model, const SongInstruments &ins
 
 // The instruments of a v2 song (each spec's sample decoded) on one
 // engine. The engine owns them; detach() drops them and every voice
-// still ringing.
+// still ringing. A song with an echo or a reverb gets a send of its own
+// on the music bus (Engine::addSend()) with the song's settings: every
+// note feeds its reverb, the notes of the echo's tracks its echo.
+// detach() removes the send and the tail still in it.
 class SongVoices
 {
 public:
     void attach(Engine &engine, const SongModel &model);
     void detach(Engine &engine);
+    // The song's send, -1 without echo and reverb.
+    int send() const { return send_; }
 
     // Schedule `note` to start at engine frame `at`, through gain stage
     // `gainStage`. Returns the scheduler ticket, 0 when it cannot sound
@@ -90,7 +99,18 @@ public:
 private:
     struct Bound { int id = -1; InstrumentSpec spec; };
     QMap<QString, Bound> bound_;
+    int send_ = -1;
+    bool echoAll_ = false;          // every track feeds the echo
+    QStringList echoTracks_;
 };
+
+// The output a v2 song asks for, on every bus its instruments play on:
+// with SongOutput::Snes each bus's SnesOutput starts with its grid at
+// engine frame `songStart`, the song's frame 0, so live and offline
+// sound the same; with Clean it is turned off. Returns those buses and,
+// in `starts` if given, each one's SnesOutput::start() token (0: off).
+QVector<Bus> applySongOutput(Engine &engine, const SongModel &model, int64_t songStart,
+                             QVector<unsigned> *starts = nullptr);
 
 // What a game does to a playing v2 song, at a song frame.
 struct SongCue
