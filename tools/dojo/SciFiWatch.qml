@@ -55,7 +55,7 @@ Item {
             Text {
                 text: time[2]
                 anchors.centerIn: parent
-                font.family: "Monospace"
+                font.family: ClayFixedFont
                 font.pixelSize: parent.height * .3
                 color: parent.border.color
             }

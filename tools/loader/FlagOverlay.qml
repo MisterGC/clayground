@@ -1,7 +1,9 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick
-import QtQuick.Controls
+// Basic, not the platform style: the native macOS style rejects the custom
+// TextArea background and logs a warning into every sandbox's diagnostics (#408).
+import QtQuick.Controls.Basic
 
 Rectangle {
     id: root
@@ -74,7 +76,7 @@ Rectangle {
             id: annotationInput
             wrapMode: TextEdit.Wrap
             color: "#e0e0e0"
-            font.family: "monospace"
+            font.family: ClayFixedFont
             font.pixelSize: Math.max(14, screenshot.height * 0.05)
             placeholderText: "Describe what you see ..."
             placeholderTextColor: "#666666"
@@ -100,7 +102,7 @@ Rectangle {
 
         Text {
             color: "#999999"
-            font.family: "monospace"
+            font.family: ClayFixedFont
             font.pixelSize: Math.max(11, screenshot.height * 0.028)
             text: "Return to confirm, Esc to cancel"
         }
