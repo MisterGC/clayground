@@ -274,8 +274,9 @@ SongPlayer {
 where the song starts. A v2 song's notes are scheduled 0.25 s
 (`kScheduleAheadFrames`) ahead of the engine on their exact frames, so a
 control reaches the music that much later and its playhead moves while the
-sink renders. `renderOffline(seconds, cues)` takes the same path: from the
-player's state and intensity, steered by cues such as
+engine renders - through the sink, or on the engine's own clock where no
+output device opens (see below). `renderOffline(seconds, cues)` takes the
+same path: from the player's state and intensity, steered by cues such as
 `[{ at: 2, state: "combat" }, { at: 3, intensity: 1 }, { at: 4, stinger: "pickup" }]`
 (`at` in seconds), it renders the samples live playback renders for the
 same controls at the same song frames, the song's echo and reverb included.
@@ -766,6 +767,20 @@ that should not play through the speakers. A sink reads the variable when it
 opens, so set it before the first sound plays; `Music` reads it whenever its
 volume is applied. `SoundMixer` and the players' `volume` properties keep
 reading what was set.
+
+### Without an output device
+
+Where no output device opens - a machine without one, such as a CI runner,
+or one whose devices all fail to open - the engine that `Sound`,
+`SampleInstrument`, `SynthInstrument`, `SongPlayer` and `SfxPlayer` play on
+runs on a clock of its own: it renders in real time and the samples go
+nowhere. Everything that follows the engine moves as it would with a device:
+a song's playhead, its `segment` following its `state` on the sync point,
+its transitions and stingers, voices that start and end. Nothing is heard,
+with or without `CLAY_SOUND_MUTE`. Every later note tries the devices again,
+at most twice a second, and the first that opens takes over from where the
+clock is. `SoftSynth` and `Music` have outputs of their own and do not run
+on this clock.
 
 ### Echo and reverb per bus
 
