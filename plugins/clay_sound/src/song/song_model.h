@@ -7,7 +7,8 @@
 // adaptive game music needs: the instruments its tracks play (as
 // InstrumentSpecs), segments the music moves between, layers that an
 // intensity 0..1 fades in, transitions synced to beat, bar or a
-// segment's exit cues, and stingers played on top.
+// segment's exit cues, and stingers played on top. It may also play
+// through a SNES-style output (engine/snes_output.h).
 
 #ifndef CLAY_SOUND_SONG_MODEL_H
 #define CLAY_SOUND_SONG_MODEL_H
@@ -95,6 +96,10 @@ struct Transition
     QString  stinger;               // played where the new segment starts
 };
 
+// v2: what the buses the song plays on sound like: as they are, or
+// resampled to 32 kHz through the SNES's gaussian (engine/snes_output.h).
+enum class SongOutput { Clean, Snes };
+
 // v2: a pattern played once on top of the music.
 struct Stinger
 {
@@ -144,6 +149,7 @@ struct SongModel
     QMap<QString, Stinger>        stingers;
     SongEcho                      echo;
     SongReverb                    reverb;
+    SongOutput                    output = SongOutput::Clean;
 
     bool isValid() const { return tempo > 0.0 && !tracks.isEmpty(); }
 };

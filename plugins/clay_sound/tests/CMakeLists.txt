@@ -131,6 +131,53 @@ add_test(NAME clay_sound_song_player COMMAND tst_clay_sound_song_player)
 set_tests_properties(clay_sound_song_player PROPERTIES LABELS "clay_sound;unit")
 
 # ----------------------------------------------------------------------
+# The SNES-style output of a bus (#509): its response, its delay, its
+# samples whatever the passes, and a song that turns it on, live and
+# offline. Silent: the player's sink opens muted.
+# ----------------------------------------------------------------------
+
+add_executable(tst_clay_sound_snes_output
+    tst_snes_output.cpp
+    ../src/song_player.cpp
+    ../src/song_player.h
+    ../src/source_url.cpp
+    ../src/source_url.h
+    ../src/audio_devices.cpp
+    ../src/audio_devices.h
+    ../src/audio_output.cpp
+    ../src/audio_output.h
+    ../src/synth_instrument.cpp
+    ../src/synth_instrument.h
+    ../src/sample_instrument.cpp
+    ../src/sample_instrument.h
+)
+
+set_target_properties(tst_clay_sound_snes_output PROPERTIES AUTOMOC ON)
+
+target_include_directories(tst_clay_sound_snes_output PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/../src
+)
+
+target_compile_definitions(tst_clay_sound_snes_output PRIVATE
+    CLAY_SOUND_DEMO_ADAPTIVE="${CMAKE_CURRENT_SOURCE_DIR}/../demo/songs/adaptive.song.json"
+)
+
+target_link_libraries(tst_clay_sound_snes_output PRIVATE
+    ClaySoundEngine
+    Qt6::Core
+    Qt6::Network
+    Qt6::Qml
+    Qt6::Test
+    Qt6::Multimedia
+)
+
+add_test(NAME clay_sound_snes_output COMMAND tst_clay_sound_snes_output)
+set_tests_properties(clay_sound_snes_output PROPERTIES
+    LABELS "clay_sound;unit"
+    ENVIRONMENT "CLAY_SOUND_MUTE=1"
+)
+
+# ----------------------------------------------------------------------
 # SynthInstrument::bake() tests (offline render + WAV bounce).
 # ----------------------------------------------------------------------
 
