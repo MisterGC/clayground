@@ -1,7 +1,9 @@
 // (c) Clayground Contributors - MIT License, see "LICENSE" file
 
 import QtQuick
-import QtQuick.Controls
+// Basic, not the platform style: the native macOS style rejects the custom
+// TextArea background and logs a warning into every sandbox's diagnostics (#408).
+import QtQuick.Controls.Basic
 
 Rectangle {
     id: root
