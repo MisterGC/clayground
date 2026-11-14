@@ -70,6 +70,10 @@ int main(int argc, char *argv[])
     QGuiApplication::setApplicationName("ClayDojo");
     QGuiApplication::setApplicationVersion(CLAY_DOJO_VERSION);
 
+    // Declared before the engine so it outlives it: the engine's QML binds to
+    // it until the engine is gone, and a dojo destroyed first turned every
+    // ClayDojo binding into a TypeError on shutdown (#408).
+    ClayDojo dojo;
     QQmlApplicationEngine engine;
     // Absolute, off the binary rather than off the working directory. The
     // relative form below only resolves when the dojo is launched from
@@ -80,7 +84,6 @@ int main(int argc, char *argv[])
     engine.addImportPath("qml");
     ClayScene::applyStorageDir(&engine);
 
-    ClayDojo dojo;
     if (!processCmdLineArgs(app, dojo))
         return 1;
     engine.rootContext()->setContextProperty("ClayDojo", &dojo);
