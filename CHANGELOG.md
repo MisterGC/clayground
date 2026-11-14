@@ -5,6 +5,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); versions are
 calendar-style (`VERSION` at the repository root). Releases up to 2026.7 are
 described on their [GitHub release pages](https://github.com/MisterGC/clayground/releases).
 
+## [2026.13] - 2026-11-14
+
 ## [2026.12] - 2026-11-14
 
 A song can sound like the SNES: it sets the console's echo and a reverb, and
