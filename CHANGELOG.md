@@ -7,6 +7,11 @@ described on their [GitHub release pages](https://github.com/MisterGC/clayground
 
 ## [2026.13] - 2026-11-14
 
+### Fixed
+
+- **The inspector reports only what a sandbox logged.** A sandbox without errors gets an `errors` answer with no errors and no warnings from the loader itself: on macOS every answer carried one from the annotation overlay and one about the missing font "Monospace". The loader's and the dojo's own text now use the system's fixed-width font (Menlo on macOS), so it is monospaced there too. Under `QT_QPA_PLATFORM=offscreen` on macOS, Qt itself still warns once that its default font "Sans Serif" is missing; that warning comes from Qt's offscreen platform, so the loader leaves it. Why: an agent reading the answer could not tell those warnings from the sandbox's own. ([#408](https://github.com/MisterGC/clayground/issues/408))
+- **Closing the dojo logs no `TypeError`.** It used to print three, `Cannot read property 'openAnnotations' of null`, on every shutdown. ([#408](https://github.com/MisterGC/clayground/issues/408))
+
 ## [2026.12] - 2026-11-14
 
 A song can sound like the SNES: it sets the console's echo and a reverb, and
