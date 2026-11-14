@@ -7,6 +7,10 @@ described on their [GitHub release pages](https://github.com/MisterGC/clayground
 
 ## [2026.13] - 2026-11-14
 
+### Fixed
+
+- **A song moves on where no audio output device opens.** On a machine without one, such as a CI runner, the sound engine now runs on a clock of its own: it renders in real time and nothing is heard. A version 2 song's playhead moves, its `segment` follows its `state` on the bar, and its transitions and stingers play, with or without `CLAY_SOUND_MUTE=1`. Until now the engine stood still there, so a muted bench could not check the music moving from one part to the next. A device that opens later takes over where the clock is. ([#507](https://github.com/MisterGC/clayground/issues/507))
+
 ## [2026.12] - 2026-11-14
 
 A song can sound like the SNES: it sets the console's echo and a reverb, and

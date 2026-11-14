@@ -521,7 +521,9 @@
     a note plays at the level its start falls on.
 
     \qmlproperty string SongPlayer::segment
-    Read-only. Version 2: the segment playing now.
+    Read-only. Version 2: the segment playing now. It moves with the
+    engine's frame, which also runs where no audio output device opens:
+    the engine then renders on a clock of its own and nothing is heard.
 
     \section1 Methods
 
