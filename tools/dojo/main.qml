@@ -84,7 +84,7 @@ Window {
 
                 color: blinkColor
                 anchors { left: parent.left; leftMargin: watch.width * .05}
-                font.family: "Monospace"
+                font.family: ClayFixedFont
                 font.pixelSize: watch.width * 0.06
                 text: errDetected ? "<b>> CRITICAL ERROR</b>" : "> All Systems up and running..."
 
@@ -123,7 +123,7 @@ Window {
                     width: parent.width
                     color: briefStatus.blinkColor
                     text: theWindow.currError
-                    font.family: "Monospace"
+                    font.family: ClayFixedFont
                 }
             }
         }
@@ -153,7 +153,7 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 text: ClayDojo.openAnnotations
                 color: "#1a1010"
-                font.family: "Monospace"
+                font.family: ClayFixedFont
                 font.bold: true
                 font.pixelSize: lbl.font.pixelSize * 1.2
             }
@@ -161,7 +161,7 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 text: ClayDojo.openAnnotations === 1 ? "annotation" : "annotations"
                 color: "#1a1010"
-                font.family: "Monospace"
+                font.family: ClayFixedFont
                 font.pixelSize: lbl.font.pixelSize * .8
             }
         }
@@ -176,7 +176,7 @@ Window {
 
     Button {
         id: btnToggleHelp
-        text: "?"; font.family: "Monospace"; font.pixelSize: lbl.font.pixelSize * 1.8
+        text: "?"; font.family: ClayFixedFont; font.pixelSize: lbl.font.pixelSize * 1.8
         width: height; flat: true; highlighted: true
         anchors.top: parent.top; anchors.topMargin: height * .1;
         anchors.right: parent.right; anchors.rightMargin: width * .1;

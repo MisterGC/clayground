@@ -177,7 +177,7 @@ Item {
                     color: "#1a1010"
                     font.pixelSize: 10
                     font.bold: true
-                    font.family: "monospace"
+                    font.family: ClayFixedFont
                 }
             }
 
@@ -194,7 +194,7 @@ Item {
                     color: "#1a1010"
                     font.pixelSize: 10
                     font.bold: true
-                    font.family: "monospace"
+                    font.family: ClayFixedFont
                 }
             }
 
@@ -211,7 +211,7 @@ Item {
                     color: "#0d1414"
                     font.pixelSize: 10
                     font.bold: true
-                    font.family: "monospace"
+                    font.family: ClayFixedFont
                 }
             }
 
@@ -228,7 +228,7 @@ Item {
             text: "⌀ nothing on the scene corresponds"
             wrapMode: Text.Wrap
             color: Qt.darker(root.highlight, 2.1)
-            font.family: "monospace"
+            font.family: ClayFixedFont
             font.pixelSize: 10
             font.bold: true
         }

@@ -48,7 +48,7 @@ Item {
             Text {
                 width: watchList.width
                 clip: true
-                font.family: "Monospace"
+                font.family: ClayFixedFont
                 style: Text.Outline
                 color: "#f8ce9d"
                 styleColor:"#96570a"
@@ -63,7 +63,7 @@ Item {
                 width: logView.width
                 clip: true
                 text: content
-                font.family: "Monospace"
+                font.family: ClayFixedFont
                 style: Text.Outline
                 color: "#d4e0ff"
                 styleColor:"#0a2462"

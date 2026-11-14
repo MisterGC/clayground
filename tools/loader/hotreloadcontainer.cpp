@@ -18,6 +18,7 @@
 #include <QLibraryInfo>
 #include <QRegularExpression>
 #include <QUrlQuery>
+#include <QFontDatabase>
 #include <QVersionNumber>
 
 namespace {
@@ -87,10 +88,11 @@ HotReloadContainer::HotReloadContainer(QWidget *parent)
     // Create loading screen
     m_loadingLabel = new QLabel("LOADING", this);
     m_loadingLabel->setAlignment(Qt::AlignCenter);
-    m_loadingLabel->setStyleSheet("QLabel { background-color: transparent; "
+    m_loadingLabel->setStyleSheet(QString("QLabel { background-color: transparent; "
                                  "color: #00ff00; font-size: 32px; font-weight: bold; "
-                                 "font-family: monospace; letter-spacing: 8px; "
-                                 "padding: 20px; }");
+                                 "font-family: '%1'; letter-spacing: 8px; "
+                                 "padding: 20px; }")
+                                 .arg(QFontDatabase::systemFont(QFontDatabase::FixedFont).family()));
     m_loadingLabel->setGeometry(0, 0, width(), height());
     m_loadingLabel->hide();
     

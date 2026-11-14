@@ -364,7 +364,7 @@ Item {
                         anchors.centerIn: parent
                         text: ClayAnnotations.openCount
                         color: ClayAnnotations.openCount > 0 ? "#1a1010" : "#9aa0a6"
-                        font.family: "monospace"
+                        font.family: ClayFixedFont
                         font.pixelSize: 11
                         font.bold: true
                     }
@@ -374,7 +374,7 @@ Item {
                     anchors.horizontalCenter: parent.horizontalCenter
                     text: "TAB"
                     color: "#6f7680"
-                    font.family: "monospace"
+                    font.family: ClayFixedFont
                     font.pixelSize: 8
                 }
             }
@@ -428,7 +428,7 @@ Item {
                     Text {
                         text: "ANNOTATIONS"
                         color: "#00d9ff"
-                        font.family: "monospace"
+                        font.family: ClayFixedFont
                         font.pixelSize: 12
                         font.bold: true
                         anchors.verticalCenter: parent.verticalCenter
@@ -436,7 +436,7 @@ Item {
                     Text {
                         text: ClayAnnotations.openCount + " open"
                         color: "#9aa0a6"
-                        font.family: "monospace"
+                        font.family: ClayFixedFont
                         font.pixelSize: 12
                         anchors.verticalCenter: parent.verticalCenter
                     }
@@ -459,7 +459,7 @@ Item {
                             text: ClayAnnotations.pauseOnOpen ? "‖ pause scene"
                                                               : "▶ scene runs"
                             color: ClayAnnotations.pauseOnOpen ? "#0d1414" : "#9aa0a6"
-                            font.family: "monospace"
+                            font.family: ClayFixedFont
                             font.pixelSize: 11
                         }
                         MouseArea {
@@ -482,7 +482,7 @@ Item {
                             anchors.centerIn: parent
                             text: "clear addressed"
                             color: "#9aa0a6"
-                            font.family: "monospace"
+                            font.family: ClayFixedFont
                             font.pixelSize: 11
                         }
                         MouseArea {
@@ -506,7 +506,7 @@ Item {
                             anchors.centerIn: parent
                             text: root.wipeArmed ? "sure?" : "wipe all"
                             color: root.wipeArmed ? "#1a1010" : "#9aa0a6"
-                            font.family: "monospace"
+                            font.family: ClayFixedFont
                             font.pixelSize: 11
                         }
                         MouseArea {
@@ -562,7 +562,7 @@ Item {
                           ? "drag on the scene to frame a region"
                           : "REGIONS"
                     color: "#6f7680"
-                    font.family: "monospace"
+                    font.family: ClayFixedFont
                     font.pixelSize: 11
                 }
             }
@@ -698,11 +698,11 @@ Item {
                 Rectangle { width: parent.width; height: 1; color: "#33ffffff" }
                 Text {
                     text: "Ctrl+F  close   ·   Esc  close   ·   Tab  fold panel"
-                    color: "#6f7680"; font.family: "monospace"; font.pixelSize: 10
+                    color: "#6f7680"; font.family: ClayFixedFont; font.pixelSize: 10
                 }
                 Text {
                     text: "drag  frame   ·   click  rect   ·   Enter  save"
-                    color: "#6f7680"; font.family: "monospace"; font.pixelSize: 10
+                    color: "#6f7680"; font.family: ClayFixedFont; font.pixelSize: 10
                 }
                 // The one line that changes: holding a pick is the only state
                 // in which clicking the empty scene means something other than
@@ -713,11 +713,11 @@ Item {
                           ? "click empty scene  ·  drop the pick"
                           : "click a frame or its card  ·  they pair"
                     color: root.selectedId !== "" ? "#ffd93d" : "#6f7680"
-                    font.family: "monospace"; font.pixelSize: 10
+                    font.family: ClayFixedFont; font.pixelSize: 10
                 }
                 Text {
                     text: "Ctrl+Shift+F  clear addressed"
-                    color: "#6f7680"; font.family: "monospace"; font.pixelSize: 10
+                    color: "#6f7680"; font.family: ClayFixedFont; font.pixelSize: 10
                 }
             }
         }
