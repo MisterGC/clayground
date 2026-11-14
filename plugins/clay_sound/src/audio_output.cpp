@@ -87,8 +87,11 @@ void AudioOutput::start()
     // Every open attempt costs a browser AudioContext and a page only
     // tolerates a handful of those, so a page where nothing opens must not
     // try again on every triggered note. Only a failed attempt arms this.
-    if (sinceFailedOpen_.isValid() && sinceFailedOpen_.elapsed() < RETRY_MIN_MS)
+    // The engine still runs, on its own clock, until a sink opens.
+    if (sinceFailedOpen_.isValid() && sinceFailedOpen_.elapsed() < RETRY_MIN_MS) {
+        if (!clockRunning_) startClock();
         return;
+    }
 
     // Must come before any QMediaDevices/QAudioSink use - see #216.
     primeAudioDevices();
@@ -100,14 +103,12 @@ void AudioOutput::start()
     // which one QMediaDevices reports therefore depends on timing, and on
     // the browser devices the open fails (#262).
     QList<QAudioDevice> candidates;
-    const QAudioDevice preferred = QMediaDevices::defaultAudioOutput();
-    if (!preferred.isNull()) candidates.append(preferred);
-    for (const QAudioDevice& dev : QMediaDevices::audioOutputs())
-        if (dev != preferred) candidates.append(dev);
-
-    if (candidates.isEmpty()) {
-        qWarning() << "clay::sound::AudioOutput: no audio output device";
-        return;
+    QAudioDevice preferred;
+    if (opensDevices_) {
+        preferred = QMediaDevices::defaultAudioOutput();
+        if (!preferred.isNull()) candidates.append(preferred);
+        for (const QAudioDevice& dev : QMediaDevices::audioOutputs())
+            if (dev != preferred) candidates.append(dev);
     }
 
     for (const QAudioDevice& dev : candidates) {
@@ -116,6 +117,8 @@ void AudioOutput::start()
             qWarning() << "clay::sound::AudioOutput: playing on"
                        << dev.description() << "- the default device did not open";
         sinceFailedOpen_.invalidate();
+        // The sink takes over from the clock; the engine's frame goes on.
+        clockRunning_ = false;
         sinkRunning_ = true;
         pullTimer_.start(BUFFER_MS);
         return;
@@ -123,10 +126,26 @@ void AudioOutput::start()
 
     // Leave the sink closed rather than writing into a dead one: the next
     // triggered note calls start() again, by which time the device list
-    // may have settled.
+    // may have settled. Meanwhile the engine runs on its own clock, so
+    // what follows its frame does not stand still (#507).
     sinceFailedOpen_.start();
-    qWarning() << "clay::sound::AudioOutput: none of" << candidates.size()
-               << "audio output devices could be opened; a later note retries";
+    if (clockRunning_) return;
+    if (candidates.isEmpty())
+        qWarning() << "clay::sound::AudioOutput: no audio output device -"
+                   << "the engine runs on its own clock, silent; a later note retries";
+    else
+        qWarning() << "clay::sound::AudioOutput: none of" << candidates.size()
+                   << "audio output devices could be opened - the engine runs on"
+                   << "its own clock, silent; a later note retries";
+    startClock();
+}
+
+void AudioOutput::startClock()
+{
+    clockRunning_ = true;
+    clockFrames_ = 0;
+    clock_.start();
+    pullTimer_.start(BUFFER_MS);
 }
 
 bool AudioOutput::openSink(const QAudioDevice& device)
@@ -170,8 +189,9 @@ bool AudioOutput::openSink(const QAudioDevice& device)
 
 void AudioOutput::stop()
 {
-    if (!sinkRunning_) return;
+    if (!sinkRunning_ && !clockRunning_) return;
     sinkRunning_ = false;
+    clockRunning_ = false;
     pullTimer_.stop();
     if (sink_) {
         sink_->stop();
@@ -183,6 +203,10 @@ void AudioOutput::stop()
 
 void AudioOutput::onPull()
 {
+    if (clockRunning_) {
+        onClockPull();
+        return;
+    }
     if (!sinkRunning_ || !sink_ || !device_) return;
 
     const int bytesFree = sink_->bytesFree();
@@ -209,6 +233,25 @@ void AudioOutput::onPull()
         if (c <= 0) break;
         written += c;
     }
+
+    emit afterPull();
+}
+
+void AudioOutput::onClockPull()
+{
+    // As many frames as real time moved on since the clock started (in
+    // microseconds, which keeps the product in range for years).
+    const int64_t micros = clock_.nsecsElapsed() / 1000;
+    const int64_t due = micros * SAMPLE_RATE / 1000000 - clockFrames_;
+    if (due <= 0) return;
+    const int frames = static_cast<int>(std::min<int64_t>(due, CLOCK_MAX_FRAMES));
+    // A stalled event loop loses the time past one buffer, as a sink does.
+    clockFrames_ += due;
+
+    // Rendered in full, so voices start, end and report as they would on
+    // a sink; the samples go nowhere.
+    std::vector<float> buf(static_cast<size_t>(frames) * 2);
+    engine_.renderStereo(buf.data(), frames);
 
     emit afterPull();
 }
