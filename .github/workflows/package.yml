@@ -52,7 +52,7 @@ jobs:
       matrix:
         include:
           - platform: macos
-            os: macos-14
+            os: macos-15
             qt-host: mac
             qt-arch: clang_64
             artifact: ClayTopdown-macos-arm64.zip
@@ -163,7 +163,7 @@ jobs:
       matrix:
         include:
           - platform: macos
-            os: macos-14
+            os: macos-15
             artifact: ClayTopdown-macos-arm64.zip
           - platform: windows
             os: windows-2022
@@ -178,7 +178,7 @@ jobs:
       uses: actions/checkout@v7
 
     - name: Download
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
       with:
         name: ${{ matrix.artifact }}
         path: ${{ runner.temp }}/download
