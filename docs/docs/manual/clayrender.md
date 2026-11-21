@@ -4,8 +4,8 @@ title: clayrender
 permalink: /docs/manual/clayrender/
 ---
 
-`clayrender` renders one sandbox to a PNG and exits. No Dojo, no session, no
-protocol:
+`clayrender` renders one sandbox to a PNG, or answers a question about it,
+and exits. No Dojo, no session, no protocol:
 
 ```bash
 clayrender Sandbox.qml --out shot.png --size 1600x1000
@@ -22,6 +22,20 @@ rather than a guess.
 
 Use the [Dojo]({{ site.baseurl }}/docs/manual/dojo/) instead when you need
 interaction, hot reload, or anything genuinely stateful.
+
+## Where the picture goes
+
+`--out <file>` writes the picture there. Without `--out`:
+
+- a run that asks a question — `--stats`, `--dump`, `--project`, `--pick`,
+  `--anchor`, `--result`, `--trace` — writes **no picture**; the answer is
+  what it came for;
+- a run that shapes a picture (`--crop`, `--crop-pad`, `--scale`, `--width`)
+  or asks nothing writes it to a new file in the temp directory and prints
+  its path, `/tmp/clayrender-a1B2c3.png (1280x800)`.
+
+Nothing lands in the folder `clayrender` was started from unless `--out` names
+it.
 
 ## Reaching the state you want to look at
 
@@ -154,6 +168,56 @@ was *not* reached, which is usually the evidence you wanted.
 `--trace` needs `--trace-out`, and the other way round: both together or it is
 a usage error.
 
+## What a frame costs
+
+`--stats n` measures n frame slots of 1/60 s and prints one JSON line:
+
+```bash
+clayrender labs/electronics-101/Sandbox.qml --stats 300
+```
+
+```json
+{"cpuMs":{"max":2.327,"mean":1.166,"median":1.1,"min":0.842},
+ "drawCalls":{"max":105,"median":105,"min":105},"frames":300,
+ "renderMs":{"max":2.856,"mean":2.089,"median":2.035,"min":1.833},
+ "rendered":300,"seconds":5.005,
+ "vertices":{"max":549654,"median":549654,"min":549654},"views3d":1}
+```
+
+| Field | What it is |
+|---|---|
+| `frames` | the slots measured, n |
+| `rendered` | frames the window really drew in them, counted on its `afterRendering` signal |
+| `seconds` | wall time of the measurement |
+| `cpuMs` | CPU time of the whole process per slot — everything the frame cost, from timers and bindings to the graphics driver's threads |
+| `renderMs` | wall time to draw one frame, over the drawn frames; includes waiting for the GPU |
+| `drawCalls`, `vertices` | per drawn frame, summed over every `View3D` (`renderStats` with extended data) |
+| `views3d` | the `View3D`s counted |
+
+`renderMs`, `drawCalls` and `vertices` are `null` when no frame was drawn;
+the last two also when there is no `View3D`. Draw calls and vertices are
+Qt Quick 3D's: 2D items are not in them, and a `View3D` that did not redraw in
+a frame counts its last one.
+
+The slots run on the wall clock the way a window's render loop does: events
+and timers arrive at their real rate, animations, the sim clock and QML
+`Timer`s advance once per slot as on a display's vsync, and a frame is drawn
+only when the scene asked for one — an item called `update()` or the scene
+graph changed. So a lab in which nothing moves reports `"rendered": 0`, and
+the time spent waiting for the next slot is in none of the numbers. (`--frames`
+and `--trace` still wait 16 ms before every frame they draw; their `t` is wall
+time with that padding.)
+
+The measurement starts after the setup — `--set`/`--eval`/`--script`,
+`--frames`, `--wait-for`, `--settle` — so it measures the state they reached,
+and a frame that state still had pending is drawn before the first slot. The
+picture, `--dump` and the other queries come after it and show the last
+measured frame. A `--trace` keeps sampling through the measurement, one sample
+per drawn frame.
+
+Frames, draw calls and vertices are the same from run to run. CPU and render
+times are not: on a loaded machine take three runs and compare medians.
+
 ## Starting paused
 
 `--paused` sets `Clayground.paused` before the sandbox root is created, so no
@@ -235,10 +299,11 @@ since running off the edge only means a smaller margin on that side.
 
 If the question is numeric — *is that arrowhead full size? did the second line
 get drawn at all? where does this world point land?* — query the scene rather
-than squinting at an image.
+than squinting at an image. A run that only asks writes no picture; add
+`--out` when you want one beside the answers.
 
 ```bash
-clayrender Sandbox.qml --out shot.png \
+clayrender Sandbox.qml \
     --dump lines=lines.json \
     --project 0,0,0 \
     --pick 200,150
@@ -274,8 +339,8 @@ clayrender Sandbox.qml --out shot.png \
 | Code | Meaning |
 |---|---|
 | 0 | rendered, no complaints |
-| 1 | never loaded (missing file, QML that does not parse) — nothing written |
-| 2 | rendered, but the scene logged warnings or errors — image still written |
+| 1 | never loaded (missing file, QML that does not parse), or a usage error — nothing written |
+| 2 | rendered, but the scene logged warnings or errors — image and answers still written |
 | 3 | `--wait-for` never came true — no image, but a `--trace` is still written |
 
 Exit 2 exists because a runtime `ReferenceError` does not stop a component from
@@ -305,3 +370,9 @@ does not steal focus — but it does need a graphics session. It will **not**
 work under `QT_QPA_PLATFORM=offscreen` or over a bare ssh connection: Qt Quick
 3D content comes out blank there. On a machine without a session, the
 `clayrender` test suite reports SKIP rather than failing.
+
+Qt Quick 3D keeps the shaders it generated in a cache file, one per Qt version
+(`~/Library/Caches/clayrender-qt<version>/` on macOS, the platform's cache
+location elsewhere). A `clayrender` built against another Qt therefore never
+reads the other's file — before, that read logged "qsbc file is for a
+different Qt version" and a good render exited 2.
