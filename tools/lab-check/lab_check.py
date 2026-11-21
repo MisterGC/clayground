@@ -283,11 +283,14 @@ class Loader:
     `instance` starts it with `--instance <name>`, so it serves its protocol
     under .clay/inspect/i/<name>/ and leaves the rest of .clay alone - which
     is what lets several loaders of one lab run at the same time.
+    `storage_dir` sets CLAY_STORAGE_DIR, the QML LocalStorage it uses: loaders
+    of one lab that open the same database at the same time race on its
+    version, and the loser logs "SQL: database version mismatch" (#572).
     """
 
     def __init__(self, loader, sandbox, quiet=True,
                  ready_timeout=DEFAULT_READY_TIMEOUT, paused=False,
-                 instance=None):
+                 instance=None, storage_dir=None):
         self.loader = loader
         self.sandbox = sandbox
         self.lab_dir = os.path.dirname(sandbox)
@@ -295,6 +298,7 @@ class Loader:
         self.ready_timeout = ready_timeout
         self.paused = paused
         self.instance = instance
+        self.storage_dir = storage_dir
         self.proc = None
         self.insp = None
         self.tail = collections.deque(maxlen=LOADER_TAIL)
@@ -317,6 +321,9 @@ class Loader:
         env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
         bindir = os.path.dirname(os.path.abspath(self.loader))
         env.setdefault("QML2_IMPORT_PATH", os.path.join(bindir, "qml"))
+        if self.storage_dir:
+            os.makedirs(self.storage_dir, exist_ok=True)
+            env["CLAY_STORAGE_DIR"] = self.storage_dir
         # The loader resolves Clayground plugins via a cwd-relative "qml"
         # import path, so it runs from the binary's directory. Its output is
         # always read - shown with --verbose, kept as a tail without - because
@@ -1466,15 +1473,20 @@ def main():
             lock = threading.Lock()
 
             def spawn(stepped=True):
-                # A stepped run gets a paused clock; the first session, which
-                # asks whether the lab loads, runs the lab as a person sees
-                # it, ticking. Every one serves under an instance of its own,
-                # the first session too: flows can be running beside it.
+                # A stepped run gets a paused clock and an empty settings
+                # store of its own; the first session, which asks whether the
+                # lab loads, runs the lab as a person sees it, ticking, on the
+                # store it was given - where it is now the only loader. Every
+                # one serves under an instance of its own, the first session
+                # too: flows can be running beside it.
                 with lock:
                     n = next(runs)
+                name = f"lab-check-{n}"
                 return Loader(loader, sandbox, quiet=not args.verbose,
                               ready_timeout=args.ready_timeout, paused=stepped,
-                              instance=f"lab-check-{n}")
+                              instance=name,
+                              storage_dir=os.path.join(workdir, "storage", name)
+                              if stepped else None)
             spawn.stalled = None
             spawn.stall_reported = False
         # A flow is usually the longest run of a check, so flows that

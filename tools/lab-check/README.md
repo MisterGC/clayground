@@ -199,7 +199,9 @@ Two things the runs do that are easy to get wrong, and each cost a session:
   different bytes, a determinism failure that says nothing about determinism.
   The processes are independent, so they run side by side: `--jobs` of them
   at a time (4 by default, as `lab-sweep`'s), each under `--instance` so it
-  serves its protocol in a directory of its own. The flows, the determinism
+  serves its protocol in a directory of its own, and with an empty settings
+  store of its own (`CLAY_STORAGE_DIR`), since two loaders opening one
+  LocalStorage database at once race on its version. The flows, the determinism
   pairs and the records regeneration share that one limit; `records/make.sh`
   runs once per committed record when each record's `command` names its
   scenario, and `lab-sweep` gets `--jobs` for a study. The output keeps its
