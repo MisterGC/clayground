@@ -276,6 +276,13 @@ int main(int argc, char* argv[])
 
     QGuiApplication app(argc, argv);
     QCoreApplication::setApplicationName("clayrender");
+    // Quick 3D keeps the shaders it generated in one file under the cache
+    // location, which Qt names after organisation and application only. A
+    // clayrender built against another Qt then finds the other one's file,
+    // warns "qsbc file is for a different Qt version" and a good render exits
+    // 2 (#571). An organisation per Qt version gives each Qt its own file.
+    QCoreApplication::setOrganizationName(QStringLiteral("clayrender-qt")
+                                          + QLatin1String(qVersion()));
     QCoreApplication::setApplicationVersion(CLAY_RENDER_VERSION);
 
     QCommandLineParser parser;
