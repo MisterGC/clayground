@@ -2245,9 +2245,13 @@ Item {
 
         // One bulb alone: the reference every later number is compared with.
         // The series preset's layout with a corner where its second bulb goes.
+        // A new run forgets the last run's answers: the progress dots can jump
+        // past a question, and the step after it must not quote a pick the
+        // learner made in an earlier run.
         FlowStep {
             key: "one"
-            demo: [["clear"], ["showValues", false], ["plot", "I"],
+            demo: [["answer", "guess", ""], ["answer", "ask", ""],
+                   ["clear"], ["showValues", false], ["plot", "I"],
                    ["let", "bat", "addPart", "battery", 4, 2],
                    ["let", "sw", "addPart", "switch", 10, 2],
                    ["let", "b1", "addPart", "bulb", 16, 2],
