@@ -233,59 +233,71 @@ Node {
         }
     }
 
+    // --- the bodies, one per type -------------------------------------------
+    // Each type's body is loaded only on a part of that type. They used to be
+    // built on every part and hidden on all but one, so a resistor carried a
+    // meter's rendered dial, a gate's printed case and two point lights it
+    // never showed. Building the XOR board's 38 parts took 34 to 42 ms that
+    // way and takes 12 to 15 ms now (#577). A part's type does not change
+    // while it is on the board, so each loader loads once.
+
     // --- battery ------------------------------------------------------------
-    Node {
-        visible: root.type === "battery"
-        Part {
-            width: 5.2; height: 3.6; depth: 3.6
-            position: Qt.vector3d(0, 0, 0)
-            color: root.shorted ? "#b04434"
-                 : root.overloaded ? LabTheme.highlight : LabTheme.teal
-            SequentialAnimation on opacity {
-                running: root.shorted; loops: Animation.Infinite; alwaysRunToEnd: true
-                NumberAnimation { to: 0.45; duration: 240 }
-                NumberAnimation { to: 1.0; duration: 240 }
-            }
-        }
-        Part {  // + cap
-            width: 0.8; height: 1.0; depth: 1.6
-            position: Qt.vector3d(-2.9, 1.5, 0); color: LabTheme.highlight
-        }
-        // One printed label instead of three little 3D glyphs: it carries the
-        // voltage and the polarity, and both point at the pad they belong to.
-        Model {
-            // sunk into the cell so only the printed face shows: a cube maps
-            // the same texture onto its sides, which would read as a smear
-            position: Qt.vector3d(0, 3.45, 0)
-            source: "#Cube"
-            scale: Qt.vector3d(0.046, 0.004, 0.03)
-            materials: PrincipledMaterial {
-                lighting: PrincipledMaterial.NoLighting
-                baseColorMap: Texture {
-                    flipU: true
-                    flipV: true
-                    sourceItem: Item {
-                        width: 300; height: 190
-                        Rectangle { anchors.fill: parent; color: LabTheme.panel }
-                        Text {
-                            x: 26; anchors.verticalCenter: parent.verticalCenter
-                            text: "+"; color: LabTheme.clay
-                            font.pixelSize: 58; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        Text {
-                            anchors.right: parent.right; anchors.rightMargin: 30
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: "–"; color: LabTheme.ink
-                            font.pixelSize: 58; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        Text {
-                            anchors.centerIn: parent
-                            text: LabLang.num(root.value, 1) + " V"
-                            color: LabTheme.ink
-                            font.pixelSize: 52; font.bold: true
-                            font.family: LabTheme.monoFont
+    Loader3D {
+        active: root.type === "battery"
+        sourceComponent: Component {
+            Node {
+                Part {
+                    width: 5.2; height: 3.6; depth: 3.6
+                    position: Qt.vector3d(0, 0, 0)
+                    color: root.shorted ? "#b04434"
+                         : root.overloaded ? LabTheme.highlight : LabTheme.teal
+                    SequentialAnimation on opacity {
+                        running: root.shorted; loops: Animation.Infinite; alwaysRunToEnd: true
+                        NumberAnimation { to: 0.45; duration: 240 }
+                        NumberAnimation { to: 1.0; duration: 240 }
+                    }
+                }
+                Part {  // + cap
+                    width: 0.8; height: 1.0; depth: 1.6
+                    position: Qt.vector3d(-2.9, 1.5, 0); color: LabTheme.highlight
+                }
+                // One printed label instead of three little 3D glyphs: it carries the
+                // voltage and the polarity, and both point at the pad they belong to.
+                Model {
+                    // sunk into the cell so only the printed face shows: a cube maps
+                    // the same texture onto its sides, which would read as a smear
+                    position: Qt.vector3d(0, 3.45, 0)
+                    source: "#Cube"
+                    scale: Qt.vector3d(0.046, 0.004, 0.03)
+                    materials: PrincipledMaterial {
+                        lighting: PrincipledMaterial.NoLighting
+                        baseColorMap: Texture {
+                            flipU: true
+                            flipV: true
+                            sourceItem: Item {
+                                width: 300; height: 190
+                                Rectangle { anchors.fill: parent; color: LabTheme.panel }
+                                Text {
+                                    x: 26; anchors.verticalCenter: parent.verticalCenter
+                                    text: "+"; color: LabTheme.clay
+                                    font.pixelSize: 58; font.bold: true
+                                    font.family: LabTheme.monoFont
+                                }
+                                Text {
+                                    anchors.right: parent.right; anchors.rightMargin: 30
+                                    anchors.verticalCenter: parent.verticalCenter
+                                    text: "–"; color: LabTheme.ink
+                                    font.pixelSize: 58; font.bold: true
+                                    font.family: LabTheme.monoFont
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: LabLang.num(root.value, 1) + " V"
+                                    color: LabTheme.ink
+                                    font.pixelSize: 52; font.bold: true
+                                    font.family: LabTheme.monoFont
+                                }
+                            }
                         }
                     }
                 }
@@ -294,100 +306,108 @@ Node {
     }
 
     // --- resistor -----------------------------------------------------------
-    Node {
-        id: _res
-        visible: root.type === "resistor"
-        Part {
-            width: 4.4; height: 1.9; depth: 1.9
-            position: Qt.vector3d(0, 0.05, 0); color: "#d9c9a0"
-        }
-        // The real resistor colour code, not a lookup of four presets: two
-        // significant digits plus a decade multiplier, so the bands change
-        // with the value the way a bought resistor's do.
-        readonly property var codeColors: ["#1a1a1a", "#7a4a21", "#c0392b", "#d35400",
-                                           "#f1c40f", "#27ae60", "#2b6cb0", "#7d3c98",
-                                           "#7f8c8d", "#ecf0f1"]
-        readonly property var bands: {
-            // normalized by division, not by log10: log10(1000) lands just
-            // under 3 in floating point and would mis-colour the decade
-            const v = root.value || 470
-            // under 10 ohm the code's multiplier is gold, x0.1: 4.7 ohm is
-            // yellow, violet, gold
-            if (v < 10) {
-                const s = Math.round(Math.max(10, v * 10))
-                return [codeColors[Math.floor(s / 10)], codeColors[s % 10], "#c9a227"]
-            }
-            let sig = Math.round(v)
-            let exp = 0
-            while (sig >= 100) { sig = Math.round(sig / 10); ++exp }
-            return [codeColors[Math.floor(sig / 10)],
-                    codeColors[sig % 10],
-                    codeColors[Math.min(9, exp)]]
-        }
-        Repeater3D {
-            model: 3
-            Part {
-                width: 0.45; height: 1.95; depth: 1.95
-                position: Qt.vector3d(-1.0 + index * 1.0, 0.02, 0)
-                color: _res.bands[index]
-                showEdges: false
-            }
-        }
-        // lead wires to the terminals
-        Repeater3D {
-            model: 2
-            Model {
-                source: "#Cylinder"
-                position: Qt.vector3d(index === 0 ? -2.8 : 2.8, 1.0, 0)
-                eulerRotation.z: 90
-                scale: Qt.vector3d(0.003, 0.014, 0.003)
-                materials: Matte { baseColor: LabTheme.muted }
+    Loader3D {
+        active: root.type === "resistor"
+        sourceComponent: Component {
+            Node {
+                id: _res
+                Part {
+                    width: 4.4; height: 1.9; depth: 1.9
+                    position: Qt.vector3d(0, 0.05, 0); color: "#d9c9a0"
+                }
+                // The real resistor colour code, not a lookup of four presets: two
+                // significant digits plus a decade multiplier, so the bands change
+                // with the value the way a bought resistor's do.
+                readonly property var codeColors: ["#1a1a1a", "#7a4a21", "#c0392b", "#d35400",
+                                                   "#f1c40f", "#27ae60", "#2b6cb0", "#7d3c98",
+                                                   "#7f8c8d", "#ecf0f1"]
+                readonly property var bands: {
+                    // normalized by division, not by log10: log10(1000) lands just
+                    // under 3 in floating point and would mis-colour the decade
+                    const v = root.value || 470
+                    // under 10 ohm the code's multiplier is gold, x0.1: 4.7 ohm is
+                    // yellow, violet, gold
+                    if (v < 10) {
+                        const s = Math.round(Math.max(10, v * 10))
+                        return [codeColors[Math.floor(s / 10)], codeColors[s % 10], "#c9a227"]
+                    }
+                    let sig = Math.round(v)
+                    let exp = 0
+                    while (sig >= 100) { sig = Math.round(sig / 10); ++exp }
+                    return [codeColors[Math.floor(sig / 10)],
+                            codeColors[sig % 10],
+                            codeColors[Math.min(9, exp)]]
+                }
+                Repeater3D {
+                    model: 3
+                    Part {
+                        width: 0.45; height: 1.95; depth: 1.95
+                        position: Qt.vector3d(-1.0 + index * 1.0, 0.02, 0)
+                        color: _res.bands[index]
+                        showEdges: false
+                    }
+                }
+                // lead wires to the terminals
+                Repeater3D {
+                    model: 2
+                    Model {
+                        source: "#Cylinder"
+                        position: Qt.vector3d(index === 0 ? -2.8 : 2.8, 1.0, 0)
+                        eulerRotation.z: 90
+                        scale: Qt.vector3d(0.003, 0.014, 0.003)
+                        materials: Matte { baseColor: LabTheme.muted }
+                    }
+                }
             }
         }
     }
 
     // --- LED (terminal 0 = anode, marked gold) ------------------------------
-    Node {
-        id: _led
-        visible: root.type === "led"
-        // brightness from current: 20 mA is a bright hobby LED, and the glow
-        // tops out at 30 mA - which is also the most the part survives
-        readonly property real glow: root.blown ? 0
-            : Math.min(1.5, Math.max(0, root.simI / 0.02))
-        Model {  // dome - smoked brown once it has burnt out
-            geometry: _domeMesh
-            position: Qt.vector3d(0, 2.4, 0)
-            scale: Qt.vector3d(0.034, 0.034, 0.034)
-            materials: Matte {
-                baseColor: root.blown ? "#3a2c26" : root.lit ? "#e05a40" : "#9a5244"
-                emissiveFactor: Qt.vector3d(2.2, 0.55, 0.35).times(_led.glow)
+    Loader3D {
+        active: root.type === "led"
+        sourceComponent: Component {
+            Node {
+                id: _led
+                // brightness from current: 20 mA is a bright hobby LED, and the glow
+                // tops out at 30 mA - which is also the most the part survives
+                readonly property real glow: root.blown ? 0
+                    : Math.min(1.5, Math.max(0, root.simI / 0.02))
+                Model {  // dome - smoked brown once it has burnt out
+                    geometry: _domeMesh
+                    position: Qt.vector3d(0, 2.4, 0)
+                    scale: Qt.vector3d(0.034, 0.034, 0.034)
+                    materials: Matte {
+                        baseColor: root.blown ? "#3a2c26" : root.lit ? "#e05a40" : "#9a5244"
+                        emissiveFactor: Qt.vector3d(2.2, 0.55, 0.35).times(_led.glow)
+                    }
+                }
+                Model {  // the scorch on top a burnt die leaves: seen from any angle
+                    visible: root.blown
+                    geometry: _padMesh
+                    position: Qt.vector3d(0, 3.75, 0)
+                    scale: Qt.vector3d(0.022, 0.009, 0.022)
+                    materials: Matte { baseColor: "#151110" }
+                }
+                Model {  // socket
+                    source: "#Cylinder"
+                    position: Qt.vector3d(0, 0.7, 0)
+                    scale: Qt.vector3d(0.026, 0.014, 0.026)
+                    materials: Matte { baseColor: "#6b655c" }
+                }
+                Part {  // anode marker: gold foot toward terminal 0
+                    width: 1.6; height: 0.3; depth: 0.7
+                    position: Qt.vector3d(-1.4, 0.35, 0); color: LabTheme.highlight
+                }
+                PointLight {  // a pool of light on the paper, not room lighting
+                    visible: root.lit
+                    position: Qt.vector3d(0, 3.2, 0)
+                    color: "#e8785e"
+                    brightness: 1.5 * _led.glow
+                    constantFade: 1.0
+                    linearFade: 0.2
+                    quadraticFade: 0.9
+                }
             }
-        }
-        Model {  // the scorch on top a burnt die leaves: seen from any angle
-            visible: root.blown
-            geometry: _padMesh
-            position: Qt.vector3d(0, 3.75, 0)
-            scale: Qt.vector3d(0.022, 0.009, 0.022)
-            materials: Matte { baseColor: "#151110" }
-        }
-        Model {  // socket
-            source: "#Cylinder"
-            position: Qt.vector3d(0, 0.7, 0)
-            scale: Qt.vector3d(0.026, 0.014, 0.026)
-            materials: Matte { baseColor: "#6b655c" }
-        }
-        Part {  // anode marker: gold foot toward terminal 0
-            width: 1.6; height: 0.3; depth: 0.7
-            position: Qt.vector3d(-1.4, 0.35, 0); color: LabTheme.highlight
-        }
-        PointLight {  // a pool of light on the paper, not room lighting
-            visible: root.lit
-            position: Qt.vector3d(0, 3.2, 0)
-            color: "#e8785e"
-            brightness: 1.5 * _led.glow
-            constantFade: 1.0
-            linearFade: 0.2
-            quadraticFade: 0.9
         }
     }
 
@@ -396,30 +416,34 @@ Node {
     // glass body lying along the leads with ONE band, at the end the current
     // may not come out of. That band is the whole user interface of a diode,
     // so it is the one detail this body must get right.
-    Node {
-        visible: root.type === "diode"
-        Model {  // glass body
-            source: "#Cylinder"
-            position: Qt.vector3d(0, 0.95, 0)
-            eulerRotation.z: 90
-            scale: Qt.vector3d(0.019, 0.034, 0.019)
-            materials: Matte { baseColor: "#3a3630" }
-        }
-        Model {  // cathode band, towards terminal 1
-            source: "#Cylinder"
-            position: Qt.vector3d(1.25, 0.95, 0)
-            eulerRotation.z: 90
-            scale: Qt.vector3d(0.0205, 0.006, 0.0205)
-            materials: Matte { baseColor: "#cfd3d6" }
-        }
-        Repeater3D {  // lead wires to the terminals
-            model: 2
-            Model {
-                source: "#Cylinder"
-                position: Qt.vector3d(index === 0 ? -2.5 : 2.5, 0.95, 0)
-                eulerRotation.z: 90
-                scale: Qt.vector3d(0.003, 0.017, 0.003)
-                materials: Matte { baseColor: LabTheme.muted }
+    Loader3D {
+        active: root.type === "diode"
+        sourceComponent: Component {
+            Node {
+                Model {  // glass body
+                    source: "#Cylinder"
+                    position: Qt.vector3d(0, 0.95, 0)
+                    eulerRotation.z: 90
+                    scale: Qt.vector3d(0.019, 0.034, 0.019)
+                    materials: Matte { baseColor: "#3a3630" }
+                }
+                Model {  // cathode band, towards terminal 1
+                    source: "#Cylinder"
+                    position: Qt.vector3d(1.25, 0.95, 0)
+                    eulerRotation.z: 90
+                    scale: Qt.vector3d(0.0205, 0.006, 0.0205)
+                    materials: Matte { baseColor: "#cfd3d6" }
+                }
+                Repeater3D {  // lead wires to the terminals
+                    model: 2
+                    Model {
+                        source: "#Cylinder"
+                        position: Qt.vector3d(index === 0 ? -2.5 : 2.5, 0.95, 0)
+                        eulerRotation.z: 90
+                        scale: Qt.vector3d(0.003, 0.017, 0.003)
+                        materials: Matte { baseColor: LabTheme.muted }
+                    }
+                }
             }
         }
     }
@@ -434,11 +458,10 @@ Node {
     // other point: a lesson that takes the package off opens the part that was
     // on the board, not a model of it.
     //
-    // Loaded rather than instantiated like every other body here, which is the
-    // whole reason a Loader3D is in this file: the anatomy is eleven parts plus
-    // a wire repeater, and a board carries resistors and LEDs by the dozen. An
-    // always-built anatomy would be paid for on every one of them and drawn on
-    // none.
+    // Loaded, like every body here: the anatomy is eleven parts plus a wire
+    // repeater, and a board carries resistors and LEDs by the dozen. An
+    // always-built anatomy would be paid for on every one of them and drawn
+    // on none.
     Loader3D {
         id: _npnLoader
         active: root.type === "transistor"
@@ -483,282 +506,294 @@ Node {
     //
     // It also carries its supply pins, which is the whole reason it is drawn
     // as a package: the schematic hides VCC and GND, the board may not.
-    Node {
-        id: _gate
-        visible: root.type === "gate"
+    Loader3D {
+        active: root.type === "gate"
+        sourceComponent: Component {
+            Node {
+                id: _gate
 
-        // Epoxy, hardcoded like the transistor's: a physical part colour, not
-        // a role in the theme. Everything PRINTED below takes its ink from
-        // this fill or from a theme token, never from a pinned value.
-        //
-        // Darker than the transistor's blob on purpose. Both printed faces
-        // here are unlit, so the case is drawn at its literal value against a
-        // literal sheet - and the transistor's #2a2724 is the dark theme's
-        // sheet to within a hair, which would have left the package invisible
-        // on the very footprint that names its pins.
-        readonly property color caseColor: "#1b1815"
+                // Epoxy, hardcoded like the transistor's: a physical part colour, not
+                // a role in the theme. Everything PRINTED below takes its ink from
+                // this fill or from a theme token, never from a pinned value.
+                //
+                // Darker than the transistor's blob on purpose. Both printed faces
+                // here are unlit, so the case is drawn at its literal value against a
+                // literal sheet - and the transistor's #2a2724 is the dark theme's
+                // sheet to within a hair, which would have left the package invisible
+                // on the very footprint that names its pins.
+                readonly property color caseColor: "#1b1815"
 
-        // How strongly the output is high. `lit` says which level it is,
-        // simV says how much of a level there is - a rail that has sagged
-        // reads dimmer. Floored well above zero so a gate whose output volts
-        // nobody feeds still shows a lit indicator rather than a dead one.
-        readonly property real glow: root.lit
-            ? Math.max(0.35, Math.min(1.0, Math.abs(root.simV) / 5.0)) : 0.0
+                // How strongly the output is high. `lit` says which level it is,
+                // simV says how much of a level there is - a rail that has sagged
+                // reads dimmer. Floored well above zero so a gate whose output volts
+                // nobody feeds still shows a lit indicator rather than a dead one.
+                readonly property real glow: root.lit
+                    ? Math.max(0.35, Math.min(1.0, Math.abs(root.simV) / 5.0)) : 0.0
 
-        // The silkscreen, and the reason the part is legible: five pins in a
-        // ring around a black case cannot be told apart by looking, so the
-        // board names every one of them. Same rules as the transistor's
-        // footprint - opaque edge to edge (a cut corner comes out BLACK here,
-        // this material does no alpha blending), painted rim rather than a
-        // border on transparency, `sheet` rather than the 2D `paper` so the
-        // plate stays darker than the board when the theme goes dark.
-        //
-        // Every name is set BESIDE its pad, never under it: a pad is a raised
-        // dome and it would swallow the letter whole. The names are literals -
-        // VCC, GND, A, B, Y are printed unchanged on every datasheet in every
-        // language, exactly like the A and V on the meter faces.
-        Model {
-            position: Qt.vector3d(0, 0.52, 0)
-            source: "#Rectangle"
-            eulerRotation.x: -90
-            // 14.0 by 11.2: the footprint above, so the pads land on the plate
-            // where the plate says they do
-            scale: Qt.vector3d(0.14, 0.112, 1)
-            materials: PrincipledMaterial {
-                lighting: PrincipledMaterial.NoLighting
-                baseColorMap: Texture {
-                    // an Item holding a filled Rectangle, never a Rectangle
-                    // used directly as the source
-                    sourceItem: Item {
-                        // 25 px per world unit; a plane needs no flips, so
-                        // item x runs with world x and item y with world z
-                        width: 350; height: 280
-                        Rectangle { anchors.fill: parent; color: LabTheme.sheet }
-                        Rectangle {   // a painted rim, since a cut one goes black
-                            anchors.fill: parent
-                            anchors.margins: 4
-                            color: "transparent"
-                            border.color: LabTheme.step(LabTheme.sheet, 1.3)
-                            border.width: 3
-                        }
-                        // the two inputs and the output, each one letter set
-                        // inboard of its own pad
-                        Text {
-                            x: 42 - width / 2; y: 42 - height / 2
-                            text: "A"; color: LabTheme.inkSoft
-                            font.pixelSize: 40; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        Text {
-                            x: 42 - width / 2; y: 238 - height / 2
-                            text: "B"; color: LabTheme.inkSoft
-                            font.pixelSize: 40; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        Text {
-                            x: 308 - width / 2; y: 102 - height / 2
-                            text: "Y"; color: LabTheme.inkSoft
-                            font.pixelSize: 40; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        // the rails, on the long sides where a DIP carries
-                        // them, offset sideways so the pad dome misses them
-                        Text {
-                            x: 235 - width / 2; y: 25 - height / 2
-                            text: "VCC"; color: LabTheme.inkSoft
-                            font.pixelSize: 36; font.bold: true
-                            font.family: LabTheme.monoFont
-                        }
-                        Text {
-                            x: 235 - width / 2; y: 255 - height / 2
-                            text: "GND"; color: LabTheme.inkSoft
-                            font.pixelSize: 36; font.bold: true
-                            font.family: LabTheme.monoFont
+                // The silkscreen, and the reason the part is legible: five pins in a
+                // ring around a black case cannot be told apart by looking, so the
+                // board names every one of them. Same rules as the transistor's
+                // footprint - opaque edge to edge (a cut corner comes out BLACK here,
+                // this material does no alpha blending), painted rim rather than a
+                // border on transparency, `sheet` rather than the 2D `paper` so the
+                // plate stays darker than the board when the theme goes dark.
+                //
+                // Every name is set BESIDE its pad, never under it: a pad is a raised
+                // dome and it would swallow the letter whole. The names are literals -
+                // VCC, GND, A, B, Y are printed unchanged on every datasheet in every
+                // language, exactly like the A and V on the meter faces.
+                Model {
+                    position: Qt.vector3d(0, 0.52, 0)
+                    source: "#Rectangle"
+                    eulerRotation.x: -90
+                    // 14.0 by 11.2: the footprint above, so the pads land on the plate
+                    // where the plate says they do
+                    scale: Qt.vector3d(0.14, 0.112, 1)
+                    materials: PrincipledMaterial {
+                        lighting: PrincipledMaterial.NoLighting
+                        baseColorMap: Texture {
+                            // an Item holding a filled Rectangle, never a Rectangle
+                            // used directly as the source
+                            sourceItem: Item {
+                                // 25 px per world unit; a plane needs no flips, so
+                                // item x runs with world x and item y with world z
+                                width: 350; height: 280
+                                Rectangle { anchors.fill: parent; color: LabTheme.sheet }
+                                Rectangle {   // a painted rim, since a cut one goes black
+                                    anchors.fill: parent
+                                    anchors.margins: 4
+                                    color: "transparent"
+                                    border.color: LabTheme.step(LabTheme.sheet, 1.3)
+                                    border.width: 3
+                                }
+                                // the two inputs and the output, each one letter set
+                                // inboard of its own pad
+                                Text {
+                                    x: 42 - width / 2; y: 42 - height / 2
+                                    text: "A"; color: LabTheme.inkSoft
+                                    font.pixelSize: 40; font.bold: true
+                                    font.family: LabTheme.monoFont
+                                }
+                                Text {
+                                    x: 42 - width / 2; y: 238 - height / 2
+                                    text: "B"; color: LabTheme.inkSoft
+                                    font.pixelSize: 40; font.bold: true
+                                    font.family: LabTheme.monoFont
+                                }
+                                Text {
+                                    x: 308 - width / 2; y: 102 - height / 2
+                                    text: "Y"; color: LabTheme.inkSoft
+                                    font.pixelSize: 40; font.bold: true
+                                    font.family: LabTheme.monoFont
+                                }
+                                // the rails, on the long sides where a DIP carries
+                                // them, offset sideways so the pad dome misses them
+                                Text {
+                                    x: 235 - width / 2; y: 25 - height / 2
+                                    text: "VCC"; color: LabTheme.inkSoft
+                                    font.pixelSize: 36; font.bold: true
+                                    font.family: LabTheme.monoFont
+                                }
+                                Text {
+                                    x: 235 - width / 2; y: 255 - height / 2
+                                    text: "GND"; color: LabTheme.inkSoft
+                                    font.pixelSize: 36; font.bold: true
+                                    font.family: LabTheme.monoFont
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
 
-        Part {  // the case
-            width: 8.0; height: 1.5; depth: 6.0
-            position: Qt.vector3d(0, 0, 0)
-            color: _gate.caseColor
-        }
+                Part {  // the case
+                    width: 8.0; height: 1.5; depth: 6.0
+                    position: Qt.vector3d(0, 0, 0)
+                    color: _gate.caseColor
+                }
 
-        // The top face, printed. It covers the case's whole top rather than
-        // sitting on it as a smaller plate: this material is unlit, so a patch
-        // of it in the middle of a toon-shaded face would read as a sticker
-        // that caught the light differently.
-        Model {
-            position: Qt.vector3d(0, 1.53, 0)
-            source: "#Rectangle"
-            eulerRotation.x: -90
-            scale: Qt.vector3d(0.08, 0.06, 1)
-            materials: PrincipledMaterial {
-                lighting: PrincipledMaterial.NoLighting
-                baseColorMap: Texture {
-                    sourceItem: Item {
-                        width: 320; height: 240
-                        Rectangle { anchors.fill: parent; color: _gate.caseColor }
-                        Rectangle {  // the pin-1 index mark, at the VCC end
-                            x: 22; y: 22; width: 20; height: 20
-                            radius: 10
-                            color: LabTheme.inkOn(_gate.caseColor)
-                            opacity: 0.4
-                        }
-                        Text {
-                            anchors.centerIn: parent
-                            // The one thing that tells two of these apart, so
-                            // it is set as large as the case allows. Ink from
-                            // the fill it is printed on, never pinned.
-                            text: LabLang.t("gate." + root.func)
-                            color: LabTheme.inkOn(_gate.caseColor)
-                            font.pixelSize: 92; font.bold: true
-                            font.letterSpacing: 2
-                            font.family: LabTheme.monoFont
+                // The top face, printed. It covers the case's whole top rather than
+                // sitting on it as a smaller plate: this material is unlit, so a patch
+                // of it in the middle of a toon-shaded face would read as a sticker
+                // that caught the light differently.
+                Model {
+                    position: Qt.vector3d(0, 1.53, 0)
+                    source: "#Rectangle"
+                    eulerRotation.x: -90
+                    scale: Qt.vector3d(0.08, 0.06, 1)
+                    materials: PrincipledMaterial {
+                        lighting: PrincipledMaterial.NoLighting
+                        baseColorMap: Texture {
+                            sourceItem: Item {
+                                width: 320; height: 240
+                                Rectangle { anchors.fill: parent; color: _gate.caseColor }
+                                Rectangle {  // the pin-1 index mark, at the VCC end
+                                    x: 22; y: 22; width: 20; height: 20
+                                    radius: 10
+                                    color: LabTheme.inkOn(_gate.caseColor)
+                                    opacity: 0.4
+                                }
+                                Text {
+                                    anchors.centerIn: parent
+                                    // The one thing that tells two of these apart, so
+                                    // it is set as large as the case allows. Ink from
+                                    // the fill it is printed on, never pinned.
+                                    text: LabLang.t("gate." + root.func)
+                                    color: LabTheme.inkOn(_gate.caseColor)
+                                    font.pixelSize: 92; font.bold: true
+                                    font.letterSpacing: 2
+                                    font.family: LabTheme.monoFont
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
 
-        Repeater3D {  // five pins, each one running from the case to its pad
-            model: 5
-            Model {
-                readonly property var pad: root.termAt(index)
-                // VCC and GND leave through the long sides, the signal pins
-                // through the ends - which axis a pin runs along is simply
-                // which way its pad lies
-                readonly property bool sideways: Math.abs(pad.x) > Math.abs(pad.z)
-                source: "#Cylinder"
-                position: sideways ? Qt.vector3d(pad.x > 0 ? 4.9 : -4.9, 0.55, pad.z)
-                                   : Qt.vector3d(pad.x, 0.55, pad.z > 0 ? 3.75 : -3.75)
-                // a #Cylinder stands along Y: tip it onto X for the signal
-                // pins, onto Z for the two rails
-                eulerRotation: sideways ? Qt.vector3d(0, 0, 90) : Qt.vector3d(90, 0, 0)
-                scale: Qt.vector3d(0.0034, sideways ? 0.026 : 0.022, 0.0034)
-                materials: Matte { baseColor: LabTheme.muted }
-            }
-        }
+                Repeater3D {  // five pins, each one running from the case to its pad
+                    model: 5
+                    Model {
+                        readonly property var pad: root.termAt(index)
+                        // VCC and GND leave through the long sides, the signal pins
+                        // through the ends - which axis a pin runs along is simply
+                        // which way its pad lies
+                        readonly property bool sideways: Math.abs(pad.x) > Math.abs(pad.z)
+                        source: "#Cylinder"
+                        position: sideways ? Qt.vector3d(pad.x > 0 ? 4.9 : -4.9, 0.55, pad.z)
+                                           : Qt.vector3d(pad.x, 0.55, pad.z > 0 ? 3.75 : -3.75)
+                        // a #Cylinder stands along Y: tip it onto X for the signal
+                        // pins, onto Z for the two rails
+                        eulerRotation: sideways ? Qt.vector3d(0, 0, 90) : Qt.vector3d(90, 0, 0)
+                        scale: Qt.vector3d(0.0034, sideways ? 0.026 : 0.022, 0.0034)
+                        materials: Matte { baseColor: LabTheme.muted }
+                    }
+                }
 
-        // What the output is doing, as a pip beside the output pin - the
-        // gate's answer to the transistor's collar. A logic board is a row of
-        // identical black cases, and "which of these is putting out a high"
-        // is the entire question being asked of it. Small and quiet on
-        // purpose: it reports a level, it is not a lamp.
-        Model {
-            source: "#Cylinder"
-            position: Qt.vector3d(4.9, 0.60, 1.7)
-            scale: Qt.vector3d(0.016, 0.004, 0.016)
-            materials: Matte {
-                baseColor: root.lit ? LabTheme.forest : LabTheme.inkFaint
-                emissiveFactor: Qt.vector3d(0.05, 0.20, 0.09).times(_gate.glow)
+                // What the output is doing, as a pip beside the output pin - the
+                // gate's answer to the transistor's collar. A logic board is a row of
+                // identical black cases, and "which of these is putting out a high"
+                // is the entire question being asked of it. Small and quiet on
+                // purpose: it reports a level, it is not a lamp.
+                Model {
+                    source: "#Cylinder"
+                    position: Qt.vector3d(4.9, 0.60, 1.7)
+                    scale: Qt.vector3d(0.016, 0.004, 0.016)
+                    materials: Matte {
+                        baseColor: root.lit ? LabTheme.forest : LabTheme.inkFaint
+                        emissiveFactor: Qt.vector3d(0.05, 0.20, 0.09).times(_gate.glow)
+                    }
+                }
             }
         }
     }
 
     // --- bulb ---------------------------------------------------------------
-    Node {
-        id: _bulb
-        visible: root.type === "bulb"
-        // 0.8 W lights it fully (4.5 V school bulb)
-        readonly property real glow: Math.min(1.4, root.simPower / 0.8)
-        Model {  // glass
-            geometry: _domeMesh
-            position: Qt.vector3d(0, 3.0, 0)
-            scale: Qt.vector3d(0.042, 0.042, 0.042)
-            opacity: 0.42
-            materials: Matte {
-                baseColor: "#e7e4da"
-                alphaMode: PrincipledMaterial.Blend
+    Loader3D {
+        active: root.type === "bulb"
+        sourceComponent: Component {
+            Node {
+                id: _bulb
+                // 0.8 W lights it fully (4.5 V school bulb)
+                readonly property real glow: Math.min(1.4, root.simPower / 0.8)
+                Model {  // glass
+                    geometry: _domeMesh
+                    position: Qt.vector3d(0, 3.0, 0)
+                    scale: Qt.vector3d(0.042, 0.042, 0.042)
+                    opacity: 0.42
+                    materials: Matte {
+                        baseColor: "#e7e4da"
+                        alphaMode: PrincipledMaterial.Blend
+                    }
+                }
+                Model {  // filament
+                    geometry: _padMesh
+                    position: Qt.vector3d(0, 3.0, 0)
+                    scale: Qt.vector3d(0.017, 0.017, 0.017)
+                    materials: PrincipledMaterial {
+                        baseColor: root.lit ? "#ffe9a8" : "#5a5148"
+                        emissiveFactor: Qt.vector3d(2.4, 1.9, 0.9).times(_bulb.glow)
+                        lighting: PrincipledMaterial.NoLighting
+                    }
+                }
+                Model {  // socket
+                    source: "#Cylinder"
+                    position: Qt.vector3d(0, 0.8, 0)
+                    scale: Qt.vector3d(0.022, 0.016, 0.022)
+                    materials: Matte { baseColor: "#8a95a1" }
+                }
+                PointLight {  // bright bulbs must not wash the whole board yellow
+                    visible: root.lit
+                    position: Qt.vector3d(0, 3.8, 0)
+                    color: "#e8cf8a"
+                    brightness: 1.6 * _bulb.glow
+                    constantFade: 1.0
+                    linearFade: 0.25
+                    quadraticFade: 1.2
+                }
             }
-        }
-        Model {  // filament
-            geometry: _padMesh
-            position: Qt.vector3d(0, 3.0, 0)
-            scale: Qt.vector3d(0.017, 0.017, 0.017)
-            materials: PrincipledMaterial {
-                baseColor: root.lit ? "#ffe9a8" : "#5a5148"
-                emissiveFactor: Qt.vector3d(2.4, 1.9, 0.9).times(_bulb.glow)
-                lighting: PrincipledMaterial.NoLighting
-            }
-        }
-        Model {  // socket
-            source: "#Cylinder"
-            position: Qt.vector3d(0, 0.8, 0)
-            scale: Qt.vector3d(0.022, 0.016, 0.022)
-            materials: Matte { baseColor: "#8a95a1" }
-        }
-        PointLight {  // bright bulbs must not wash the whole board yellow
-            visible: root.lit
-            position: Qt.vector3d(0, 3.8, 0)
-            color: "#e8cf8a"
-            brightness: 1.6 * _bulb.glow
-            constantFade: 1.0
-            linearFade: 0.25
-            quadraticFade: 1.2
         }
     }
 
     // --- switch -------------------------------------------------------------
-    Node {
-        visible: root.type === "switch"
-        Part {
-            width: 4.6; height: 1.3; depth: 3.0
-            position: Qt.vector3d(0, 0.05, 0)
-            color: "#8a8378"
-        }
-        Node {  // lever pivots at the left contact
-            position: Qt.vector3d(-1.6, 1.6, 0)
-            Part {
-                width: 3.4; height: 0.65; depth: 1.5
-                position: Qt.vector3d(1.6, -0.32, 0)
-                // Lightened rather than recoloured: the lever's colour is
-                // already carrying on/off, and a hover that changed it would
-                // be answering a question nobody asked.
-                color: root.actuatorHovered
-                       ? Qt.lighter(root.switchOn ? LabTheme.forest
-                                                  : LabTheme.clay, 1.45)
-                       : (root.switchOn ? LabTheme.forest : LabTheme.clay)
-                Behavior on color { ColorAnimation { duration: 90 } }
-            }
-            eulerRotation.z: root.switchOn ? 0 : 28
-            Behavior on eulerRotation.z { NumberAnimation { duration: 120 } }
-        }
-        Repeater3D {  // contact studs
-            model: 2
-            Model {
-                source: "#Cylinder"
-                position: Qt.vector3d(index === 0 ? -1.6 : 1.6, 1.65, 0)
-                scale: Qt.vector3d(0.009, 0.005, 0.009)
-                materials: Matte { baseColor: LabTheme.highlight }
-            }
-        }
-        Model {  // printed state: a lever is hard to read from straight above
-            // on top of the case (its top face is at y 1.35) and in front of
-            // the lever, otherwise the print is swallowed by the body
-            // a plane, not a box: #Cube maps the same texture onto every face,
-            // so a raised plate would repeat the print down its sides
-            position: Qt.vector3d(0, 1.37, 1.05)
-            source: "#Rectangle"
-            eulerRotation.x: -90
-            scale: Qt.vector3d(0.026, 0.008, 1)
-            materials: PrincipledMaterial {
-                lighting: PrincipledMaterial.NoLighting
-                baseColorMap: Texture {
-                    // a plane needs no flips - unlike a cube's up face, which
-                    // maps U and V mirrored
-                    sourceItem: Item {
-                        width: 200; height: 92
-                        Rectangle { anchors.fill: parent; color: LabTheme.panel }
-                        Text {
-                            anchors.centerIn: parent
-                            text: LabLang.t(root.switchOn ? "switch.on" : "switch.off")
-                            color: root.switchOn ? LabTheme.forest : LabTheme.clay
-                            font.pixelSize: 60; font.bold: true
-                            font.letterSpacing: 4
-                            font.family: LabTheme.monoFont
+    Loader3D {
+        active: root.type === "switch"
+        sourceComponent: Component {
+            Node {
+                Part {
+                    width: 4.6; height: 1.3; depth: 3.0
+                    position: Qt.vector3d(0, 0.05, 0)
+                    color: "#8a8378"
+                }
+                Node {  // lever pivots at the left contact
+                    position: Qt.vector3d(-1.6, 1.6, 0)
+                    Part {
+                        width: 3.4; height: 0.65; depth: 1.5
+                        position: Qt.vector3d(1.6, -0.32, 0)
+                        // Lightened rather than recoloured: the lever's colour is
+                        // already carrying on/off, and a hover that changed it would
+                        // be answering a question nobody asked.
+                        color: root.actuatorHovered
+                               ? Qt.lighter(root.switchOn ? LabTheme.forest
+                                                          : LabTheme.clay, 1.45)
+                               : (root.switchOn ? LabTheme.forest : LabTheme.clay)
+                        Behavior on color { ColorAnimation { duration: 90 } }
+                    }
+                    eulerRotation.z: root.switchOn ? 0 : 28
+                    Behavior on eulerRotation.z { NumberAnimation { duration: 120 } }
+                }
+                Repeater3D {  // contact studs
+                    model: 2
+                    Model {
+                        source: "#Cylinder"
+                        position: Qt.vector3d(index === 0 ? -1.6 : 1.6, 1.65, 0)
+                        scale: Qt.vector3d(0.009, 0.005, 0.009)
+                        materials: Matte { baseColor: LabTheme.highlight }
+                    }
+                }
+                Model {  // printed state: a lever is hard to read from straight above
+                    // on top of the case (its top face is at y 1.35) and in front of
+                    // the lever, otherwise the print is swallowed by the body
+                    // a plane, not a box: #Cube maps the same texture onto every face,
+                    // so a raised plate would repeat the print down its sides
+                    position: Qt.vector3d(0, 1.37, 1.05)
+                    source: "#Rectangle"
+                    eulerRotation.x: -90
+                    scale: Qt.vector3d(0.026, 0.008, 1)
+                    materials: PrincipledMaterial {
+                        lighting: PrincipledMaterial.NoLighting
+                        baseColorMap: Texture {
+                            // a plane needs no flips - unlike a cube's up face, which
+                            // maps U and V mirrored
+                            sourceItem: Item {
+                                width: 200; height: 92
+                                Rectangle { anchors.fill: parent; color: LabTheme.panel }
+                                Text {
+                                    anchors.centerIn: parent
+                                    text: LabLang.t(root.switchOn ? "switch.on" : "switch.off")
+                                    color: root.switchOn ? LabTheme.forest : LabTheme.clay
+                                    font.pixelSize: 60; font.bold: true
+                                    font.letterSpacing: 4
+                                    font.family: LabTheme.monoFont
+                                }
+                            }
                         }
                     }
                 }
@@ -775,41 +810,45 @@ Node {
     //
     // The dial was written out here first and generalized afterwards; the
     // ranges below are the only part of it that was ever about circuits.
-    Node {
-        id: _meter
-        visible: root.type === "ammeter" || root.type === "voltmeter"
-        readonly property bool isAmp: root.type === "ammeter"
-        readonly property color ring: isAmp ? LabTheme.forest : LabTheme.plum
-        readonly property real reading: Math.abs(isAmp ? root.simI : root.simV)
+    Loader3D {
+        active: root.type === "ammeter" || root.type === "voltmeter"
+        sourceComponent: Component {
+            Node {
+                id: _meter
+                readonly property bool isAmp: root.type === "ammeter"
+                readonly property color ring: isAmp ? LabTheme.forest : LabTheme.plum
+                readonly property real reading: Math.abs(isAmp ? root.simI : root.simV)
 
-        Part {  // case (Box3D sits on its y: bottom-centre origin)
-            width: 7.0; height: 1.4; depth: 5.6
-            position: Qt.vector3d(0, 0, 0)
-            color: _meter.ring
-        }
-        Model {  // dial plate on top: its up face carries the rendered face
-            source: "#Cube"
-            position: Qt.vector3d(0, 1.55, 0)
-            scale: Qt.vector3d(0.062, 0.004, 0.048)
-            materials: PrincipledMaterial {
-                lighting: PrincipledMaterial.NoLighting   // keep the print crisp
-                baseColorMap: Texture {
-                    // the cube's up face maps U mirrored: flip both so the
-                    // print reads the right way round
-                    flipU: true
-                    flipV: true
-                    // a render-to-texture source item is laid out in its own
-                    // pixels rather than the screen's, so this one deliberately
-                    // does NOT follow uiScale: the texel budget is fixed, and
-                    // how large the part reads is the camera's business
-                    sourceItem: Gauge {
-                        width: 260; height: 200
-                        symbol: _meter.isAmp ? "A" : "V"
-                        unit: _meter.isAmp ? "A" : "V"
-                        ranges: _meter.isAmp ? [0.01, 0.1, 1, 10] : [1, 5, 12, 60]
-                        value: _meter.reading
-                        accent: _meter.ring
-                        frameRadius: 0    // a rounded corner here is a hole in the plate
+                Part {  // case (Box3D sits on its y: bottom-centre origin)
+                    width: 7.0; height: 1.4; depth: 5.6
+                    position: Qt.vector3d(0, 0, 0)
+                    color: _meter.ring
+                }
+                Model {  // dial plate on top: its up face carries the rendered face
+                    source: "#Cube"
+                    position: Qt.vector3d(0, 1.55, 0)
+                    scale: Qt.vector3d(0.062, 0.004, 0.048)
+                    materials: PrincipledMaterial {
+                        lighting: PrincipledMaterial.NoLighting   // keep the print crisp
+                        baseColorMap: Texture {
+                            // the cube's up face maps U mirrored: flip both so the
+                            // print reads the right way round
+                            flipU: true
+                            flipV: true
+                            // a render-to-texture source item is laid out in its own
+                            // pixels rather than the screen's, so this one deliberately
+                            // does NOT follow uiScale: the texel budget is fixed, and
+                            // how large the part reads is the camera's business
+                            sourceItem: Gauge {
+                                width: 260; height: 200
+                                symbol: _meter.isAmp ? "A" : "V"
+                                unit: _meter.isAmp ? "A" : "V"
+                                ranges: _meter.isAmp ? [0.01, 0.1, 1, 10] : [1, 5, 12, 60]
+                                value: _meter.reading
+                                accent: _meter.ring
+                                frameRadius: 0    // a rounded corner here is a hole in the plate
+                            }
+                        }
                     }
                 }
             }
