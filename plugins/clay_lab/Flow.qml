@@ -284,7 +284,12 @@ Item {
             _names = _clone(cp.names)
             lab.applyViewState(_clone(cp.view))
         } else if (lab && lab.viewState) {
-            _checkpoints[i] = { view: _clone(lab.viewState()), names: _clone(_names) }
+            // without the running flows the view carries since #569: a
+            // checkpoint is the lab as the step finds it, and every flow's
+            // own checkpoints inside each one would grow with every step
+            const view = _clone(lab.viewState())
+            delete view.flows
+            _checkpoints[i] = { view: view, names: _clone(_names) }
         }
         index = i
         stepTime = 0
@@ -294,6 +299,46 @@ Item {
         if (s.demo && s.demo.length) run(s.demo)
         applyView(s.view)          // after the demo: a step may frame what it built
         narrated(narration, LabLang.lang, s.key)
+    }
+
+    /*!
+        \qmlmethod var Flow::state()
+        \brief Where the learner is in this flow, for a view state; null while it is stopped.
+
+        \c {{index, names, checkpoints, stepTime, hintShown}}: the step, the
+        names the steps so far bound, every step's checkpoint and the sim time
+        spent in this step. \l Lab::viewState() carries it for each running
+        flow, so a reload comes back in the same lesson at the same step.
+
+        \sa load
+    */
+    function state() {
+        if (!running) return null
+        return { index: index, names: _clone(_names), checkpoints: _clone(_checkpoints),
+                 stepTime: stepTime, hintShown: hintShown }
+    }
+
+    /*!
+        \qmlmethod void Flow::load(var s)
+        \brief Puts the learner back where a \l state() said, without replaying the step.
+
+        The lab itself is already back - \l Lab::applyViewState() restores it
+        first - so neither the step's demo nor its view runs again, and it is
+        not narrated again: the step is where it was, not entered anew. A
+        state whose step no longer exists (an edit removed it) stops the flow.
+    */
+    function load(s) {
+        if (!s || s.index === undefined || s.index < 0 || s.index >= steps.length) {
+            if (s) console.warn("Flow " + flowId + ": no step " + s.index + " to come back to")
+            stop()
+            return
+        }
+        _checkpoints = _clone(s.checkpoints ?? ({}))
+        _names = _clone(s.names ?? ({}))
+        refusal = ""
+        index = s.index
+        stepTime = s.stepTime ?? 0
+        hintShown = !!s.hintShown
     }
 
     /*!
