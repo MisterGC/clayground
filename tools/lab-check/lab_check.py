@@ -18,6 +18,7 @@ WHAT IS CHECKED, IN ORDER
   determinism   every scenario, two stepped runs, byte-identical records
   flows         every flow runs to its end, with its expects holding
   strings       EN and DE say the same set of things, flows included
+  teaching      a teaching lab's lessons keep the rules a program can test
   records       records/make.sh and studies/* regenerate the committed bytes
   tables        every <!-- table: --> block renders to the committed bytes
   study         a research lab has a study with records and answerability
@@ -26,13 +27,22 @@ WHAT IS CHECKED, IN ORDER
 
 WHAT THE PURPOSE DECIDES (#209). lab-check.json declares what the lab is FOR,
 and the gate asks for what that purpose owes and nothing more: a teaching lab
-owes a flow with expects, German, and a storyboard; a research lab owes a
+owes a flow with a learner task and an expect, German, and a storyboard; a
+research lab owes a
 study with committed records and an answerability table; a learning lab owes
 its paper and a concept board. Everything a lab HAS is still checked whatever
 the tier - a research lab that ships a flow has it run, one that ships German
 has the parity checked - because a half-translated dictionary or a flow that
 no longer finishes is a defect however the lab is labelled. Only the
 "at least one" demands are tiered.
+
+WHAT A LESSON IS HELD TO (#542). The skill's teaching rules are mostly
+judgement - whether a step explains, whether a task needs the idea - and the
+skill marks which. The ones a program can test, the teaching check tests, for
+a teaching lab: every flow has a step the learner acts on and an expect;
+every line a flow can say, hints and answered variants included, fits in 240
+characters in every language once a script's *cues* are taken out; and no
+step's narration is a `say` literal in the QML instead of a strings.js key.
 
 Exit 0 when everything passed, 1 on any FAIL, 2 when the command line or the
 lab directory is wrong (no Sandbox.qml, an unknown check), 77 (the ctest
@@ -94,11 +104,15 @@ import time
 import uuid
 
 SKIP = 77
-CHECK_ORDER = ["load", "determinism", "flows", "strings", "records", "tables",
-               "study", "triad", "remarks"]
+CHECK_ORDER = ["load", "determinism", "flows", "strings", "teaching", "records",
+               "tables", "study", "triad", "remarks"]
 PURPOSES = ("learning", "teaching", "research")
 DEFAULT_STEPS = 600
 DEFAULT_MAX_FLOW_STEPS = 20000
+# The longest narration line a lesson may say, in characters, in any language
+# (#542): the skill's "one idea per step" made countable. A line longer than
+# this usually holds two ideas, and the German is longer than the English.
+MAX_NARRATION = 240
 # How long a loader gets to bring the lab to phase ready, per process. It used
 # to be 90 s per wait with nothing watching the process, so a loader that had
 # died was polled for the full time of every wait left (#536).
@@ -529,7 +543,8 @@ def classify_diagnostics(entries, repo):
 PROBE_JS = """
 (function () {
     var out = { scenarios: [], flows: [], flowsError: "", langs: [],
-                keys: {}, kernelKeys: {}, flowKeys: [] };
+                keys: {}, kernelKeys: {}, flowKeys: [], tasks: {},
+                literals: {}, narration: {} };
     try { out.scenarios = root.scenarios() } catch (e) { out.scenariosError = String(e) }
     try { out.flows = root.flows ? root.flows() : [] }
     catch (e) { out.flowsError = String(e) }
@@ -551,7 +566,7 @@ PROBE_JS = """
             var id = Lab.flowIds[fi];
             var f = Lab._flows[id];
             if (!f) continue;
-            var nExpect = 0;
+            var nExpect = 0, nTask = 0, literal = [];
             for (var i = 0; i < f.steps.length; ++i) {
                 var st = f.steps[i];
                 if (st.key) found.push("flow." + id + "." + st.key);
@@ -560,12 +575,33 @@ PROBE_JS = """
                 // a teaching flow owes at least one expect (#209): a lesson
                 // with no asserted number cannot break when the lab drifts
                 try { if (st.expect) ++nExpect } catch (e) {}
+                // ...and one step the learner acts on (#542): a question
+                // the panel takes and a wiring task are tasks as well
+                try { if (st.task) ++nTask } catch (e) {}
+                // a narration line typed into the QML rather than strings.js
+                // (#542): one language only, and invisible to the checks below
+                try {
+                    if (st.say && String(st.say).trim() !== "")
+                        literal.push(st.key ? st.key : "step " + i);
+                } catch (e) {}
             }
             out.expects[id] = nExpect;
+            out.tasks[id] = nTask;
+            out.literals[id] = literal;
             if (f.titleKey) found.push(String(f.titleKey));
         }
         out.flowKeys = found;
         out.registered = Lab.flowIds.slice();
+        // The text of every line a flow can say, in every language: the
+        // lab's flow.* keys - answered variants and scripts included, which
+        // no step names until it runs - and the hints the steps name.
+        for (var l in LabLang._dicts) {
+            var d = LabLang._dicts[l], said = {};
+            for (var k in d)
+                if (k.indexOf("flow.") === 0 || found.indexOf(k) >= 0)
+                    said[k] = String(d[k]);
+            out.narration[l] = said;
+        }
     } catch (e) { out.flowKeysError = String(e) }
     return out;
 })()
@@ -773,13 +809,12 @@ def first_difference(a, b):
 
 
 def check_flows(rep, spawn, flows, require, expects, max_steps):
-    """Run every published flow; a teaching lab must also HAVE one, with an
-    expect in it.
+    """Run every published flow; a teaching lab must also HAVE one.
 
     `require` is whether the purpose owes a flow (teaching). `expects` maps a
     flow id to how many of its steps carry an `expect`, read from the kernel's
-    registry - a teaching flow with none asserts nothing and cannot go red
-    when the lab drifts, which is the one property that makes a flow a test.
+    registry, for the PASS line; whether a lesson has enough of them is the
+    teaching check's question, not whether it runs (#542).
     """
     if not flows:
         if require:
@@ -816,9 +851,6 @@ def check_flows(rep, spawn, flows, require, expects, max_steps):
         if not res.get("finished"):
             problems.append("finished: false")
         n_expect = (expects or {}).get(flow_id, 0)
-        if require and not n_expect:
-            problems.append("no step carries an expect - a teaching flow "
-                            "asserts at least one measured value")
         detail = "; ".join(problems) if problems else \
             f"{res.get('steps')} sim frames, {n_expect} expect(s)"
         all_ok = rep.check(f"flows: {flow_id}", not problems, detail) and all_ok
@@ -871,6 +903,72 @@ def check_strings(rep, probe, require_de=True):
         f"{len(missing)} missing: {', '.join(missing[:4])}" if missing
         else f"{len(wanted)} flow keys")
     return parity and flow_ok
+
+
+# A performance script's stage directions - *point at the battery* - are not
+# said, so they do not count towards a line's length.
+CUE = re.compile(r"\*[^*\n]*\*")
+
+
+def spoken(text):
+    """What a narration line says: its cues taken out, its spaces folded."""
+    return " ".join(CUE.sub(" ", str(text)).split())
+
+
+def check_teaching(rep, probe, flows, purpose, limit=MAX_NARRATION):
+    """The rules of teaching.md and flows.md that a program can test (#542).
+
+    Per flow: at least one step the learner acts on (a task - a question the
+    lab takes an answer to and a wiring task are tasks too) and at least one
+    expect. For the lab: every line a flow can say fits in `limit`
+    characters in every language, and no step's narration is a `say`
+    literal in the QML. Everything else teaching.md asks is judgement and
+    marked so there.
+    """
+    if purpose != "teaching":
+        return rep.check("teaching: no lesson rules owed by this purpose", True,
+                         purpose)
+    all_ok = True
+    tasks = probe.get("tasks", {})
+    expects = probe.get("expects", {})
+    for flow_id in flows:
+        problems = []
+        n_task, n_expect = tasks.get(flow_id, 0), expects.get(flow_id, 0)
+        if not n_task:
+            problems.append("no step is a task - a lesson has the learner act "
+                            "at least once")
+        if not n_expect:
+            problems.append("no step carries an expect - a lesson asserts at "
+                            "least one measured value")
+        all_ok = rep.check(
+            f"teaching: {flow_id} has a learner task and an expect", not problems,
+            "; ".join(problems) if problems
+            else f"{n_task} task(s), {n_expect} expect(s)") and all_ok
+
+    prefixes = tuple(f"flow.{f}." for f in flows)
+    hints = set(probe.get("flowKeys", []))
+    long_lines, counted = [], 0
+    for lang, said in sorted(probe.get("narration", {}).items()):
+        for key, text in sorted(said.items()):
+            if not (key.startswith(prefixes) or key in hints):
+                continue
+            counted += 1
+            n = len(spoken(text))
+            if n > limit:
+                long_lines.append(f"{key} [{lang}] {n}")
+    all_ok = rep.check(
+        f"teaching: every narration line fits in {limit} characters",
+        not long_lines,
+        f"{len(long_lines)} longer: " + ", ".join(long_lines[:4]) if long_lines
+        else f"{counted} line(s)") and all_ok
+
+    literal = [f"{f}.{k}" for f in flows for k in probe.get("literals", {}).get(f, [])]
+    all_ok = rep.check(
+        "teaching: no narration is written in the QML", not literal,
+        f"{len(literal)} step(s) with a say literal: " + ", ".join(literal[:4])
+        + " - move the line to strings.js as flow.<flowId>.<key>"
+        if literal else "") and all_ok
+    return all_ok
 
 
 def check_records(rep, lab_dir, workdir, render):
@@ -1209,7 +1307,8 @@ def main():
     print(f"lab-check {lab_id}  ({purpose}, steps={steps}, "
           f"ready within {args.ready_timeout:g} s, checks={','.join(wanted)})")
 
-    needs_scene = any(c in wanted for c in ("load", "determinism", "flows", "strings"))
+    needs_scene = any(c in wanted for c in ("load", "determinism", "flows",
+                                            "strings", "teaching"))
     if needs_scene and not (os.path.isfile(loader) and os.access(loader, os.X_OK)):
         print(f"SKIP  {loader} does not exist - build it with "
               "`cmake --build build --target clayliveloader`")
@@ -1318,6 +1417,10 @@ def run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id, steps,
 
     if "strings" in wanted:
         check_strings(rep, probe, require_de=(purpose == "teaching"))
+
+    if "teaching" in wanted:
+        check_teaching(rep, probe, flows_to_run(cfg, probe.get("flows", [])),
+                       purpose)
 
 
 if __name__ == "__main__":
