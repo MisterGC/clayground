@@ -66,6 +66,8 @@ public:
     // inspect dir to .clay/inspect/i/<name>/ so several instances of the
     // same sandbox (e.g. networked games) don't race on request/response.
     void setInstanceName(const QString& name);
+    // Safe to call from any thread: a call from another thread is carried out
+    // on the inspector's own thread, later.
     void addLogMessage(const QString& msg, const QString& category = QString());
     void addWarning(const QString& msg, const QString& category = QString());
     void addError(const QString& msg, const QString& category = QString());
@@ -183,6 +185,9 @@ private:
     void appendLogLine(const QString& level, const QString& msg,
                        const QString& category);
     void resetEventLog();
+    // True when the call came from another thread and was queued to ours.
+    bool deferToOwnThread(void (ClayInspector::*add)(const QString&, const QString&),
+                          const QString& msg, const QString& category);
     void scheduleAutoFlag(const QString& errorMsg);
     void writeAutoFlag(const QString& errorMsg);
     void cleanupOldAutoFlags();
