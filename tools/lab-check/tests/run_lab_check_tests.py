@@ -900,6 +900,18 @@ def test_loader_watch(tmp):
     check("jobs: a named flow runs beside the first session, not after it",
           peak == 2, f"{peak} at once: {quote(out)}")
 
+    # ...so the two must not share a settings store: two loaders opening one
+    # LocalStorage database at once race on its version (#572)
+    lines = [l.split(" ", 1) for l in
+             open(os.path.join(lab, "stand-in-stores")).read().splitlines()]
+    session = [store for kind, store in lines if kind == "ticking"]
+    stepped = [store for kind, store in lines if kind == "paused"]
+    check("jobs: the first session keeps the settings store it was given",
+          session == [os.environ.get("CLAY_STORAGE_DIR", "-")], str(lines))
+    check("jobs: a stepped run gets a settings store of its own",
+          stepped and all(s != "-" and s not in session for s in stepped)
+          and len(set(stepped)) == len(stepped), str(lines))
+
     # load_check.py, the load stage for pages that are not labs, reports a
     # dead loader the same way
     lab = stand_in_lab(tmp, "load-crash-101")

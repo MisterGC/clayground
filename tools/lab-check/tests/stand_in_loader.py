@@ -30,7 +30,9 @@ the loader does. That is all lab-check's first session asks before it
 starts a process per run. The first process is the one that creates
 <lab>/stand-in-first, outside the .clay that lab-check removes: an exclusive
 create, because the runs start side by side and a counter in a file was read
-half-written, so a later process took itself for the first (#572).
+half-written, so a later process took itself for the first (#572). Every
+process appends its CLAY_STORAGE_DIR, "-" when it has none, to
+<lab>/stand-in-stores.
 """
 
 import json
@@ -107,6 +109,10 @@ def main():
         first = True
     except FileExistsError:
         first = False
+
+    with open(os.path.join(lab, "stand-in-stores"), "a") as f:
+        f.write(("paused " if "--paused" in sys.argv else "ticking ")
+                + os.environ.get("CLAY_STORAGE_DIR", "-") + "\n")
 
     mode = os.environ.get("STAND_IN_MODE", "crash")
     if mode.endswith("-after-first"):
