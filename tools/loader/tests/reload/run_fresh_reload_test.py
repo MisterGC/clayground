@@ -32,6 +32,8 @@ import tempfile
 import time
 import uuid
 
+from run_reload_test import write_request
+
 STEPS = 600
 SCENARIO = "tunnel"
 
@@ -97,10 +99,7 @@ def run(args, sandbox, work):
 
     def request(req, timeout=args.timeout):
         req = dict(req, id=uuid.uuid4().hex[:8])
-        tmp = os.path.join(inspect, "request.tmp")
-        with open(tmp, "w") as f:
-            json.dump(req, f)
-        os.replace(tmp, os.path.join(inspect, "request.json"))
+        write_request(inspect, req)
         end = time.time() + timeout
         while time.time() < end:
             try:
