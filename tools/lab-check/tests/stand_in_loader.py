@@ -24,7 +24,8 @@ with the rest of its environment:
 
 Serving the lab means phase "ready" and an answer to every inspector request:
 a snapshot with a live root, to `time` whether it was started with --paused,
-and to any eval the probe JSON of a lab with two scenarios and no flows.
+and to any eval the probe JSON of a lab with two scenarios and no flows,
+in the languages STAND_IN_LANGS names (comma-separated, "en" by default).
 Started with --instance <name> it serves under .clay/inspect/i/<name>/, as
 the loader does. That is all lab-check's first session asks before it
 starts a process per run. The first process is the one that creates
@@ -40,8 +41,9 @@ import os
 import sys
 import time
 
+LANGS = os.environ.get("STAND_IN_LANGS", "en").split(",")
 PROBE = {"scenarios": ["one", "two"], "flows": [], "expects": {},
-         "langs": ["en"], "keys": {"en": []}}
+         "langs": LANGS, "keys": {l: [] for l in LANGS}}
 
 
 def write_json(path, value):

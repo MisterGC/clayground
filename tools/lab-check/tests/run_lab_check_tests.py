@@ -40,14 +40,14 @@ def check(name, ok, detail=""):
 class Recorder(L.Report):
     """A Report that keeps quiet, so a test can assert on what it collected."""
 
-    def check(self, name, ok, detail=""):
+    def check(self, name, ok, detail="", seconds=None):
         self.lines.append((name, ok, detail))
         return ok
 
     def note(self, text):
         pass
 
-    def not_run(self, name, why):
+    def not_run(self, name, why, seconds=None):
         self.skipped.append((name, why))
 
     def detail(self, needle):
@@ -565,7 +565,7 @@ def test_drivers():
     a runtime error inside a lab an hour later. Render both here."""
     ok = True
     try:
-        L.FLOW_JS % {"flow": L.js_str("f"), "maxSteps": 10}
+        L.FLOW_JS % {"flow": L.js_str("f"), "lang": L.js_str("de"), "maxSteps": 10}
         L.RUN_JS % {"scenario": L.js_str("s"), "steps": 5, "lab": L.js_str("l"),
                     "dest": L.js_str("/tmp/x"), "command": L.js_str("c")}
     except (KeyError, ValueError, TypeError) as e:
@@ -573,9 +573,13 @@ def test_drivers():
     if ok:
         check("drivers: every template renders", True)
 
-    js = L.FLOW_JS % {"flow": L.js_str("led-basics"), "maxSteps": 42}
+    js = L.FLOW_JS % {"flow": L.js_str("led-basics"), "lang": L.js_str("de"),
+                      "maxSteps": 42}
     check("drivers: the flow check calls the kernel's runFlow, not its own loop",
           "Lab.runFlow(" in js and '"led-basics"' in js and "maxSteps: 42" in js)
+    check("drivers: the flow runs in the language it is handed (#573)",
+          'LabLang.lang = "de"' in js
+          and js.index('LabLang.lang = "de"') < js.index("Lab.runFlow("))
     check("drivers: braces balance in the rendered flow driver",
           js.count("{") == js.count("}"),
           f"{js.count('{')} open, {js.count('}')} close")
@@ -768,9 +772,9 @@ def stand_in_lab(tmp, name):
     return lab
 
 
-def run_timed(cmd, mode):
+def run_timed(cmd, mode, **extra_env):
     """(exit code, output, seconds it took) of cmd with STAND_IN_MODE=mode."""
-    env = dict(os.environ, STAND_IN_MODE=mode)
+    env = dict(os.environ, STAND_IN_MODE=mode, **extra_env)
     start = time.time()
     proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT, text=True, timeout=120)
@@ -931,6 +935,148 @@ def test_loader_watch(tmp):
           took < 15, f"{took:.1f} s")
 
 
+# -- a lab outside the checkout, every language, --json (#573) ----------------
+
+
+def test_default_binary(tmp):
+    tool_build = os.path.join(L.TOOL_ROOT, "build", "bin")
+    exe = "clayliveloader" + (".exe" if os.name == "nt" else "")
+
+    # a lab copied to a folder in no checkout: the build beside the tool
+    far = os.path.join(tmp, "copied", "far-101")
+    os.makedirs(far)
+    got = L.default_binary(far, "clayliveloader")
+    check("binary: a lab in no checkout uses the build beside the tool",
+          got == os.path.join(tool_build, exe), got)
+
+    # a lab in a checkout with a build of its own: that build, as before
+    co = os.path.join(tmp, "other-checkout")
+    lab = os.path.join(co, "labs", "near-101")
+    os.makedirs(lab)
+    os.makedirs(os.path.join(co, "build", "bin"))
+    open(os.path.join(co, ".git"), "w").close()   # a worktree's .git is a file
+    own = os.path.join(co, "build", "bin", exe)
+    open(own, "w").close()
+    got = L.default_binary(lab, "clayliveloader")
+    check("binary: a lab in a built checkout uses that checkout's build",
+          got == own, got)
+
+    # ...and a checkout with no build: the tool's again
+    os.remove(own)
+    got = L.default_binary(lab, "clayliveloader")
+    check("binary: a lab in an unbuilt checkout falls back to the tool's build",
+          got == os.path.join(tool_build, exe) or got == own, got)
+    if os.path.isfile(os.path.join(tool_build, exe)):
+        check("binary: ...which exists here, so it is chosen",
+              got == os.path.join(tool_build, exe), got)
+
+
+def test_flow_langs():
+    check("langs: every registered language, English first",
+          L.flow_langs({"langs": ["de", "en", "fr"]}) == ["en", "de", "fr"],
+          str(L.flow_langs({"langs": ["de", "en", "fr"]})))
+    check("langs: a lab that names none still runs in English",
+          L.flow_langs({}) == ["en"], str(L.flow_langs({})))
+
+
+def test_every_language(tmp):
+    """A flow is run once per language the lab registers, each run in a
+    loader with a settings store of its own: a run in German sets
+    LabLang.lang, which LabPrefs would otherwise keep for the next one."""
+    lab = stand_in_lab(tmp, "langs-101")
+    with open(os.path.join(lab, "lab-check.json"), "w") as f:
+        json.dump({"purpose": "learning", "flows": ["f1", "f2"]}, f)
+    _code, out, _took = run_timed(
+        [sys.executable, LAB_CHECK, lab, "--loader", STAND_IN,
+         "--only", "load,flows"], "serve", STAND_IN_LANGS="en,de")
+    names = [l.split("  ")[1] for l in out.splitlines()
+             if l.startswith(("PASS  flows:", "FAIL  flows:"))]
+    check("langs: every flow runs in every language, flow by flow",
+          names == ["flows: f1 [en]", "flows: f1 [de]",
+                    "flows: f2 [en]", "flows: f2 [de]"], str(names))
+    # "paused <dir>" per flow run, "ticking -" for the first session, which
+    # keeps the store it was given (#572)
+    stores = [l.split(" ", 1)[1] for l in
+              open(os.path.join(lab, "stand-in-stores")).read().splitlines()
+              if l.startswith("paused ")]
+    check("langs: every flow run gets a settings store of its own",
+          len(stores) == 4 and "-" not in stores and len(set(stores)) == 4,
+          str(stores))
+
+
+def run_json(cmd, mode="serve"):
+    """(exit code, the parsed stdout or None, stdout) of a --json run."""
+    env = dict(os.environ, STAND_IN_MODE=mode)
+    proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True, timeout=120)
+    try:
+        doc = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        doc = None
+    return proc.returncode, doc, proc.stdout
+
+
+def test_json(tmp):
+    lab = stand_in_lab(tmp, "json-101")
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--loader",
+                               STAND_IN, "--only", "load,triad", "--json"])
+    check("json: stdout is one JSON document and nothing else",
+          doc is not None, raw[:200])
+    if doc is None:
+        return
+    check("json: it carries the exit code the process ended with",
+          doc.get("exit") == code == 0, f"exit {code}, json {doc.get('exit')}")
+    check("json: it names the lab and its purpose",
+          doc.get("lab") == "json-101" and doc.get("purpose") == "learning",
+          f"{doc.get('lab')} {doc.get('purpose')}")
+    checks = doc.get("checks", [])
+    keys = {"name", "check", "status", "passed", "detail", "seconds"}
+    check("json: every check has name, status, passed, detail and seconds",
+          checks and all(keys <= set(c) for c in checks),
+          str(checks[:1]))
+    check("json: seconds are numbers, none negative",
+          all(isinstance(c["seconds"], (int, float)) and c["seconds"] >= 0
+              for c in checks), str([c["seconds"] for c in checks]))
+    names = [c["name"] for c in checks]
+    check("json: the checks are the lines, in their order",
+          names[:1] == ["load: the lab reaches phase ready"]
+          and "triad: paper.md exists" in names, str(names))
+    check("json: the counts add up",
+          doc.get("passed") + doc.get("failed") + doc.get("notRun") == len(checks)
+          and doc.get("failed") == 0, str({k: doc.get(k) for k in
+                                           ("passed", "failed", "notRun")}))
+
+    # a failing run: exit 1, the failing check passed: false with its detail
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--loader",
+                               STAND_IN, "--only", "load", "--json"], "crash")
+    failed = [c for c in (doc or {}).get("checks", []) if c["status"] == "fail"]
+    check("json: a failing run says exit 1 and which check failed",
+          code == 1 and doc and doc["exit"] == 1 and failed
+          and failed[0]["passed"] is False
+          and "exit code 3" in failed[0]["detail"], raw[:300])
+
+    # nothing checked: exit 2 and 77 still print a document with the reason
+    empty = os.path.join(tmp, "not-a-lab")
+    os.makedirs(empty)
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, empty, "--json"])
+    check("json: a directory with no Sandbox.qml is exit 2 with the reason",
+          code == 2 and doc and doc["exit"] == 2 and doc["checks"] == []
+          and "Sandbox.qml" in (doc["error"] or ""), raw[:300])
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--json",
+                               "--only", "nonsense"])
+    check("json: an unknown check is exit 2 with the reason",
+          code == 2 and doc and "nonsense" in (doc["error"] or ""), raw[:300])
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--json",
+                               "--no-such-option"])
+    check("json: a wrong option is exit 2, still a document",
+          code == 2 and doc and doc["exit"] == 2, raw[:300])
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--json",
+                               "--loader", os.path.join(tmp, "no-loader")])
+    check("json: no loader is exit 77 with the reason",
+          code == L.SKIP and doc and doc["exit"] == L.SKIP
+          and "does not exist" in (doc["error"] or ""), raw[:300])
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
@@ -951,9 +1097,13 @@ def main():
         test_drivers()
         test_step_of()
         test_load_diagnostics(tmp)
+        test_default_binary(tmp)
+        test_flow_langs()
         if os.name != "nt":
             # the stand-in loader is started as an executable script
             test_loader_watch(tmp)
+            test_every_language(tmp)
+            test_json(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

@@ -420,6 +420,21 @@ try:
               and got[2] == os.path.join("far-101", "Sandbox.qml"), str(got))
     check("a study in no lab of its manifest's name is left alone",
           LS.lab_outside_checkout({"lab": "other-101"}, _study, _study) is None)
+
+    # the clayrender a sweep takes with no --clayrender (#573)
+    _exe = "clayrender" + (".exe" if os.name == "nt" else "")
+    _tool = os.path.join(LS.TOOL_ROOT, "build", "bin", _exe)
+    got = LS.default_clayrender(LS.repo_root(_study))
+    check("a study in no checkout uses the clayrender beside the tool",
+          got == _tool, got)
+    _co = os.path.join(_tmp, "checkout")
+    os.makedirs(os.path.join(_co, "build", "bin"))
+    open(os.path.join(_co, ".git"), "w").close()
+    _own = os.path.join(_co, "build", "bin", _exe)
+    open(_own, "w").close()
+    got = LS.default_clayrender(_co)
+    check("a study in a built checkout uses that checkout's clayrender",
+          got == _own, got)
 finally:
     import shutil              # noqa: E402
     shutil.rmtree(_tmp, ignore_errors=True)
