@@ -95,6 +95,27 @@ clay_plugin( Lab
         Qt::Qml
 )
 
+# The kernel is QML only, so it can also be imported straight from this
+# directory: `--lab-src` on the dojo, the loader and clayrender puts
+# ${CMAKE_BINARY_DIR}/lab-src first on the import path, where this qmldir
+# names the files here instead of the copies compiled into the plugin. An edit
+# is then live on the next reload, without a rebuild and a restart (#570).
+set(_clay_lab_built_qmldir "${CLAY_PLUGIN_BASE_DIR}/Lab/qmldir")
+set(CLAY_LAB_SRC_IMPORT_DIR "${CMAKE_BINARY_DIR}/lab-src" CACHE INTERNAL "")
+set(_clay_lab_src_qmldir "${CLAY_LAB_SRC_IMPORT_DIR}/Clayground/Lab/qmldir")
+add_custom_command(
+    OUTPUT ${_clay_lab_src_qmldir}
+    COMMAND ${CMAKE_COMMAND}
+            -DIN=${_clay_lab_built_qmldir}
+            -DOUT=${_clay_lab_src_qmldir}
+            -DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+            -P ${CMAKE_SOURCE_DIR}/cmake/claysourcemodule.cmake
+    DEPENDS ${_clay_lab_built_qmldir} ${CMAKE_SOURCE_DIR}/cmake/claysourcemodule.cmake
+    COMMENT "Writing the source qmldir of Clayground.Lab"
+    VERBATIM)
+add_custom_target(ClayLabSource ALL DEPENDS ${_clay_lab_src_qmldir})
+add_dependencies(ClayLabSource ClayLab)
+
 # Pure-QML checks on the kernel types that carry logic. IMPORTS_BUILT_MODULE:
 # the suite needs the Lab singleton, and a singleton cannot be picked up by a
 # plain directory import - there is no qmldir beside the sources to declare it.
