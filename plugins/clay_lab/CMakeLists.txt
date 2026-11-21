@@ -101,6 +101,12 @@ clay_plugin( Lab
 include(claytest)
 clay_add_qml_test(lab_qml IMPORTS_BUILT_MODULE
     DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/tests)
+# tst_recorder reads the record it wrote back through XMLHttpRequest, which
+# refuses file:// unless told otherwise - the only file read QML has (#532)
+if(TEST qml_lab_qml)
+    set_property(TEST qml_lab_qml APPEND PROPERTY ENVIRONMENT
+                 "QML_XHR_ALLOW_FILE_READ=1")
+endif()
 
 # The kernel's pure-JS modules carry rules rather than components - palette
 # relationships that must survive a light/dark switch, the type and spacing
