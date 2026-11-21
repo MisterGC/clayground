@@ -56,10 +56,29 @@ Item {
             compare(Lab.p("tstDemand"), 0.75)
         }
 
-        function test_setIsClampedToTheRange() {
-            verify(Lab.set("tstDemand", 99))
+        // An experiment asked for 99 on a 0 to 3 slider must not run at 3
+        // and say nothing: the set is refused, aloud, and the value stays.
+        function test_setOutsideTheRangeIsRefused() {
+            ignoreWarning("Lab: parameter tstDemand is not set to 99 - outside its range 0 to 3")
+            verify(!Lab.set("tstDemand", 99))
+            compare(Lab.p("tstDemand"), 0.75)
+            ignoreWarning("Lab: parameter tstDemand is not set to -1 - outside its range 0 to 3")
+            verify(!Lab.set("tstDemand", -1))
+            compare(Lab.p("tstDemand"), 0.75)
+        }
+
+        function test_setAtTheEdgesOfTheRangeIsAccepted() {
+            verify(Lab.set("tstDemand", 3))
             compare(Lab.p("tstDemand"), 3)
+            verify(Lab.set("tstDemand", 0))
+            compare(Lab.p("tstDemand"), 0)
             verify(Lab.set("tstDemand", 0.75))
+        }
+
+        function test_setToSomethingNotANumberIsRefused() {
+            ignoreWarning("Lab: parameter tstDemand is not set to abc - not a number")
+            verify(!Lab.set("tstDemand", "abc"))
+            compare(Lab.p("tstDemand"), 0.75)
         }
 
         // to <= from declares no range, so there is nothing to refuse.
