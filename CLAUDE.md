@@ -86,9 +86,7 @@ Windows (#192).
 ./build/bin/clayrender Sandbox.qml --out shot.png --size 1400x900
 ```
 
-Launch the loader/dojo with `QT_DISABLE_SHADER_DISK_CACHE=1`; without it, it
-dies unpredictably mid-session on shader-heavy scenes. Headless: add
-`QT_QPA_PLATFORM=offscreen`.
+Headless: add `QT_QPA_PLATFORM=offscreen`.
 
 **After touching plugin QML, rebuild the plugin and restart the loader.** Plugin
 QML is compiled into the plugin's Qt resources, so hot reload cannot pick it up
