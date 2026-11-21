@@ -418,14 +418,25 @@ Item {
     }
     // Resistance runs over the real E12 series, the values a shop actually
     // sells - which is also what makes the colour bands honest, since a band
-    // code encodes two significant digits and a decade.
+    // code encodes two significant digits and a decade. 1 ohm to 1 Mohm: the
+    // bottom decade is where an LED burns out, the top one is where a base
+    // is starved into the active region (#541). The first decade divides
+    // rather than multiplying by 0.1, so 1.2 is 1.2 and not 1.2000000000000002.
     readonly property var resistorSteps: {
         const e12 = [10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82]
         const out = []
-        for (let dec = 1; dec <= 100; dec *= 10)
+        for (const v of e12) out.push(v / 10)
+        for (let dec = 1; dec <= 10000; dec *= 10)
             for (const v of e12) out.push(v * dec)
-        out.push(10000)
+        out.push(1000000)
         return out
+    }
+    // A resistance as a shop labels it: 4.7 kΩ, 1 MΩ, 2.2 Ω.
+    function fmtOhms(v) {
+        const one = (x) => LabLang.num(x, Math.abs(x - Math.round(x)) > 1e-9 ? 1 : 0)
+        if (v >= 1e6) return one(v / 1e6) + " MΩ"
+        if (v >= 1000) return one(v / 1000) + " kΩ"
+        return one(v) + " Ω"
     }
     function resistorStepOf(ohms) {
         let best = 0, bd = Infinity
@@ -3299,9 +3310,7 @@ Item {
     function cardTitle(e) {
         const name = LabLang.t("part." + e.type).toUpperCase()
         if (e.type === "resistor")
-            return name + "  " + (e.value >= 1000
-                ? LabLang.num(e.value / 1000, e.value % 1000 ? 1 : 0) + " kΩ"
-                : e.value + " Ω")
+            return name + "  " + root.fmtOhms(e.value)
         if (e.type === "battery")
             return name + "  " + LabLang.num(e.value || root.defaultVolts, 1) + " V"
         if (e.type === "switch")
