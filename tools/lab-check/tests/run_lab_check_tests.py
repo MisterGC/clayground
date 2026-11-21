@@ -6,7 +6,8 @@ Covers the half that decides what a gate REPORTS, without a lab, a build or a
 graphics session: the config it reads and the purpose it demands, what each tier
 owes (flows, DE, a study, a board), that a typed table is red, the remark
 counter, the first-difference message a failed determinism run has to carry,
-and that the scene drivers are still complete JavaScript after being templated. The other half - driving an
+and that the scene drivers are still complete JavaScript after being templated,
+and what the load check counts as the environment (#534). The other half - driving an
 actual lab - is exercised by the four lab_check_<lab> gates themselves.
 
     python3 tools/lab-check/tests/run_lab_check_tests.py
@@ -361,6 +362,147 @@ def test_step_of():
           == "lit (TypeError)")
 
 
+# -- what a load may log (#534) ----------------------------------------------
+
+
+class FakeInspect(L.Inspect):
+    """An inspector whose lab came up, answering from a log.jsonl on disk."""
+
+    def wait_phase(self, phase, timeout=60.0):
+        return True
+
+    def state(self):
+        return {"phase": "ready"}
+
+    def request(self, payload, timeout=120.0):
+        return {"status": {"rootLoaded": True, "alive": True}}
+
+
+def load_verdict(tmp, name, entries):
+    """check_load() over a lab whose loader logged `entries`, through the real
+    Loader.diagnostics() reading a real log.jsonl."""
+    repo = os.path.join(tmp, name)
+    lab = os.path.join(repo, "labs", "some-101")
+    inspect_dir = os.path.join(lab, ".clay", "inspect")
+    os.makedirs(inspect_dir)
+    os.makedirs(os.path.join(repo, "plugins", "clay_lab"))
+    open(os.path.join(repo, ".git"), "w").close()
+    open(os.path.join(repo, "plugins", "clay_lab", "LabView.qml"), "w").close()
+    with open(os.path.join(inspect_dir, "log.jsonl"), "w") as f:
+        for e in entries:
+            f.write(json.dumps(e) + "\n")
+    session = L.Loader("clayliveloader", os.path.join(lab, "Sandbox.qml"))
+    session.insp = FakeInspect(inspect_dir)
+    rep = Recorder()
+    came_up = L.check_load(rep, session)
+    clean = [ok for n, ok, _d in rep.lines if "nothing but the environment" in n]
+    return repo, came_up, (clean[0] if clean else None), \
+        rep.detail("nothing but the environment") or ""
+
+
+# What the five labs log offscreen on macOS and on the Linux and Windows CI
+# runners, word for word: the environment.
+ENV_LINES = [
+    {"level": "warning", "text": "The Qt Quick scene is using a rendering method "
+     "that is not based on QRhi and a 3D graphics API. Qt Quick 3D is not "
+     "functional in such an environment. The View3D item is not going to "
+     "display anything."},
+    {"level": "warning", "text": "Unexpected condition met: "
+     "\"QSGRendererInterface::isApiRhiBased(rif->graphicsApi())\" in file "
+     "/Users/qt/work/qt/qtquick3d/src/quick3d/qquick3dviewport.cpp, line 561"},
+    {"level": "warning", "category": "qt.qpa.fonts", "text": "Populating font "
+     "family aliases took 36 ms. Replace uses of missing font family "
+     "\"Sans Serif\" with one that exists to avoid this cost. "},
+    # ... and on the Linux CI runner
+    {"level": "warning", "category": "qt.multimedia.symbolsresolver",
+     "text": "Couldn't load pipewire-0.3 library"},
+    {"level": "warning", "category": "qt.multimedia.symbolsresolver",
+     "text": "Couldn't resolve pipewire-0.3 symbols"},
+    {"level": "warning", "category": "qt.multimedia.symbolsresolver",
+     "text": "Couldn't load va-x11 library"},
+    {"level": "warning", "category": "qt.multimedia.symbolsresolver",
+     "text": "Couldn't load va(in plugin) library"},
+    {"level": "warning", "text": "PulseAudioService: pa_context_connect() failed"},
+    # ... and on the Windows CI runner
+    {"level": "warning", "text": "QFontDatabase: Cannot find font directory "
+     "D:/a/clayground/Qt/6.10.1/msvc2022_64/lib/fonts.\nNote that Qt no longer "
+     "ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for "
+     "example) or switch to fontconfig."},
+    {"level": "log", "text": "qml: a log line is never a diagnostic"},
+]
+
+
+def test_load_diagnostics(tmp):
+    _repo, came_up, clean, det = load_verdict(tmp, "env", ENV_LINES)
+    check("load: the named environment messages alone pass the load",
+          came_up and clean is True, det)
+    check("load: every message the five labs log offscreen, macOS, Linux and Windows, is on the list",
+          all(L.environment_name(e["text"], e.get("category", "default"))
+              for e in ENV_LINES[:9]),
+          str([L.environment_name(e["text"], e.get("category", "default"))
+               for e in ENV_LINES[:9]]))
+    check("load: the README holds the environment list, entry by entry",
+          all(f"`{name}`" in open(os.path.join(os.path.dirname(HERE),
+                                               "README.md")).read()
+              for name, _p, _c in L.ENVIRONMENT),
+          str([n for n, _p, _c in L.ENVIRONMENT]))
+
+    # a kit file under labs/kits/ - the case the issue was filed for
+    name = "kit"
+    repo = os.path.join(tmp, name)
+    kit = "file://" + os.path.join(repo, "labs", "kits", "hydro",
+                                   "HydroElement3D.qml").replace(os.sep, "/")
+    _repo, came_up, clean, det = load_verdict(tmp, name, ENV_LINES + [
+        {"level": "warning",
+         "text": kit + ":27: TypeError: Cannot call method 'boom' of null"}])
+    check("load: a TypeError from a kit file fails the load", clean is False, det)
+    check("load: ... and the output names the kit file and line",
+          "labs/kits/hydro/HydroElement3D.qml:27: " in det, det)
+    check("load: ... and the lab still counts as come up, so the other "
+          "checks run", came_up is True)
+
+    # the kernel, compiled into ClayLab's resources
+    _repo, came_up, clean, det = load_verdict(tmp, "kernel", ENV_LINES + [
+        {"level": "error", "text": "qrc:/qt/qml/Clayground/Lab/LabView.qml:25: "
+         "TypeError: Cannot call method 'kernelBoom' of null"}])
+    check("load: an error from plugins/clay_lab/ fails the load",
+          clean is False, det)
+    check("load: ... and the output names the kernel's source file",
+          "plugins/clay_lab/LabView.qml:25: " in det, det)
+
+    # a warning that names no file at all
+    _repo, came_up, clean, det = load_verdict(tmp, "nofile", ENV_LINES + [
+        {"level": "warning", "text": "qml: the lab warns without a location"}])
+    check("load: a warning that names no file fails the load",
+          clean is False and "(names no file)" in det, det)
+
+    # a message the list does not name is not waved through for looking
+    # like the machine's
+    _repo, came_up, clean, det = load_verdict(tmp, "unlisted", ENV_LINES + [
+        {"level": "warning", "category": "qt.qpa.fonts",
+         "text": "Populating font family aliases took 36 ms. Replace uses of "
+                 "missing font family \"Comic\" with one that exists."}])
+    check("load: a message off the list fails, however environmental it looks",
+          clean is False, det)
+
+    # the multimedia entry holds only in its own category
+    _repo, came_up, clean, det = load_verdict(tmp, "category", ENV_LINES + [
+        {"level": "warning", "text": "Couldn't load va library"}])
+    check("load: an environment message from the wrong category fails",
+          clean is False, det)
+
+    # repeats collapse into one line with a count
+    ours, _other = L.classify_diagnostics(
+        [{"level": "warning", "text": "qml: twice"}] * 2, tmp)
+    check("load: a repeated message is one line with its count",
+          ours == ["(names no file): [warning/default] qml: twice  (x2)"], str(ours))
+
+    check("load: a Windows file URL names a drive path",
+          L.source_file("file:///C:/x/labs/kits/k/K.qml:3: TypeError", "D:/repo")
+          == "C:/x/labs/kits/k/K.qml:3", L.source_file(
+              "file:///C:/x/labs/kits/k/K.qml:3: TypeError", "D:/repo"))
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
@@ -375,6 +517,7 @@ def main():
         test_strings()
         test_drivers()
         test_step_of()
+        test_load_diagnostics(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

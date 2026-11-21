@@ -161,9 +161,7 @@ LabPanel {
             if (map.empty) {
                 if (root.emptyText === "") return
                 ctx.fillStyle = LabTheme.inkFaint.toString()
-                // quoted: a family with a space in it is not a valid CSS font
-                // shorthand unquoted, and the whole declaration is then dropped
-                ctx.font = LabTheme.fontBody + 'px "' + LabTheme.handFont + '"'
+                ctx.font = LabTheme.fontBody + 'px ' + LabTheme.canvasHand
                 ctx.textAlign = "center"
                 ctx.fillText(root.emptyText, width / 2, height / 2)
                 ctx.textAlign = "left"
