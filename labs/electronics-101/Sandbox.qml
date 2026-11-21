@@ -1158,6 +1158,7 @@ Item {
     function flowActions() {
         return {
             "addPart":    (type, col, row) => addElement(type, col, row),
+            "addJunction": (col, row) => addJunction(col, row),
             "wire":       (a, ta, b, tb) => addWire([a, ta], [b, tb]),
             "flipSwitch": (id) => toggleSwitch(id),
             "setVolts":   (id, v) => setBatteryVolts(id, v),
@@ -1183,8 +1184,64 @@ Item {
                 const gs = elements.filter(e => e.type === "gate")
                 const g = gs[n === undefined ? 0 : n]
                 if (g) setGateFunc(g.id, f)
-            }
+            },
+            // the k-th part of a type, for a flow that names the parts a
+            // preset put there: ["let", "b1", "part", "bulb", 0]
+            "part":       (type, k) => partOf(type, k),
+            // the wire between these two pads, if there is one
+            "unwire":     (a, ta, b, tb) => unwire([a, ta], [b, tb]),
+            // the learner's answer to a question a flow step asks; "" forgets it
+            "answer":     (q, a) => setAnswer(q, a)
         }
+    }
+    function partOf(type, k) {
+        const ids = idsOfType(type)
+        return k >= 0 && k < ids.length ? ids[k] : -1
+    }
+    function unwire(a, b) {
+        for (const w of wires.slice())
+            if ((w.a[0] === a[0] && w.a[1] === a[1] && w.b[0] === b[0] && w.b[1] === b[1])
+                || (w.a[0] === b[0] && w.a[1] === b[1] && w.b[0] === a[0] && w.b[1] === a[1]))
+                removeWire(w.id)
+    }
+
+    // --- questions a lesson asks ---------------------------------------------
+    // A prediction is only worth asking if the lab can take the answer and
+    // say something back to it: what the learner said, right or wrong, picks
+    // the line of the step after the question. One table per question - its
+    // choices and the right one - and one verb to answer it, so the panel,
+    // the flow's "show me" and an agent all answer the same way. Lesson
+    // state, not the learner's place: it is not in viewState().
+    property var answers: ({})
+    readonly property var questions: ({
+        "guess": { choices: ["brighter", "same", "dimmer"], right: "dimmer" },
+        "ask":   { choices: ["less", "same", "none"], right: "same" }
+    })
+    function setAnswer(q, a) {
+        const next = Object.assign({}, answers)
+        if (a === "" || a === undefined) delete next[q]
+        else next[q] = a
+        answers = next
+    }
+    function answerOf(q) { return answers[q] !== undefined ? answers[q] : "" }
+    // the key of a step that answers question \a q: "second-dimmer", or the
+    // plain "second" when nobody answered - "show me" answers "skip", and
+    // the progress dots can jump past the question
+    function answeredKey(base, q) {
+        const a = answerOf(q)
+        return a === "" || a === "skip" ? base : base + "-" + a
+    }
+    // A choice as the panel prints it. The meter question's choices are
+    // currents, worked out from what the ammeter reads, so the learner has
+    // to read the meter to pick one.
+    function choiceLabel(q, c) {
+        if (q === "ask") {
+            const am = partOf("ammeter", 0)
+            const i = am === -1 ? 0 : Math.abs(simOf(am).i)
+            if (c === "same") return fmtA(i)
+            if (c === "less") return fmtA(i / 2)
+        }
+        return LabLang.t("flow.series-parallel." + q + "." + c)
     }
     function setLogicInputs(mask) {
         for (let k = 0; k < logicInputs.length; ++k) {
@@ -1193,9 +1250,10 @@ Item {
             if (el && el.type === "switch" && el.on !== want) toggleSwitch(el.id)
         }
     }
-    function flows() { return [ledFlow.flowId, logicFlow.flowId] }
+    function flows() { return [ledFlow.flowId, spFlow.flowId, logicFlow.flowId] }
     function startFlow(id) {
         if (id === ledFlow.flowId) { ledFlow.start(); return true }
+        if (id === spFlow.flowId) { spFlow.start(); return true }
         if (id === logicFlow.flowId) { logicFlow.start(); return true }
         return false
     }
@@ -1381,6 +1439,34 @@ Item {
         return []
     }
 
+    // The series-and-parallel lesson builds two boards of its own and walks
+    // three presets, binding a name to every part it talks about; a step
+    // that answers a question is keyed by the answer ("second-same"), and
+    // is about what the plain step is about.
+    function spSubject(f, key) {
+        const n = (s) => f.nameOf(s)
+        const k = key.split("-")[0]
+        const bulbs = root.idsOfType("bulb")
+        const parts = root.elements.filter(e => e.type !== "junction").map(e => e.id)
+        // A question or a task is about everything the learner has to look
+        // at to answer it, so the camera holds on all of it, not on one part.
+        if (k === "one")       return [n("b1")]
+        if (k === "guess" || k === "same") return parts
+        if (k === "second" || k === "why" || k === "split") return bulbs
+        if (k === "pair" || k === "wireup") return [n("b1"), n("b2")]
+        if (k === "parallel" || k === "push" || k === "fix") return bulbs
+        if (k === "add")       return root.idsOfType("battery").concat(bulbs)
+        if (k === "short")     return [n("b1")]
+        if (k === "banner")    return root.idsOfType("battery").concat(bulbs)
+        if (k === "meters")    return root.idsOfType("ammeter")
+        if (k === "voltmeter") return root.idsOfType("voltmeter")
+        if (k === "ask" || k === "told")
+            return root.idsOfType("ammeter").concat(root.idsOfType("led"), root.idsOfType("resistor"))
+        if (k === "move" || k === "moved")
+            return root.idsOfType("voltmeter").concat(root.idsOfType("led"), root.idsOfType("resistor"))
+        return []
+    }
+
     // What the professor should do on step \a i of the flow that is running.
     // Keyed on the step's own key, not on its index: a flow gains a step one
     // day and an index-keyed table silently teaches the wrong lesson.
@@ -1390,7 +1476,8 @@ Item {
             return null
         const key = f.step.key
         const ids = f.flowId === "led-basics" ? root.ledSubject(f, key)
-                                              : root.logicSubject(key)
+                  : f.flowId === "series-parallel" ? root.spSubject(f, key)
+                  : root.logicSubject(key)
         return root.subjectOf(ids)
     }
 
@@ -1414,6 +1501,15 @@ Item {
                                              "andtask", "or", "xor", "nand", "xorbuild",
                                              "xortask", "both", "cost", "chip", "chiptask",
                                              "switchit", "adder"]
+    // Every step of the series-and-parallel lesson has its clip, the three
+    // answers to each question included: voice/en/sp-<key>.m4a.
+    readonly property var voicedSpSteps: ["one", "guess", "second", "second-brighter",
+                                          "second-same", "second-dimmer", "same", "why",
+                                          "split", "pair", "wireup", "parallel", "add",
+                                          "push", "short", "banner", "fix", "meters",
+                                          "voltmeter", "ask", "told", "told-less",
+                                          "told-same", "told-none", "move", "moved",
+                                          "yours"]
     function flowVoice(i) {
         const f = root.currentFlow
         if (!f || LabLang.lang !== "en")
@@ -1427,6 +1523,9 @@ Item {
         if (f.flowId === "logic-gates")
             return root.voicedLogicSteps.indexOf(s.key) < 0 ? ""
                  : Qt.resolvedUrl("voice/en/logic-" + s.key + ".m4a")
+        if (f.flowId === "series-parallel")
+            return root.voicedSpSteps.indexOf(s.key) < 0 ? ""
+                 : Qt.resolvedUrl("voice/en/sp-" + s.key + ".m4a")
         return ""
     }
 
@@ -1481,7 +1580,10 @@ Item {
         "the resistor": "resistor", "resistor": "resistor",
         "the switch": "switch", "switch": "switch",
         "the transistor": "transistor", "transistor": "transistor",
-        "the gate": "gate", "gate": "gate"
+        "the gate": "gate", "gate": "gate",
+        "the bulb": "bulb", "bulb": "bulb",
+        "the ammeter": "ammeter", "ammeter": "ammeter",
+        "the voltmeter": "voltmeter", "voltmeter": "voltmeter"
     })
     // The transistor's legs, by the terminal index circuit.js gives them.
     // This is what "or sub-parts" means here: a mark can land on one pad of
@@ -1525,14 +1627,18 @@ Item {
         return type ? LabLang.t("part." + type) : ""
     }
 
-    // Which lesson `T` and the chip offer. Two flows, one key: a lab with a
+    // Which lesson `T` and the chip offer. Three flows, one key: a lab with a
     // switch to choose between them would be asking the learner to pick a
     // lesson before they know what either is - so the offer follows the board
-    // instead, and whichever flow is running always wins.
+    // instead, and whichever flow is running always wins. The two-bulb and
+    // the metering presets are what the series-and-parallel lesson walks.
     readonly property var currentFlow: {
         if (logicFlow.running) return logicFlow
+        if (spFlow.running) return spFlow
         if (ledFlow.running) return ledFlow
         const s = Lab.scenario
+        if (s === "series" || s === "parallel" || s === "metering")
+            return spFlow
         return (s === "transistor" || s === "diode-or" || s === "gates"
                 || s === "half-adder" || s.indexOf("logic-") === 0)
                ? logicFlow : ledFlow
@@ -2121,6 +2227,244 @@ Item {
                                  && Math.abs(root.simOf(n("led")).i) < 1e-6 }
         }
     }
+    // --- flow: two bulbs, in series and in parallel -----------------------
+    // The lab's core physical lesson (#540), and the first in which the
+    // learner commits before the board answers: a prediction the next step
+    // answers whatever it was, a circuit to change rather than a switch to
+    // click, and a meter to read. It walks the three presets in their order
+    // - series, parallel, metering - and builds its own boards on the series
+    // layout, so a part stays where it was when the preset arrives. Numbers
+    // the narration quotes are pinned by the expects: 4.5 V over the cell's
+    // 0.5 ohm and 6 ohm bulbs.
+    Flow {
+        id: spFlow
+        lab: root
+        camera: rig
+        flowId: "series-parallel"
+        titleKey: "flow.series-parallel.title"
+
+        // One bulb alone: the reference every later number is compared with.
+        // The series preset's layout with a corner where its second bulb goes.
+        // A new run forgets the last run's answers: the progress dots can jump
+        // past a question, and the step after it must not quote a pick the
+        // learner made in an earlier run.
+        FlowStep {
+            key: "one"
+            demo: [["answer", "guess", ""], ["answer", "ask", ""],
+                   ["clear"], ["showValues", false], ["plot", "I"],
+                   ["let", "bat", "addPart", "battery", 4, 2],
+                   ["let", "sw", "addPart", "switch", 10, 2],
+                   ["let", "b1", "addPart", "bulb", 16, 2],
+                   ["let", "jb", "addJunction", 16, 8],
+                   ["let", "jc", "addJunction", 4, 8],
+                   ["wire", "bat", 1, "sw", 0], ["wire", "sw", 1, "b1", 0],
+                   ["wire", "b1", 1, "jb", 0], ["wire", "jb", 0, "jc", 0],
+                   ["wire", "jc", 0, "bat", 0],
+                   ["flipSwitch", "sw"], ["watch", "b1", true],
+                   ["showValues", true], ["frame", "setup"]]
+            // "690 mA": 4.5 V over 6 ohm and the cell's 0.5
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.6912) < 5e-4
+        }
+        // The prediction. The board stays the flow's; the answer is taken by
+        // the question panel, and "show me" answers "skip" - the learner who
+        // did not commit is shown, not told they were right or wrong.
+        FlowStep {
+            key: "guess"
+            demo: [["answer", "guess", ""]]
+            task: ({ "until": () => root.answerOf("guess") !== "",
+                     "hint": "flow.series-parallel.guess.hint",
+                     "hintAfter": 12,
+                     "allow": [],
+                     "solve": [["answer", "guess", "skip"]] })
+        }
+        // The answer, in the line that matches what the learner said.
+        FlowStep {
+            key: root.answeredKey("second", "guess")
+            demo: [["scenario", "series"],
+                   ["let", "bat", "part", "battery", 0],
+                   ["let", "sw", "part", "switch", 0],
+                   ["let", "b1", "part", "bulb", 0],
+                   ["let", "b2", "part", "bulb", 1],
+                   ["flipSwitch", "sw"], ["watch", "b2", true],
+                   ["showValues", true], ["frame", "setup"]]
+            // "360 mA instead of 690"
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.3597) < 5e-4
+                        && Math.abs(Math.abs(root.simOf(n("b2")).i) - 0.3597) < 5e-4
+        }
+        // one loop, one current: the cell, the switch and both bulbs
+        FlowStep {
+            key: "same"
+            expect: (n) => {
+                const i = Math.abs(root.simOf(n("bat")).i)
+                return Math.abs(i - 0.3597) < 5e-4
+                    && ["sw", "b1", "b2"].every(p => Math.abs(Math.abs(root.simOf(n(p)).i) - i) < 1e-6)
+            }
+        }
+        FlowStep { key: "why" }
+        // "2.2 V each, where one alone had 4.1"
+        FlowStep {
+            key: "split"
+            demo: [["showValues", "V"]]
+            // "about a quarter of the light": 0.78 W each against 2.87 W alone
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).v) - 2.158) < 0.005
+                        && Math.abs(Math.abs(root.simOf(n("b2")).v) - 2.158) < 0.005
+                        && Math.abs(root.simOf(n("b1")).power / 2.866 - 0.25) < 0.03
+        }
+        // The learner's turn, and the circuit is what changes: the single bulb
+        // again, a second one beside it, and the pads and wires lent out.
+        FlowStep {
+            key: "pair"
+            demo: [["clear"], ["showValues", true], ["plot", "I"],
+                   ["let", "bat", "addPart", "battery", 4, 2],
+                   ["let", "sw", "addPart", "switch", 10, 2],
+                   ["let", "b1", "addPart", "bulb", 16, 2],
+                   ["let", "jb", "addJunction", 16, 8],
+                   ["let", "jc", "addJunction", 4, 8],
+                   ["wire", "bat", 1, "sw", 0], ["wire", "sw", 1, "b1", 0],
+                   ["wire", "b1", 1, "jb", 0], ["wire", "jb", 0, "jc", 0],
+                   ["wire", "jc", 0, "bat", 0],
+                   ["let", "b2", "addPart", "bulb", 23, 5],
+                   ["flipSwitch", "sw"], ["watch", "b1", true], ["watch", "b2", true],
+                   ["frame", "setup"]]
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.6912) < 5e-4
+                        && Math.abs(root.simOf(n("b2")).i) < 1e-6
+        }
+        // Read off the circuit, never off a click: both bulbs nearly as bright
+        // as one alone, which in series (360 mA each) they cannot be. A
+        // second bulb across the switch instead stays dark while it is closed.
+        FlowStep {
+            key: "wireup"
+            task: ({ "until": (n) => !root.sim.shorted
+                                     && Math.abs(root.simOf(n("b1")).i) > 0.5
+                                     && Math.abs(root.simOf(n("b2")).i) > 0.5,
+                     "hint": "flow.series-parallel.wireup.hint",
+                     "hintAfter": 25,
+                     "allow": ["b2"],
+                     "wiring": true,
+                     "solve": [["wire", "b2", 0, "b1", 0], ["wire", "b2", 1, "b1", 1]] })
+        }
+        // what they built, as the preset draws it: a ladder of two rungs
+        FlowStep {
+            key: "parallel"
+            demo: [["scenario", "parallel"],
+                   ["let", "bat", "part", "battery", 0],
+                   ["let", "sw", "part", "switch", 0],
+                   ["let", "b1", "part", "bulb", 0],
+                   ["let", "b2", "part", "bulb", 1],
+                   ["flipSwitch", "sw"], ["watch", "b2", true],
+                   ["showValues", true], ["frame", "setup"]]
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.6410) < 5e-4
+                        && Math.abs(Math.abs(root.simOf(n("b2")).i) - 0.6410) < 5e-4
+        }
+        // "640 mA each, 1.28 A from the cell": the currents add
+        FlowStep {
+            key: "add"
+            expect: (n) => {
+                const ib = Math.abs(root.simOf(n("bat")).i)
+                return Math.abs(ib - 1.2821) < 5e-4
+                    && Math.abs(ib - Math.abs(root.simOf(n("b1")).i)
+                                   - Math.abs(root.simOf(n("b2")).i)) < 1e-6
+            }
+        }
+        // "3.8 V across each": the whole push, less what the cell loses inside
+        FlowStep {
+            key: "push"
+            demo: [["showValues", "V"]]
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).v) - 3.846) < 0.005
+                        && Math.abs(Math.abs(root.simOf(n("b2")).v) - 3.846) < 0.005
+        }
+        // The short, on purpose: a bare wire from one pad of the upper bulb
+        // to the other - its pads sit on the two rails.
+        FlowStep {
+            key: "short"
+            demo: [["showValues", true], ["wire", "b1", 0, "b1", 1]]
+            expect: () => root.sim.shorted
+        }
+        // what the banner says: nearly 9 A, the bulbs dark, the cell hot
+        FlowStep {
+            key: "banner"
+            expect: (n) => root.sim.shorted
+                        && Math.abs(root.simOf(n("bat")).i) > 8.5
+                        && Math.abs(root.simOf(n("b1")).i) < 1e-3
+                        && Math.abs(root.simOf(n("b2")).i) < 1e-3
+        }
+        FlowStep {
+            key: "fix"
+            demo: [["unwire", "b1", 0, "b1", 1]]
+            expect: (n) => !root.sim.shorted
+                        && Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.6410) < 5e-4
+        }
+        // Metering: an ammeter in the loop, a voltmeter across the LED. The
+        // values come off, so the meters are the only place to read.
+        FlowStep {
+            key: "meters"
+            mark: ["ammeter"]
+            demo: [["scenario", "metering"],
+                   ["let", "sw", "part", "switch", 0],
+                   ["let", "amp", "part", "ammeter", 0],
+                   ["let", "led", "part", "led", 0],
+                   ["let", "res", "part", "resistor", 0],
+                   ["let", "volt", "part", "voltmeter", 0],
+                   ["flipSwitch", "sw"], ["showValues", false], ["frame", "setup"]]
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("amp")).i) - 0.00515) < 5e-5
+                        // the voltmeter beside the LED takes 0.2 uA of it
+                        && Math.abs(Math.abs(root.simOf(n("amp")).i)
+                                    - Math.abs(root.simOf(n("led")).i)) < 1e-6
+        }
+        FlowStep {
+            key: "voltmeter"
+            mark: ["voltmeter"]
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("volt")).v)
+                                    - Math.abs(root.simOf(n("led")).v)) < 1e-3
+        }
+        // A question only the meter answers: its choices are currents worked
+        // out from the ammeter's reading.
+        FlowStep {
+            key: "ask"
+            demo: [["answer", "ask", ""]]
+            task: ({ "until": () => root.answerOf("ask") !== "",
+                     "hint": "flow.series-parallel.ask.hint",
+                     "hintAfter": 12,
+                     "allow": [],
+                     "solve": [["answer", "ask", "skip"]] })
+        }
+        // "the same 5.1 mA": one loop, one current, through the resistor too
+        FlowStep {
+            key: root.answeredKey("told", "ask")
+            demo: [["showValues", true]]
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("res")).i) - 0.00515) < 5e-5
+                        && Math.abs(Math.abs(root.simOf(n("res")).i)
+                                    - Math.abs(root.simOf(n("amp")).i)) < 1e-6
+        }
+        // The closing task, the idea used where the lesson did not show it:
+        // a voltmeter goes across the part it reads, so moving it means
+        // rewiring it. Read off the circuit: the meter shows the resistor's
+        // volts, nothing is shorted and the LED still glows.
+        FlowStep {
+            key: "move"
+            demo: [["showValues", false], ["select", -1]]
+            task: ({ "until": (n) => {
+                         const vv = Math.abs(root.simOf(n("volt")).v)
+                         const vr = Math.abs(root.simOf(n("res")).v)
+                         return !root.sim.shorted && root.simOf(n("led")).on
+                             && vr > 1 && Math.abs(vv - vr) < 0.01 },
+                     "hint": "flow.series-parallel.move.hint",
+                     "hintAfter": 30,
+                     "allow": ["volt"],
+                     "wiring": true,
+                     "solve": [["unwire", "volt", 1, "led", 1],
+                               ["wire", "volt", 1, "res", 0]] })
+        }
+        // "2.4 V across the resistor, 2.1 across the LED: 4.5 together"
+        FlowStep {
+            key: "moved"
+            demo: [["showValues", "V"]]
+            expect: (n) => Math.abs(Math.abs(root.simOf(n("volt")).v) - 2.42) < 0.01
+                        && Math.abs(Math.abs(root.simOf(n("res")).v)
+                                    + Math.abs(root.simOf(n("led")).v) - 4.497) < 0.01
+        }
+        FlowStep { key: "yours" }
+    }
     // --- flow: from one transistor to XOR ----------------------------------
     // The second lesson, and the one the new parts are for. It does not build
     // anything by hand: each step jumps to the preset that already holds the
@@ -2267,6 +2611,7 @@ Item {
     }
 
     Narrator {
+        id: narrator
         flow: root.currentFlow
         // The professor is carrying the line in its own bubble; the panel
         // keeps the title, the dots, the hint and the controls, which is the
@@ -2276,6 +2621,70 @@ Item {
         anchors.bottom: parent.bottom
         anchors.bottomMargin: LabTheme.spaceXl
         width: Math.min(680, root.width - 2 * (root.width - monitor.x) - 24)
+    }
+
+
+    // --- the question a lesson step asks ----------------------------------
+    // Above the narrator, while a step in `questions` waits for its answer:
+    // one button per choice. A click answers through the same verb the
+    // flow's "show me" and an agent use, and checks the task at once.
+    Rectangle {
+        id: askPanel
+        objectName: "askPanel"
+        readonly property var flow: root.currentFlow
+        readonly property string qkey: flow && flow.running && flow.waiting && flow.step
+                                       && root.questions[flow.step.key] !== undefined
+                                       ? flow.step.key : ""
+        visible: qkey !== "" && !Lab.headless
+        anchors.horizontalCenter: parent.horizontalCenter
+        anchors.bottom: narrator.top
+        anchors.bottomMargin: LabTheme.spaceL
+        width: askRow.implicitWidth + 2 * LabTheme.spaceXl
+        height: askRow.implicitHeight + 2 * LabTheme.spaceL
+        radius: LabTheme.radius
+        color: LabTheme.panel
+        border.color: LabTheme.accent
+        border.width: LabTheme.borderWidth
+
+        Row {
+            id: askRow
+            anchors.centerIn: parent
+            spacing: LabTheme.spaceL
+            Repeater {
+                model: askPanel.qkey !== "" ? root.questions[askPanel.qkey].choices : []
+                delegate: Rectangle {
+                    id: choice
+                    required property string modelData
+                    objectName: "choice-" + modelData
+                    width: choiceText.implicitWidth + 2 * LabTheme.spaceXl
+                    height: choiceText.implicitHeight + 2 * LabTheme.spaceM
+                    radius: LabTheme.radius
+                    color: choiceMouse.containsMouse ? LabTheme.accent
+                                                     : LabTheme.step(LabTheme.panel, 0.08)
+                    border.color: LabTheme.secondary
+                    border.width: LabTheme.borderWidth
+                    Text {
+                        id: choiceText
+                        anchors.centerIn: parent
+                        text: { root.sim; LabLang.lang
+                                return root.choiceLabel(askPanel.qkey, choice.modelData) }
+                        color: LabTheme.inkOn(choice.color)
+                        font.pixelSize: LabTheme.fontBody
+                        font.family: LabTheme.handFont
+                    }
+                    MouseArea {
+                        id: choiceMouse
+                        anchors.fill: parent
+                        hoverEnabled: true
+                        cursorShape: Qt.PointingHandCursor
+                        onClicked: {
+                            root.setAnswer(askPanel.qkey, choice.modelData)
+                            askPanel.flow.check()
+                        }
+                    }
+                }
+            }
+        }
     }
 
     // --- language ----------------------------------------------------------

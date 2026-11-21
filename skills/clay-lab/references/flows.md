@@ -111,6 +111,10 @@ A step with none of the three just narrates.
   by leaving (`flow.stop()`, the narrator's ✕), never by touching
   something mid-lesson. A task with no `allow` keeps the whole board
   live, which is what a flow written before this gets.
+  Pads and wires stay locked even in a task, unless the task asks for a
+  changed circuit: `"wiring": true` lends them as well
+  (`Flow.lendsWiring()`), so the learner can draw and erase wires, and
+  its `until` reads the circuit that results.
   The camera is never gated: looking around is not touching.
 - **The headless run is not affected.** `Lab.runFlow()` performs each
   task through `solve()`, i.e. through the lab's verbs, and never through

@@ -26,6 +26,20 @@ clay_add_node_test(kit_hydro_valve
 clay_add_node_test(kit_character
     SCRIPT ${CMAKE_CURRENT_SOURCE_DIR}/kits/character/sheet.test.js)
 
+# website_lab_pages - every lab gets a page on the website (#533). The
+# importer finds labs the same way as the gates below, and this goes red when
+# one has none (no paper.md, an H1 it cannot read). Pure python, never skips.
+if(BUILD_TESTING)
+    find_package(Python3 COMPONENTS Interpreter)
+    if(Python3_FOUND)
+        add_test(NAME website_lab_pages
+            COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/docs/scripts/tests/test_import_labs.py)
+        set_tests_properties(website_lab_pages PROPERTIES
+            LABELS "labs;docs" TIMEOUT 60)
+    endif()
+endif()
+
 # lab_check_<lab> - the lab contract, as a test that can go red (#208).
 #
 # The contract (deterministic runs, flows that pass, records that regenerate,
