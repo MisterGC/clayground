@@ -290,20 +290,30 @@ class Loader:
 # on the list only when it comes from the machine whatever the lab is.
 
 ENVIRONMENT = [
+    # (name, the message's pattern, the logging category it must come from -
+    # None for any)
+    #
     # Offscreen has no RHI, so Qt Quick 3D refuses every View3D on every
     # headless run, whatever the scene is.
     ("qtquick3d-no-rhi",
      re.compile(r"^The Qt Quick scene is using a rendering method that is not "
-                r"based on QRhi and a 3D graphics API\.")),
+                r"based on QRhi and a 3D graphics API\."), None),
     # The same refusal, as the soft assert Qt Quick 3D logs right after it.
     ("qtquick3d-no-rhi-assert",
      re.compile(r'^Unexpected condition met: '
-                r'"QSGRendererInterface::isApiRhiBased\(')),
+                r'"QSGRendererInterface::isApiRhiBased\('), None),
     # Under QT_QPA_PLATFORM=offscreen on macOS Qt asks for its own default
     # family, "Sans Serif", which the system does not have, and says so once.
     ("offscreen-default-font",
      re.compile(r"^Populating font family aliases took \d+ ms\. Replace uses "
-                r'of missing font family "Sans Serif"')),
+                r'of missing font family "Sans Serif"'), None),
+    # On Linux Qt Multimedia (clay_sound pulls it in) loads optional system
+    # libraries - PipeWire, VA-API - at run time and logs each one a machine
+    # lacks, twice; the CI runner lacks them all. Held to its own category, so
+    # the same words from anywhere else are not waved through.
+    ("linux-multimedia-libraries",
+     re.compile(r"^Couldn't (load|resolve) [\w.+-]+ (library|symbols)$"),
+     "qt.multimedia.symbolsresolver"),
 ]
 
 # A QML or JS location as Qt prints it at the start of a diagnostic:
@@ -311,10 +321,10 @@ ENVIRONMENT = [
 QML_LOCATION = re.compile(r"^((?:file:|qrc:)?/\S*?\.(?:qml|m?js))((?::\d+){0,2})")
 
 
-def environment_name(text):
+def environment_name(text, category="default"):
     """The ENVIRONMENT entry a message is, or None when it is not one."""
-    for name, pattern in ENVIRONMENT:
-        if pattern.search(text):
+    for name, pattern, cat in ENVIRONMENT:
+        if (cat is None or cat == category) and pattern.search(text):
             return name
     return None
 
@@ -370,11 +380,11 @@ def classify_diagnostics(entries, repo):
         if level not in ("warning", "error"):
             continue
         body = entry.get("text", "").strip()
-        name = environment_name(body)
+        cat = entry.get("category", "default")
+        name = environment_name(body, cat)
         if name:
             env[name] = env.get(name, 0) + 1
             continue
-        cat = entry.get("category", "default")
         where = source_file(body, repo)
         if where:
             body = body[QML_LOCATION.match(body).end():].lstrip(":").strip()
@@ -510,10 +520,10 @@ def check_load(rep, session):
     ours, other = session.diagnostics()
     for line in other:
         rep.note("(environment, see the README's list) " + line)
-    for line in ours[:8]:
+    # every distinct one: a message nobody sees cannot be put on the list or
+    # fixed, and repeats are already folded into a count
+    for line in ours:
         rep.note(line)
-    if len(ours) > 8:
-        rep.note(f"... and {len(ours) - 8} more")
     rep.check("load: nothing but the environment logged a warning or error",
               not ours, f"{len(ours)} message(s), first: {ours[0]}" if ours else "")
     return True

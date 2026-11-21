@@ -400,7 +400,8 @@ def load_verdict(tmp, name, entries):
         rep.detail("nothing but the environment") or ""
 
 
-# What the five labs log offscreen on macOS, word for word: the environment.
+# What the five labs log offscreen on macOS and on the Linux CI runner, word
+# for word: the environment.
 ENV_LINES = [
     {"level": "warning", "text": "The Qt Quick scene is using a rendering method "
      "that is not based on QRhi and a 3D graphics API. Qt Quick 3D is not "
@@ -412,6 +413,13 @@ ENV_LINES = [
     {"level": "warning", "category": "qt.qpa.fonts", "text": "Populating font "
      "family aliases took 36 ms. Replace uses of missing font family "
      "\"Sans Serif\" with one that exists to avoid this cost. "},
+    # ... and on the Linux CI runner
+    {"level": "warning", "category": "qt.multimedia.symbolsresolver",
+     "text": "Couldn't load pipewire-0.3 library"},
+    {"level": "warning", "category": "qt.multimedia.symbolsresolver",
+     "text": "Couldn't resolve pipewire-0.3 symbols"},
+    {"level": "warning", "category": "qt.multimedia.symbolsresolver",
+     "text": "Couldn't load va-x11 library"},
     {"level": "log", "text": "qml: a log line is never a diagnostic"},
 ]
 
@@ -420,14 +428,16 @@ def test_load_diagnostics(tmp):
     _repo, came_up, clean, det = load_verdict(tmp, "env", ENV_LINES)
     check("load: the named environment messages alone pass the load",
           came_up and clean is True, det)
-    check("load: every message the five labs log offscreen is on the list",
-          all(L.environment_name(e["text"]) for e in ENV_LINES[:3]),
-          str([L.environment_name(e["text"]) for e in ENV_LINES[:3]]))
+    check("load: every message the five labs log offscreen, macOS and Linux, is on the list",
+          all(L.environment_name(e["text"], e.get("category", "default"))
+              for e in ENV_LINES[:6]),
+          str([L.environment_name(e["text"], e.get("category", "default"))
+               for e in ENV_LINES[:6]]))
     check("load: the README holds the environment list, entry by entry",
           all(f"`{name}`" in open(os.path.join(os.path.dirname(HERE),
                                                "README.md")).read()
-              for name, _p in L.ENVIRONMENT),
-          str([n for n, _p in L.ENVIRONMENT]))
+              for name, _p, _c in L.ENVIRONMENT),
+          str([n for n, _p, _c in L.ENVIRONMENT]))
 
     # a kit file under labs/kits/ - the case the issue was filed for
     name = "kit"
@@ -465,6 +475,12 @@ def test_load_diagnostics(tmp):
          "text": "Populating font family aliases took 36 ms. Replace uses of "
                  "missing font family \"Comic\" with one that exists."}])
     check("load: a message off the list fails, however environmental it looks",
+          clean is False, det)
+
+    # the multimedia entry holds only in its own category
+    _repo, came_up, clean, det = load_verdict(tmp, "category", ENV_LINES + [
+        {"level": "warning", "text": "Couldn't load va library"}])
+    check("load: an environment message from the wrong category fails",
           clean is False, det)
 
     # repeats collapse into one line with a count

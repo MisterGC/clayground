@@ -56,6 +56,7 @@ do not fail `load`; they are matched by name in `ENVIRONMENT` in
 | `qtquick3d-no-rhi` | `The Qt Quick scene is using a rendering method that is not based on QRhi and a 3D graphics API.` | offscreen has no RHI, so Qt Quick 3D refuses every `View3D` |
 | `qtquick3d-no-rhi-assert` | `Unexpected condition met: "QSGRendererInterface::isApiRhiBased(` | the same refusal, as the soft assert Qt Quick 3D logs after it |
 | `offscreen-default-font` | `Populating font family aliases took <n> ms. Replace uses of missing font family "Sans Serif"` | under `QT_QPA_PLATFORM=offscreen` on macOS Qt asks for a default family the system does not have, once |
+| `linux-multimedia-libraries` | `Couldn't load <library> library` or `Couldn't resolve <library> symbols`, in the category `qt.multimedia.symbolsresolver` only | on Linux Qt Multimedia loads optional system libraries (PipeWire, VA-API) at run time and logs each one the machine lacks; the CI runner lacks them all |
 
 Every other warning or error fails `load`, wherever it comes from: a file of
 the lab, a kit under `labs/kits/`, the kernel in `plugins/clay_lab/` (shown as
