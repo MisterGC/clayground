@@ -47,6 +47,8 @@ void applyCliArgsToLoader(QCommandLineParser& parser, ClayLiveLoader& loader)
         if (parser.isSet(INSTANCE_ARG))
             loader.setInstanceName(parser.value(INSTANCE_ARG));
 
+        loader.setStartPaused(parser.isSet(PAUSED_ARG));
+
         if (parser.isSet(LAB_SRC_ARG)) {
             QString error;
             auto const importDir = labSourceImportDir(&error);

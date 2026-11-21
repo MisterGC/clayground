@@ -50,6 +50,13 @@ static constexpr const char* INSTANCE_ARG_DESCR =
                       "protocol to .clay/inspect/i/<name>/ so several "
                       "instances of the same sandbox can run side by side.";
 
+static constexpr const char* PAUSED_ARG = "paused";
+static constexpr const char* PAUSED_ARG_DESCR =
+                      "Starts with the time control paused, before the sandbox "
+                      "root exists, so no frame ticker runs before the first "
+                      "request: a stepped run gets a lab whose clock never "
+                      "advanced, without a reload to reach one.";
+
 static constexpr const char* LAB_SRC_ARG = "lab-src";
 static constexpr const char* LAB_SRC_ARG_DESCR =
                       "Loads Clayground.Lab from its source directory "
