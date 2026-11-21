@@ -3362,8 +3362,11 @@ Item {
         overlay: overlay
         titleOf: (e) => root.cardTitle(e)
         readingOf: (e) => { const s = root.simOf(e.id); return root.fmtV(s.v) + "   " + root.fmtA(s.i) }
+        // The bulb's and the cell's cards also say what the model leaves out
+        // of them, where a learner is looking at the part (#541).
         hintOf: (e) => LabLang.t(e.type === "resistor" ? "card.hint.resistor"
-                                : e.type === "battery" ? "card.hint.battery" : "card.hint.part")
+                                : e.type === "battery" ? "card.hint.battery"
+                                : e.type === "bulb" ? "card.hint.bulb" : "card.hint.part")
         minWidthOf: (e) => (e.type === "resistor" || e.type === "battery") ? LabTheme.px(196)
                           : e.type === "gate" ? LabTheme.px(228) : 0
         adjust: (e, row, d) => root.adjustCardRow(e, row, d)

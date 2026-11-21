@@ -74,7 +74,9 @@ var dict = {
         "card.watch.full": "plot is full",
         "card.tag": "tag:",
         "card.hint.resistor": "drag to set Ω · R turn · Del remove",
-        "card.hint.battery": "drag to set volts · R turn · Del remove",
+        // what the model leaves out, on the card of the part it is about
+        "card.hint.battery": "direct current only: this cell pushes one way, steadily\ndrag to set volts · R turn · Del remove",
+        "card.hint.bulb": "a fixed 6 Ω: a real bulb's resistance climbs as it heats\nR turn · Del remove · drag to move",
         "card.hint.part": "R turn · Del remove · drag to move",
 
         "cell.reaches": "reaches your parts",
@@ -276,7 +278,8 @@ var dict = {
         "card.watched": "im Diagramm ✓",
         "card.watch.full": "Diagramm ist voll",
         "card.hint.resistor": "ziehen für Ω · R drehen · Entf löschen",
-        "card.hint.battery": "ziehen für Volt · R drehen · Entf löschen",
+        "card.hint.battery": "nur Gleichstrom: diese Zelle schiebt in eine Richtung, gleichmäßig\nziehen für Volt · R drehen · Entf löschen",
+        "card.hint.bulb": "fest 6 Ω: bei einer echten Lampe steigt der Widerstand, wenn sie heiß wird\nR drehen · Entf löschen · ziehen verschiebt",
         "card.hint.part": "R drehen · Entf löschen · ziehen verschiebt",
 
         "cell.reaches": "kommt bei den Bauteilen an",
