@@ -36,6 +36,8 @@ var dict = {
         "scenario.note.half-adder": "two gates reading the same two inputs: SUM is A xor B, CARRY is A and B — which is binary addition, and the first thing gates were ever built for",
 
         // key map (LabHelp renders these next to the keys that trigger them)
+        "key.morepresets.how": "click",
+        "key.morepresets": "presets 10 and 11, logic gate and half adder: under PRESETS in the palette",
         "key.clear": "clear the board",
         "key.eraser": "eraser",
         "key.values": "show every value",
@@ -239,6 +241,8 @@ var dict = {
         "scenario.note.gates": "ein Baustein, sechs Funktionen: auswählen und umschalten — Gehäuse, Symbol und Tabelle folgen. VCC abklemmen und er antwortet nicht mehr",
         "scenario.note.half-adder": "zwei Gatter an denselben beiden Eingängen: SUMME ist A xor B, ÜBERTRAG ist A und B — das ist binäres Addieren, und das Erste, wofür Gatter je gebaut wurden",
 
+        "key.morepresets.how": "Klick",
+        "key.morepresets": "Vorlagen 10 und 11, Logikgatter und Halbaddierer: unter VORLAGEN in der Palette",
         "key.clear": "Brett leeren",
         "key.eraser": "Radierer",
         "key.values": "alle Werte zeigen",

@@ -3732,7 +3732,11 @@ Item {
         jump: hintJump
         hints: hintBar
         selection: selCard.keys
-        keys: board.keys(grid, overlay).concat([
+        // The digits stop at 9 and this lab has eleven presets: the help says
+        // where the last two are. The row is documentation only - its key is
+        // a word, which never matches a key press (#541).
+        keys: [{ key: LabLang.t("key.morepresets.how"), label: "key.morepresets",
+                 action: () => {} }].concat(board.keys(grid, overlay)).concat([
             { key: "M", label: "key.plan", action: () => {
                 root.showPlan = !root.showPlan
                 if (!root.showPlan) root.planMax = false } },
