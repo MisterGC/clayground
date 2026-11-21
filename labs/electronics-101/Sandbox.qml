@@ -53,7 +53,21 @@ Item {
     // it and drag), so a board can hold a 1.5 V and a 9 V cell at once.
     readonly property real defaultVolts: 4.5
 
-    SimClock { id: clock; seed: 42; sampleInterval: 0.1 }
+    // The solver has no time of its own: with no current anywhere, no lesson
+    // running and nothing recorded, the board shows the same thing at every
+    // instant, and a clock that ran on would redraw it sixty times a second
+    // for nothing (#575). It starts again with the current. A watched part
+    // does not keep it awake - the lab opens with two - so its strip holds
+    // still at rest, and an edit wakes the clock for the one sample that
+    // carries the new reading.
+    SimClock {
+        id: clock; seed: 42; sampleInterval: 0.1
+        resting: !wires3d.flowing
+                 && !(root.currentFlow && root.currentFlow.running)
+                 && !recorder.recording
+        readonly property var _solve: root.sim
+        on_SolveChanged: wake()
+    }
 
     Probe {
         name: "iBattery"; unit: "mA"

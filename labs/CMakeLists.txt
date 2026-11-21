@@ -85,6 +85,39 @@ if(BUILD_TESTING AND TARGET clayliveloader)
             LABELS "labs;integration;tools/lab-check"
             SKIP_RETURN_CODE 77 TIMEOUT 180)
 
+        # lab_rest_<lab> / lab_moving_<lab> - a lab with nothing moving draws
+        # no frame, and one with a current or a flow draws again (#575). Both
+        # labs drew 60 frames a second at rest, and only a frame count says
+        # so. The rest check of electronics-101 also holds the professor to
+        # having no body loaded while it is away.
+        if(TARGET clayrender)
+            set(_rest ${CMAKE_SOURCE_DIR}/tools/lab-check/rest_check.py)
+            set(_elec ${CMAKE_CURRENT_SOURCE_DIR}/electronics-101/Sandbox.qml)
+            set(_hydro ${CMAKE_CURRENT_SOURCE_DIR}/hydraulics-101/Sandbox.qml)
+            set(_switchOn "root.elements.filter(e => e.type === 'switch').forEach(e => root.setSwitch(e.id, true))")
+            add_test(NAME lab_rest_electronics-101
+                COMMAND ${Python3_EXECUTABLE} ${_rest} ${_elec} --expect rest
+                        --wait-for "clock.resting && !prof.present && prof.character === null"
+                        --clayrender $<TARGET_FILE:clayrender>)
+            add_test(NAME lab_moving_electronics-101
+                COMMAND ${Python3_EXECUTABLE} ${_rest} ${_elec} --expect moving
+                        --eval "${_switchOn}" --wait-for "wires3d.flowing"
+                        --clayrender $<TARGET_FILE:clayrender>)
+            # hydraulics-101 opens with water running; the valve shuts it off
+            add_test(NAME lab_rest_hydraulics-101
+                COMMAND ${Python3_EXECUTABLE} ${_rest} ${_hydro} --expect rest
+                        --eval "root.setValve(2, false)" --wait-for "clock.resting"
+                        --clayrender $<TARGET_FILE:clayrender>)
+            add_test(NAME lab_moving_hydraulics-101
+                COMMAND ${Python3_EXECUTABLE} ${_rest} ${_hydro} --expect moving
+                        --wait-for "wires3d.flowing"
+                        --clayrender $<TARGET_FILE:clayrender>)
+            set_tests_properties(lab_rest_electronics-101 lab_moving_electronics-101
+                                 lab_rest_hydraulics-101 lab_moving_hydraulics-101
+                PROPERTIES LABELS "labs;integration;plugins/clay_lab;tools/lab-check"
+                           SKIP_RETURN_CODE 77 TIMEOUT 180)
+        endif()
+
         foreach(_sbx IN LISTS _lab_sandboxes)
             get_filename_component(_dir ${_sbx} DIRECTORY)
             get_filename_component(_lab ${_dir} NAME)

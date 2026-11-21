@@ -217,15 +217,17 @@ Node {
         it. Anything positioned from height3d - a camera, a speech bubble -
         aims at the chest.
     */
-    readonly property real standHeight:
-        _char.height + (root.headScale - 1) * _char.headHeight
+    readonly property real standHeight: _char
+        ? _char.height + (root.headScale - 1) * _char.headHeight
+        : root.height3d * 1.3       // away: the plugin's parts sum to about this
 
     /*!
         Eye height above the professor's feet - where a camera that wants to
         look it in the face should aim.
     */
-    readonly property real faceY:
-        root.standHeight - _char.headHeight * root.headScale * 0.38
+    readonly property real faceY: _char
+        ? root.standHeight - _char.headHeight * root.headScale * 0.38
+        : root.standHeight * 0.85
 
     // --- how old the professor looks -----------------------------------------
     // Cartoonists draw the old much the way they draw the young: short, with a
@@ -375,7 +377,7 @@ Node {
     readonly property bool present: _present
 
     /*! True once a gesture has arrived - the cue to start talking. */
-    readonly property bool settled: _char.gestureSettled
+    readonly property bool settled: _char ? _char.gestureSettled : false
 
     /*!
         What the hands are doing: "point", "present", "thumbsUp", "talk", or
@@ -386,16 +388,20 @@ Node {
         angles ease in over settleMs, so a test that reads those immediately
         after the call is reading the pose the professor has just left.
     */
-    readonly property string gesture: _char.gesture
+    readonly property string gesture: _char ? _char.gesture : ""
 
     /*! Which hand is doing it: "left", "right" or "". */
-    readonly property string gestureHand: _char.gestureHand
+    readonly property string gestureHand: _char ? _char.gestureHand : ""
 
     /*! Where the bubble is pinned, so a lab can put something else there. */
-    readonly property vector3d headAnchor: _char.scenePosition.plus(
+    readonly property vector3d headAnchor: (_char ? _char.scenePosition : root.scenePosition).plus(
         Qt.vector3d(0, root.standHeight * 0.95 * root._grow, 0))
 
-    /*! The character, for a lab that wants to reach past this component. */
+    /*!
+        The character, for a lab that wants to reach past this component -
+        null while the professor is away, since the body is only loaded while
+        it is on stage.
+    */
     readonly property var character: _char
 
     /*!
@@ -547,7 +553,7 @@ Node {
         Pass null to let them go, after which they wander as an idle pair of
         eyes does.
     */
-    function lookAt(worldPos) { _char.lookAt(worldPos) }
+    function lookAt(worldPos) { if (_char) _char.lookAt(worldPos) }
 
     /*!
         Nods, without losing whatever the head was looking at.
@@ -556,7 +562,7 @@ Node {
         attached: the learner did the thing, and the teacher saw it. Shallow
         by default - acknowledgement, not assent to a proposal.
     */
-    function nod(degrees, times) { _char.nod(degrees, times) }
+    function nod(degrees, times) { if (_char) _char.nod(degrees, times) }
 
     /*!
         Sets the lasting face from a script emotion name.
@@ -585,7 +591,7 @@ Node {
     */
     function stopGesture() {
         _gestureCap.stop()
-        _char.stopGesture()
+        if (_char) _char.stopGesture()
     }
 
     /*!
@@ -737,6 +743,8 @@ Node {
     */
     function say(what) {
         root.line = what
+        // away there is nobody to say it; the bubble is hidden as well
+        if (!_char) { _talking = false; return }
         _char.speechBodyLanguage = false
         // Same as tell(): nobody is listening, and the speech engine is the
         // one part of a lesson that cannot be stepped in sim time.
@@ -783,7 +791,7 @@ Node {
 
     /*! Stops mid-sentence and clears the bubble, spoken or written. */
     function hush() {
-        _char.stopSpeaking()
+        if (_char) _char.stopSpeaking()
         quiet()
     }
 
@@ -934,143 +942,160 @@ Node {
     */
     property bool thinking: false
 
-    ParametricCharacter {
-        id: _char
-        name: "professor"
-        // Either the flow asked for a thinking beat, or a line has been
-        // requested and the engine has not opened its mouth yet. Composed
-        // rather than bound to one of them, so setting the property from
-        // outside does not sever the automatic half.
-        thinking: root.thinking || (root._saying && !root._sayStarted)
-        // The squash is the difference between a model being scaled and a
-        // body arriving: it lands wide and low, then stands up.
-        scale: {
-            const g = root._grow
-            const squash = 1 + (1 - Math.min(1, g)) * 0.35
-            return Qt.vector3d(g * squash, g / squash, g * squash)
+    // The body is there only while the professor is: appear() loads it and
+    // the end of the exit drops it. Hidden at a size of nought, it was still
+    // eighty part models in the scene, and its gaze and blink timers kept
+    // moving the eyes nobody could see - 17 to 25 frames a second in a
+    // paused electronics-101 (#575). The Loader3D loads synchronously, so
+    // everything appear() returns to finds the character there.
+    Loader3D {
+        id: _body
+        active: root._present || root._grow > 0
+        sourceComponent: Node {
+            readonly property var character: _c
+
+            ParametricCharacter {
+                id: _c
+                name: "professor"
+                // Either the flow asked for a thinking beat, or a line has been
+                // requested and the engine has not opened its mouth yet. Composed
+                // rather than bound to one of them, so setting the property from
+                // outside does not sever the automatic half.
+                thinking: root.thinking || (root._saying && !root._sayStarted)
+                // The squash is the difference between a model being scaled and a
+                // body arriving: it lands wide and low, then stands up.
+                scale: {
+                    const g = root._grow
+                    const squash = 1 + (1 - Math.min(1, g)) * 0.35
+                    return Qt.vector3d(g * squash, g / squash, g * squash)
+                }
+                visible: root._grow > 0.001
+
+                bodyHeight: root.height3d
+                // High rather than Auto: the professor's whole job is pointing at
+                // things, and Auto measures apparent size against a threshold it
+                // reaches only in a close shot. A lab is watched from the working
+                // distance and the finger has to be there anyway.
+                detail: root.detailedHands ? Character.Detail.High : Character.Detail.Low
+                handScale: root.handScale
+                gloves: root.gloves
+                gloveColor: root.gloveTone
+                roundness: root.roundness
+                realism: 0.0                   // the labs are drawn, not photographed
+                maturity: root.maturity
+                mass: root.mass
+                muscle: 0.3                    // an academic, not an athlete
+                femininity: 0.2
+                // Nought, and the kit's Hair draws instead. The head's own hair is
+                // four slabs around the skull with one knob to inflate them, and it
+                // would draw straight through anything put on top of it.
+                hair: 0
+                nose: root.noseSize
+                eyes: root.eyeSize
+                chinForm: 0.35                 // a rounder jaw, which a beard sits on
+
+                skinColor: root.skinTone
+                hairColor: root.hairTone
+                torsoColor: root.coatTone
+                armColor: root.coatTone
+                hipColor: root.trouserTone
+                legColor: root.trouserTone
+
+                // Idle, and left there. Walking, running, using and fighting all own
+                // the arms, and switching activity mid-gesture restarts the idle
+                // animation, which zeroes the pose.
+                activity: Character.Activity.Idle
+
+                // The face is a separate activity from the body, so a professor can
+                // stand still and still be pleased to see you.
+                // Talking wins while it lasts - the mouth cannot both hold a smile
+                // and flap - and the face drops back to the mood underneath when the
+                // line is finished.
+                faceActivity: root._talking ? Head.Activity.Talk
+                            : root.mood === "happy" ? Head.Activity.ShowJoy
+                            : root.mood === "sad" ? Head.Activity.ShowSadness
+                            : root.mood === "cross" ? Head.Activity.ShowAnger
+                                                    : Head.Activity.Idle
+            }
+
+            // The oversized head. A Binding rather than a property assignment because
+            // the head belongs to the character, not to this file - and because the
+            // node's origin sits at the top of the neck, so scaling it grows the head
+            // upward and outward instead of sinking it into the shoulders.
+            Binding {
+                target: _c.head
+                property: "scale"
+                value: Qt.vector3d(root.headScale, root.headScale, root.headScale)
+            }
+
+            // The oversized hands are the plugin's own Character.handScale now - this
+            // kit reached into the wrist joint with a Binding until the plugin grew
+            // the property, on the same principle and by the same means.
+
+            // --- the signifiers of age ------------------------------------------------
+            // Both parent themselves to the character's head, so they ride it when the
+            // head turns during a gesture and they shrink with the body when it arrives
+            // in its puff. Declared here rather than inside the character because the
+            // plugin has no slot for either - see the kit README.
+
+            Hair {
+                character: _c
+                tone: root.hairTone
+                style: root.hairStyle
+                volume: root.hairVolume
+            }
+
+            Beard {
+                character: _c
+                tone: root.hairTone
+                style: root.beardStyle
+                length: root.beardLength
+                fullness: 0.72
+                moustache: true
+            }
+
+            Spectacles {
+                character: _c
+                visible: root.spectacles
+                frameTone: LabTheme.ink
+                // barely there: a lens you can see through is a lens that does not
+                // hide the eyes, and the eyes are where the character reads from
+                lensTone: Qt.rgba(LabTheme.sheet.r, LabTheme.sheet.g, LabTheme.sheet.b, 0.22)
+                slip: 0.2
+            }
+
+            // --- the hands and the gesture ------------------------------------------
+            // Both the plugin's own now. The articulated hands live inside Arm, and
+            // the held poses - point, present, thumbs up, gesticulation - are the
+            // character's GestureAnim, which this kit's PointAnim was promoted into
+            // (beat table and silhouette policy included). Character wires
+            // Arm.handPose to that layer itself: whichever arm the gesture picked
+            // gets the pointing finger, and the other keeps whatever the lab asked
+            // for - which is what the professor's handPose is, so it is handed down
+            // rather than bound onto each arm.
+            //
+            // Two things the plugin has to be told, as Bindings for the same reason
+            // the oversized head is one: the character is declared above with the
+            // knobs that shape it, and these two shape the gesture.
+
+            Binding {
+                target: _c
+                property: "handPose"
+                value: root.handPose
+            }
+
+            Binding {
+                target: _c
+                property: "gestureSettleMs"
+                // The arm arrives a shade faster than the plugin's default, as it
+                // did when the kit drove it; FlowGuide's hold is timed from here.
+                value: 420
+            }
         }
-        visible: root._grow > 0.001
-
-        bodyHeight: root.height3d
-        // High rather than Auto: the professor's whole job is pointing at
-        // things, and Auto measures apparent size against a threshold it
-        // reaches only in a close shot. A lab is watched from the working
-        // distance and the finger has to be there anyway.
-        detail: root.detailedHands ? Character.Detail.High : Character.Detail.Low
-        handScale: root.handScale
-        gloves: root.gloves
-        gloveColor: root.gloveTone
-        roundness: root.roundness
-        realism: 0.0                   // the labs are drawn, not photographed
-        maturity: root.maturity
-        mass: root.mass
-        muscle: 0.3                    // an academic, not an athlete
-        femininity: 0.2
-        // Nought, and the kit's Hair draws instead. The head's own hair is
-        // four slabs around the skull with one knob to inflate them, and it
-        // would draw straight through anything put on top of it.
-        hair: 0
-        nose: root.noseSize
-        eyes: root.eyeSize
-        chinForm: 0.35                 // a rounder jaw, which a beard sits on
-
-        skinColor: root.skinTone
-        hairColor: root.hairTone
-        torsoColor: root.coatTone
-        armColor: root.coatTone
-        hipColor: root.trouserTone
-        legColor: root.trouserTone
-
-        // Idle, and left there. Walking, running, using and fighting all own
-        // the arms, and switching activity mid-gesture restarts the idle
-        // animation, which zeroes the pose.
-        activity: Character.Activity.Idle
-
-        // The face is a separate activity from the body, so a professor can
-        // stand still and still be pleased to see you.
-        // Talking wins while it lasts - the mouth cannot both hold a smile
-        // and flap - and the face drops back to the mood underneath when the
-        // line is finished.
-        faceActivity: root._talking ? Head.Activity.Talk
-                    : root.mood === "happy" ? Head.Activity.ShowJoy
-                    : root.mood === "sad" ? Head.Activity.ShowSadness
-                    : root.mood === "cross" ? Head.Activity.ShowAnger
-                                            : Head.Activity.Idle
     }
 
-    // The oversized head. A Binding rather than a property assignment because
-    // the head belongs to the character, not to this file - and because the
-    // node's origin sits at the top of the neck, so scaling it grows the head
-    // upward and outward instead of sinking it into the shoulders.
-    Binding {
-        target: _char.head
-        property: "scale"
-        value: Qt.vector3d(root.headScale, root.headScale, root.headScale)
-    }
-
-    // The oversized hands are the plugin's own Character.handScale now - this
-    // kit reached into the wrist joint with a Binding until the plugin grew
-    // the property, on the same principle and by the same means.
-
-    // --- the signifiers of age ------------------------------------------------
-    // Both parent themselves to the character's head, so they ride it when the
-    // head turns during a gesture and they shrink with the body when it arrives
-    // in its puff. Declared here rather than inside the character because the
-    // plugin has no slot for either - see the kit README.
-
-    Hair {
-        character: _char
-        tone: root.hairTone
-        style: root.hairStyle
-        volume: root.hairVolume
-    }
-
-    Beard {
-        character: _char
-        tone: root.hairTone
-        style: root.beardStyle
-        length: root.beardLength
-        fullness: 0.72
-        moustache: true
-    }
-
-    Spectacles {
-        character: _char
-        visible: root.spectacles
-        frameTone: LabTheme.ink
-        // barely there: a lens you can see through is a lens that does not
-        // hide the eyes, and the eyes are where the character reads from
-        lensTone: Qt.rgba(LabTheme.sheet.r, LabTheme.sheet.g, LabTheme.sheet.b, 0.22)
-        slip: 0.2
-    }
-
-    // --- the hands and the gesture ------------------------------------------
-    // Both the plugin's own now. The articulated hands live inside Arm, and
-    // the held poses - point, present, thumbs up, gesticulation - are the
-    // character's GestureAnim, which this kit's PointAnim was promoted into
-    // (beat table and silhouette policy included). Character wires
-    // Arm.handPose to that layer itself: whichever arm the gesture picked
-    // gets the pointing finger, and the other keeps whatever the lab asked
-    // for - which is what the professor's handPose is, so it is handed down
-    // rather than bound onto each arm.
-    //
-    // Two things the plugin has to be told, as Bindings for the same reason
-    // the oversized head is one: the character is declared above with the
-    // knobs that shape it, and these two shape the gesture.
-
-    Binding {
-        target: _char
-        property: "handPose"
-        value: root.handPose
-    }
-
-    Binding {
-        target: _char
-        property: "gestureSettleMs"
-        // The arm arrives a shade faster than the plugin's default, as it
-        // did when the kit drove it; FlowGuide's hold is timed from here.
-        value: 420
-    }
+    // The character while it is on stage, null while away.
+    readonly property var _char: _body.item ? _body.item.character : null
 
     // --- what it is saying --------------------------------------------------
     // In the scene rather than in the chrome: a bubble over the professor's
@@ -1109,7 +1134,7 @@ Node {
             // The camera's transform has to be named or the binding freezes
             // the moment the rig moves.
             root.view.camera.scenePosition; root.view.camera.sceneRotation
-            const p = _char.scenePosition
+            const p = _char ? _char.scenePosition : root.scenePosition
             const a = root.view.mapFrom3DScene(p)
             const b = root.view.mapFrom3DScene(Qt.vector3d(p.x, p.y + 1, p.z))
             if (a.z <= 0 || b.z <= 0) return 0
@@ -1132,7 +1157,7 @@ Node {
             // it would like.
             let lift = _liftPx
             const crownPt = root.view.mapFrom3DScene(
-                _char.scenePosition.plus(Qt.vector3d(0, crown, 0)))
+                (_char ? _char.scenePosition : root.scenePosition).plus(Qt.vector3d(0, crown, 0)))
             if (crownPt.z > 0) {
                 const room = crownPt.y - _liftPx * 0.45 - 4
                 if (room < 0) lift = Math.max(0, _liftPx + room)
