@@ -77,7 +77,7 @@ writing lab code; skim again when something "impossible" happens.
   `setWatched()` / `watchOnly()` / `prune()` / `clear()`.
 - **`pragma ComponentBehavior: Bound` + a `Behavior` on a `Repeater3D`
   delegate = SIGSEGV** the moment the model is republished (Qt 6.11.1) — and
-  a `Board` republishes on every mutation. Either drop the pragma (the
+  a `Board` republishes whenever parts come or go. Either drop the pragma (the
   electronics lab) or animate inside the part component instead of on the
   delegate (the build template). Found by `clayrender` exiting 139 on
   `addPart`, with nothing in the log.

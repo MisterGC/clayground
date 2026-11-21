@@ -114,7 +114,12 @@ drives the store and the gesture with no GPU.
 
 - **Board** — the store: parts, wires, `rev`, hit test, keep-out, the
   mutations, batching, `state()`/`load()`, an optional `router`; `changed`
-  is where the domain re-solves.
+  is where the domain re-solves. `rev` moves with every change, `layoutRev`
+  only with where things are - a part added, moved, turned or removed, a
+  wire made or taken away. `setField` leaves `layoutRev` and both arrays
+  alone, so a flipped switch rebuilds no part and routes no wire: a binding
+  about a position reads `layoutRev`, one about what a part holds reads
+  `rev`.
 - **BoardInput** — the mouse: wire pads, select and drag, tap a wire, the
   two-step actuator (`operate`), eraser, the right-click cancel chain; the
   camera and the instrument belt are asked first, always. A part's state
