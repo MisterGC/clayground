@@ -190,10 +190,48 @@ It forces `pacing: "auto"`, advances the clock in 1/60 s steps and performs
 every learner task itself, so a whole lesson runs in a second or two. A verb
 the lab does not have lands in `unresolvedVerbs` (a missing verb otherwise
 fails silently), a `FlowStep.expect` that does not hold lands in
-`failedExpects` with its step key, and `finished: false` means the step bound
-was hit rather than the end — never a hang. While it runs, `Lab.headless` is
-set: the narrator hides, the professor stays put and no narration audio is
-decoded.
+`failedExpects` with its step key — and with `saw`, the values the expect
+named through its second argument (`expect: (n, saw) => saw("led.i", …) …`) —
+and `finished: false` means the step bound was hit rather than the end —
+never a hang. While it runs, `Lab.headless` is set: the narrator hides, the
+professor stays put and no narration audio is decoded.
+
+## Running an experiment
+
+`Lab.run(opts)` runs one experiment in a lab and returns what its probes
+measured; `Lab.schema()` says what can be asked: every parameter with its
+range, unit and description, every probe with its unit, the scenarios and
+the flows.
+
+```bash
+clayrender labs/street-network-101/Sandbox.qml --out /tmp/x.png --paused \
+    --result - --eval 'Lab.run({ scenario: "grid", seed: 11,
+        params: { demand: 0.5, speed: 15 }, warmupSteps: 1200, steps: 3000,
+        probes: ["throughput", "cars"] })'
+```
+
+```json
+{ "scenario": "grid", "seed": 11, "warmupSteps": 1200, "steps": 3000,
+  "stepSize": 0.016666666666666666, "sampleInterval": 0.25, "duration": 49.99999999999717,
+  "params": { "demand": 0.5, "speed": 15, "simSpeed": 1 },
+  "probes": {
+    "throughput": { "unit": "car·u/s", "count": 200, "mean": 265.1207023050297,
+                    "stddev": 21.529133707768263, "first": …, "last": …, "min": …, "max": … },
+    "cars": { "unit": "", "count": 200, "mean": 23.740000000000002, … } } }
+```
+
+The order is the one `tools/lab-sweep` follows: seed, every parameter back
+to its default, the scenario (through the lab's own `applyScenario()`), the
+parameters asked for, a clock reset, the warm-up, the recorded steps. The
+summaries cover the recorded steps only, computed the way a run record
+computes them — the mean above is the one
+`labs/street-network-101/studies/grid-capacity/records/0.5-11.labrec` holds —
+and over every sample, not only the 1200 a probe keeps. `series: true` adds
+each probe's `[[t, v], …]`; `stepHz` (default 60) sets the step. An option
+it cannot honour — an unknown parameter or probe, a value outside a
+parameter's range, a scenario the lab does not have — runs nothing and
+answers `{ "error": … }`. Two runs with the same options in one process
+return the same bytes.
 
 ## Getting a usable image
 
