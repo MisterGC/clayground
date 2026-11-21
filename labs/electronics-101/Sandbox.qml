@@ -1501,6 +1501,15 @@ Item {
                                              "andtask", "or", "xor", "nand", "xorbuild",
                                              "xortask", "both", "cost", "chip", "chiptask",
                                              "switchit", "adder"]
+    // Every step of the series-and-parallel lesson has its clip, the three
+    // answers to each question included: voice/en/sp-<key>.m4a.
+    readonly property var voicedSpSteps: ["one", "guess", "second", "second-brighter",
+                                          "second-same", "second-dimmer", "same", "why",
+                                          "split", "pair", "wireup", "parallel", "add",
+                                          "push", "short", "banner", "fix", "meters",
+                                          "voltmeter", "ask", "told", "told-less",
+                                          "told-same", "told-none", "move", "moved",
+                                          "yours"]
     function flowVoice(i) {
         const f = root.currentFlow
         if (!f || LabLang.lang !== "en")
@@ -1514,6 +1523,9 @@ Item {
         if (f.flowId === "logic-gates")
             return root.voicedLogicSteps.indexOf(s.key) < 0 ? ""
                  : Qt.resolvedUrl("voice/en/logic-" + s.key + ".m4a")
+        if (f.flowId === "series-parallel")
+            return root.voicedSpSteps.indexOf(s.key) < 0 ? ""
+                 : Qt.resolvedUrl("voice/en/sp-" + s.key + ".m4a")
         return ""
     }
 
