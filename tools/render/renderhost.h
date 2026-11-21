@@ -90,8 +90,20 @@ public:
     // graph nodes a chance to appear.
     void renderFrames(int count);
 
+    // Draws one frame if the scene asked for one since the last - an item
+    // called update() or the scene graph changed - and nothing otherwise, the
+    // way a window's render loop does. Returns whether it drew. No waiting:
+    // the caller owns the clock (--stats, #571).
+    bool renderIfRequested();
+
+    // Frames the window really drew since load(), counted on its
+    // afterRendering signal: renderFrames(), renderIfRequested() and every
+    // capture alike.
+    int renderedFrames() const { return m_renderedFrames; }
+
     // Called once after EVERY frame this host renders - the ones renderFrames()
-    // draws and the one grabImage() draws for a capture - so a caller can
+    // and renderIfRequested() draw and the one grabImage() draws for a
+    // capture - so a caller can
     // observe the scene over time (--trace). Frames are the only clock here:
     // there is no timer that could fire between two of them, so a sample
     // taken from this callback always describes a frame that was drawn.
@@ -115,6 +127,8 @@ private:
     // render into an RHI texture and read it back. This is the only route
     // that gives real GPU rendering without a visible window.
     bool createRenderTarget(const QSize& size);
+    // One frame: polish, sync, render - and the frameRendered callback.
+    void renderFrame();
 
     std::unique_ptr<QQuickRenderControl> m_renderControl;
     std::unique_ptr<QQuickWindow> m_window;
@@ -134,4 +148,6 @@ private:
     bool m_pauseOnLoad = false;
     QString m_firstImportPath;
     std::function<void()> m_frameRendered;
+    bool m_frameRequested = false;
+    int m_renderedFrames = 0;
 };
