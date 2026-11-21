@@ -24,7 +24,10 @@ with the rest of its environment:
 
 Serving the lab means phase "ready" and an answer to every inspector request:
 a snapshot with a live root, to `time` whether it was started with --paused,
-and to any eval the probe JSON of a lab with two scenarios and no flows.
+and to any eval the probe JSON of a lab with two scenarios and no flows,
+in the languages STAND_IN_LANGS names (comma-separated, "en" by default).
+Each process appends the CLAY_STORAGE_DIR it was given to
+<lab>/stand-in-storage, so a test sees which settings store it used (#573).
 Started with --instance <name> it serves under .clay/inspect/i/<name>/, as
 the loader does. That is all lab-check's first session asks before it
 starts a process per run. Which process is the first is decided by who
@@ -37,8 +40,9 @@ import os
 import sys
 import time
 
+LANGS = os.environ.get("STAND_IN_LANGS", "en").split(",")
 PROBE = {"scenarios": ["one", "two"], "flows": [], "expects": {},
-         "langs": ["en"], "keys": {"en": []}}
+         "langs": LANGS, "keys": {l: [] for l in LANGS}}
 
 
 def write_json(path, value):
@@ -110,6 +114,9 @@ def main():
         first = True
     except FileExistsError:
         first = False
+
+    with open(os.path.join(lab, "stand-in-storage"), "a") as f:
+        f.write(os.environ.get("CLAY_STORAGE_DIR", "") + "\n")
 
     mode = os.environ.get("STAND_IN_MODE", "crash")
     if mode.endswith("-after-first"):

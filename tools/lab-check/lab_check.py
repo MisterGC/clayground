@@ -16,7 +16,8 @@ WHAT IS CHECKED, IN ORDER
 
   load          the lab boots and logs nothing but the named environment
   determinism   every scenario, two stepped runs, byte-identical records
-  flows         every flow runs to its end, with its expects holding
+  flows         every flow runs to its end, with its expects holding, in
+                every language the lab registers
   strings       EN and DE say the same set of things, flows included
   teaching      a teaching lab's lessons keep the rules a program can test
   records       records/make.sh and studies/* regenerate the committed bytes
@@ -287,7 +288,7 @@ class Loader:
 
     def __init__(self, loader, sandbox, quiet=True,
                  ready_timeout=DEFAULT_READY_TIMEOUT, paused=False,
-                 instance=None):
+                 instance=None, storage=None):
         self.loader = loader
         self.sandbox = sandbox
         self.lab_dir = os.path.dirname(sandbox)
@@ -295,6 +296,7 @@ class Loader:
         self.ready_timeout = ready_timeout
         self.paused = paused
         self.instance = instance
+        self.storage = storage
         self.proc = None
         self.insp = None
         self.tail = collections.deque(maxlen=LOADER_TAIL)
@@ -317,6 +319,12 @@ class Loader:
         env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
         bindir = os.path.dirname(os.path.abspath(self.loader))
         env.setdefault("QML2_IMPORT_PATH", os.path.join(bindir, "qml"))
+        if self.storage:
+            # A settings store of its own: a flow run in German sets
+            # LabLang.lang, which LabPrefs keeps - in the reader's real
+            # settings, and for the runs beside it, without this (#573)
+            os.makedirs(self.storage, exist_ok=True)
+            env["CLAY_STORAGE_DIR"] = self.storage
         # The loader resolves Clayground plugins via a cwd-relative "qml"
         # import path, so it runs from the binary's directory. Its output is
         # always read - shown with --verbose, kept as a tail without - because
@@ -645,7 +653,14 @@ RUN_JS = """
 
 FLOW_JS = """
 (function () {
+    // The lesson in this language: a step waits for as long as its line
+    // takes to read, so the same flow takes a different number of frames in
+    // German, and can time out in one language only (#573)
+    if (LabLang.lang !== %(lang)s) LabLang.lang = %(lang)s;
+    if (LabLang.lang !== %(lang)s)
+        return { error: "LabLang.lang cannot be set to " + %(lang)s };
     var r = Lab.runFlow(%(flow)s, { maxSteps: %(maxSteps)d });
+    r.lang = LabLang.lang;
     // The lab's own entry point is what a learner triggers, and a lab may
     // refuse an id it does not publish; runFlow calls it when it exists, so
     // the only thing left to say here is whether the id was one of the
@@ -869,16 +884,28 @@ def first_difference(a, b):
     return f"{len(la)} vs {len(lb)} lines"
 
 
-def start_flows(pool, spawn, flows, max_steps):
-    """Hand every flow to the pool, each in a loader of its own: a flow builds
-    a board and leaves it there, and the next flow has to start where a
-    learner starts, which is a lab nobody has touched."""
-    return [(flow_id, pool.submit(
+def start_flows(pool, spawn, flows, max_steps, langs=("en",)):
+    """Hand every flow to the pool once per language, each run in a loader of
+    its own: a flow builds a board and leaves it there, and the next flow has
+    to start where a learner starts, which is a lab nobody has touched.
+
+    Every language, because a step waits for as long as its line takes to
+    read: one lesson ran 5598 frames in English and 5160 in German, so a flow
+    that finishes in one can run out of frames in the other (#573)."""
+    return [((flow_id, lang), pool.submit(
         run_fresh, spawn,
-        lambda s, f=flow_id: s.insp.eval_json(
-            FLOW_JS % {"flow": js_str(f), "maxSteps": max_steps},
+        lambda s, f=flow_id, l=lang: s.insp.eval_json(
+            FLOW_JS % {"flow": js_str(f), "lang": js_str(l),
+                       "maxSteps": max_steps},
             timeout=600)))
-        for flow_id in flows]
+        for flow_id in flows for lang in langs]
+
+
+def flow_langs(probe):
+    """The languages a lab's flows run in: every one it registers, English
+    first - the order LabLang keeps."""
+    langs = [l for l in probe.get("langs", []) if isinstance(l, str)]
+    return sorted(set(langs) | {"en"}, key=lambda l: (l != "en", l))
 
 
 def check_flows(rep, spawn, flows, require, expects, runs):
@@ -896,13 +923,15 @@ def check_flows(rep, spawn, flows, require, expects, runs):
                 'flows() is empty and a teaching lab owes a flow with expects')
         return rep.check("flows: none published, none owed by this purpose", True)
     all_ok = True
-    for flow_id, fut in runs:
-        res = report_run(rep, spawn, f"flows: {flow_id}", fut.result())
+    for (flow_id, lang), fut in runs:
+        name = f"flows: {flow_id} [{lang}]"
+        outcome = fut.result()
+        res = report_run(rep, spawn, name, outcome)
         if res is None:
             all_ok = False
             continue
         if res.get("__error__"):
-            all_ok = rep.check(f"flows: {flow_id}", False, res["__error__"]) and all_ok
+            all_ok = rep.check(name, False, res["__error__"]) and all_ok
             continue
         problems = []
         if res.get("error"):
@@ -920,7 +949,7 @@ def check_flows(rep, spawn, flows, require, expects, runs):
         n_expect = (expects or {}).get(flow_id, 0)
         detail = "; ".join(problems) if problems else \
             f"{res.get('steps')} sim frames, {n_expect} expect(s)"
-        all_ok = rep.check(f"flows: {flow_id}", not problems, detail) and all_ok
+        all_ok = rep.check(name, not problems, detail) and all_ok
     return all_ok
 
 
@@ -1484,7 +1513,8 @@ def main():
                     n = next(runs)
                 return Loader(loader, sandbox, quiet=not args.verbose,
                               ready_timeout=args.ready_timeout, paused=stepped,
-                              instance=f"lab-check-{n}")
+                              instance=f"lab-check-{n}",
+                              storage=os.path.join(workdir, "storage", str(n)))
             spawn.stalled = None
             spawn.stall_reported = False
         # A flow is usually the longest run of a check, so flows that
@@ -1594,8 +1624,19 @@ def run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir, lab_id,
     # determinism pairs. The report reads them back in the order it always
     # printed them.
     flows = flows_to_run(cfg, probe.get("flows", [])) if "flows" in wanted else []
+    langs = flow_langs(probe)
     if flow_runs is None:
-        flow_runs = start_flows(pool, spawn, flows, max_flow_steps)
+        flow_runs = start_flows(pool, spawn, flows, max_flow_steps, langs)
+    else:
+        # The flows lab-check.json names went in English before the lab said
+        # what else it speaks; the other languages follow, and the report
+        # reads them flow by flow
+        more = start_flows(pool, spawn, flows, max_flow_steps,
+                           [l for l in langs if l != "en"])
+        flow_runs = sorted(flow_runs + more,
+                           key=lambda r: (flows.index(r[0][0]),
+                                          langs.index(r[0][1])
+                                          if r[0][1] in langs else len(langs)))
     det_runs = start_determinism(pool, spawn, lab_dir, lab_id, scenarios, steps,
                                  workdir) \
         if "determinism" in wanted and isinstance(scenarios, list) else []
@@ -1611,7 +1652,7 @@ def run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir, lab_id,
         for _name, pair in det_runs:
             for _dest, fut in pair:
                 fut.cancel()
-        for _flow, fut in flow_runs:
+        for _run, fut in flow_runs:
             fut.cancel()
         raise
 
