@@ -23,9 +23,16 @@
 #else
 #include <ctime>
 #endif
+#if defined(Q_OS_MACOS)
+#include <libproc.h>
+#include <sys/resource.h>
+#include <unistd.h>
+#endif
 
 
 namespace {
+
+constexpr int WarmupSlots = 60;
 
 // Advances animations once per frame slot, on the wall clock, the way a
 // window's render loop does on the display's vsync. Qt's own driver runs on a
@@ -52,6 +59,24 @@ double processCpuMs()
     clock_gettime(CLOCK_PROCESS_CPUTIME_ID, &ts);
     return static_cast<double>(ts.tv_sec) * 1000.0
            + static_cast<double>(ts.tv_nsec) / 1.0e6;
+#endif
+}
+
+// Instructions the whole process retired so far, or -1 where the platform does
+// not count them for a process (only macOS does without privileges). Unlike
+// CPU time it hardly moves with what else the machine runs: three runs per
+// lab at a load average of 22 to 54 agreed within 2 %, their CPU times
+// within 23 %.
+double processInstructions()
+{
+#if defined(Q_OS_MACOS)
+    rusage_info_v4 usage{};
+    if (proc_pid_rusage(getpid(), RUSAGE_INFO_V4,
+                        reinterpret_cast<rusage_info_t*>(&usage)) != 0)
+        return -1.0;
+    return static_cast<double>(usage.ri_instructions);
+#else
+    return -1.0;
 #endif
 }
 
@@ -109,21 +134,18 @@ QJsonObject measure(RenderHost& host, int slotCount)
             stats->setProperty("extendedDataCollectionEnabled", true);
     }
 
-    // Whatever the setup left asking for a frame is drawn before the first
-    // slot: it belongs to the state being measured, not to its cost.
-    host.renderIfRequested();
-
     const double slotMs = 1000.0 / 60.0;
-    const int framesBefore = host.renderedFrames();
-    QList<double> cpuMs, renderMs, drawCalls, vertices;
+    QList<double> cpuMs, instructions, renderMs, drawCalls, vertices;
 
     SlotAnimationDriver driver;
     driver.install();
 
     QElapsedTimer wall;
-    wall.start();
-    for (int i = 0; i < slotCount; ++i) {
+    // One slot: wait for its end, advance animations, draw if asked. Measured
+    // or not, a slot is the same thing - only what is kept differs.
+    auto runSlot = [&](int i, bool measured) {
         const double cpuBefore = processCpuMs();
+        const double instructionsBefore = processInstructions();
 
         // Until the end of this slot the event loop runs on its own: events
         // and QTimers arrive at their real rate. A slot that overran leaves
@@ -141,7 +163,10 @@ QJsonObject measure(RenderHost& host, int slotCount)
 
         QElapsedTimer drawing;
         drawing.start();
-        if (host.renderIfRequested()) {
+        const bool drew = host.renderIfRequested();
+        if (!measured)
+            return;
+        if (drew) {
             renderMs.append(static_cast<double>(drawing.nsecsElapsed()) / 1.0e6);
             // Without a View3D there is nothing to count - null, not a zero
             // that reads as "draws nothing".
@@ -158,7 +183,22 @@ QJsonObject measure(RenderHost& host, int slotCount)
             }
         }
         cpuMs.append(processCpuMs() - cpuBefore);
-    }
+        if (instructionsBefore >= 0)
+            instructions.append(processInstructions() - instructionsBefore);
+    };
+
+    // A second of slots nobody counts first. Right after the setup a lab is
+    // still finishing what loading started - a fade, a camera glide, the
+    // first pipelines - and how much of that fell into the window depended
+    // on how fast the setup ran: one lab drew 2, 3 or 4 frames of 300.
+    wall.start();
+    for (int i = 0; i < WarmupSlots; ++i)
+        runSlot(i, false);
+
+    const int framesBefore = host.renderedFrames();
+    wall.start();
+    for (int i = 0; i < slotCount; ++i)
+        runSlot(i, true);
     // Qt's own driver again, which takes over the animation time where this
     // one leaves it, so what runs after the measurement does not jump.
     driver.uninstall();
@@ -168,6 +208,7 @@ QJsonObject measure(RenderHost& host, int slotCount)
     out["rendered"] = host.renderedFrames() - framesBefore;
     out["seconds"] = rounded(static_cast<double>(wall.nsecsElapsed()) / 1.0e9);
     out["cpuMs"] = summary(cpuMs, true);
+    out["cpuInstructions"] = summary(instructions, true);
     out["renderMs"] = summary(renderMs, true);
     out["drawCalls"] = summary(drawCalls, false);
     out["vertices"] = summary(vertices, false);

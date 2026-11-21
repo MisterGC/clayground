@@ -17,11 +17,16 @@ class RenderHost;
 // padding was.
 namespace FrameStats {
 
-// Measures 'slotCount' frame slots and returns the summary --stats prints:
+// Runs a second of slots nobody counts - the setup's last transitions settle
+// in it - then measures 'slotCount' frame slots and returns the summary
+// --stats prints:
 //   frames     the slots measured
 //   rendered   frames the window really drew in them
 //   seconds    wall time of the run
 //   cpuMs      process CPU time per slot: median, mean, min, max
+//   cpuInstructions  instructions the process retired per slot, the same
+//              way; null where the platform does not count them (only
+//              macOS does). Unlike CPU time it holds under load.
 //   renderMs   wall time of drawing one frame, over the drawn frames
 //   drawCalls  draw calls per drawn frame, summed over every View3D
 //   vertices   vertices per drawn frame, the same way

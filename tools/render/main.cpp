@@ -391,11 +391,13 @@ int main(int argc, char* argv[])
     QCommandLineOption framesOpt("frames",
         "Render this many frames before capturing.", "n", "2");
     QCommandLineOption statsOpt("stats",
-        "What a frame costs: run n frame slots of 1/60 s after the setup "
-        "(--set/--eval/--script, --frames, --wait-for, --settle), draw a frame "
-        "only when the scene asks for one, as a window does, and print one "
-        "JSON line - frames, rendered (frames really drawn), seconds, cpuMs "
-        "(process CPU time per slot), renderMs (wall time to draw a frame), "
+        "What a frame costs: after the setup (--set/--eval/--script, "
+        "--frames, --wait-for, --settle) and one second of slots that are not "
+        "counted, run n frame slots of 1/60 s, draw a frame only when the "
+        "scene asks for one, as a window does, and print one JSON line - "
+        "frames, rendered (frames really drawn), seconds, cpuMs (process CPU "
+        "time per slot), cpuInstructions (instructions retired per slot, "
+        "macOS only, steady under load), renderMs (wall time to draw a frame), "
         "drawCalls and vertices (summed over every View3D), views3d. Each is "
         "{median, mean, min, max}, or null when nothing was drawn. Waiting for "
         "the next slot is in none of them.", "n");
