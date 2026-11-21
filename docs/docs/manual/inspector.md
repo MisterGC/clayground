@@ -302,6 +302,7 @@ The response includes a summary — often sufficient without reading the full tr
 ```json
 {"action": "reload"}
 {"action": "reload", "scenario": "boss-fight", "rearm": true}
+{"action": "reload", "fresh": true, "scenario": "tunnel"}
 ```
 
 Runs the same path as a file-watch reload (full engine recreation — no scene
@@ -313,6 +314,20 @@ scenario is re-applied after *every* subsequent reload (including file-watch
 reloads while you edit) until a reload request passes `rearm: false`. The
 active rearm is visible as `rearmedScenario` in `state.json`; each apply is
 recorded as a `scenario_applied` event in `events.jsonl`.
+
+With `fresh: true` the new root starts clean: the loader neither captures the
+outgoing root's view state nor re-applies one it still holds (see [View State
+Preservation](#view-state-preservation)), so the sandbox comes up with its
+declared values in the scenario the request names — or the one it opens by
+itself when none is named, or the rearmed one. Without it, a lab whose view
+state carries its scenario, sim time and parameters lands back where it was,
+because the view state is applied after the requested scenario. The response
+echoes `fresh: true`; dropping a held capture is recorded as a
+`view_state_dropped` event. `fresh` covers that one reload: the next plain or
+file-watch reload keeps the user's place again. Pausing the clock first
+(`time` with `paused: true`, a loader setting that survives the reload) keeps
+any wall-clock frame from running before your first step, which is what makes
+two fresh runs of the same steps reproduce each other byte for byte.
 
 ### waitForRoot — block until a load resolves
 
@@ -444,6 +459,7 @@ that encodes scenario + sim time in its view state gets the last word). A null
 or failed capture keeps the previous one, so a fix applied after a load error
 still restores the user's place. Each step is recorded in `events.jsonl` as a
 `view_state_captured` and a `view_state_restored` (`{"ok": bool}`) event.
+A `reload` with `fresh: true` skips both and drops a capture still held.
 
 `snapshot` responses carry a `viewState` key when the root implements it, and
 flag bundles (`Ctrl+F` flags and auto-flags) include the same key. The effect:

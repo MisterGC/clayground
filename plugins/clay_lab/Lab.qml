@@ -157,15 +157,45 @@ QtObject {
 
     /*!
         \qmlmethod bool Lab::set(string name, real value)
-        \brief Sets a parameter value, clamped to its range.
+        \brief Sets a parameter value; refuses one outside its range.
+
+        Returns false and logs a warning naming the range when \a value is
+        not a number or lies outside \c{[from, to]} of a parameter that has a
+        range (\c{to > from}); the value is left as it was. It used to clamp
+        without a word, so an experiment asked for a GPS noise of 12 on a 0.5
+        to 10 slider ran at 10 and its record said nothing about it.
     */
     function set(name, value) {
         const par = _params[name]
         if (!par) { console.warn("Lab: unknown parameter " + name); return false }
-        let v = Number(value)
-        if (par.to > par.from) v = Math.max(par.from, Math.min(par.to, v))
+        const v = Number(value)
+        if (isNaN(v)) {
+            console.warn("Lab: parameter " + name + " is not set to " + value
+                         + " - not a number")
+            return false
+        }
+        if (par.to > par.from && (v < par.from || v > par.to)) {
+            console.warn("Lab: parameter " + name + " is not set to " + v
+                         + " - outside its range " + par.from + " to " + par.to)
+            return false
+        }
+        par._keepDefault()
         par.value = v
         return true
+    }
+
+    /*!
+        \qmlmethod void Lab::resetParameters()
+        \brief Puts every registered parameter back to its \c defaultValue.
+
+        Touches parameters only: the clock, the probes and the scenario stay
+        as they are. Applying a scenario resets the clock; this is the other
+        half of a clean start without a reload.
+
+        \sa Parameter::reset
+    */
+    function resetParameters() {
+        for (const n of paramNames) _params[n].reset()
     }
 
     function takeSamples(t) {
@@ -362,7 +392,7 @@ QtObject {
         \qmlmethod void Lab::applyViewState(var s)
         \brief Restores parameters and, for world-less clocks, re-steps sim time.
 
-        Sets every parameter in \c s.params through the clamped set(), then -
+        Sets every parameter in \c s.params through set(), then -
         only when a SimClock exists, is world-less and s.time > 0 -
         deterministically re-steps it to s.time in fixed 1/60 s increments.
 
