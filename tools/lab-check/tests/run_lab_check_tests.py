@@ -425,7 +425,9 @@ ENV_LINES = [
     {"level": "warning", "text": "PulseAudioService: pa_context_connect() failed"},
     # ... and on the Windows CI runner
     {"level": "warning", "text": "QFontDatabase: Cannot find font directory "
-     "D:/a/clayground/Qt/6.10.1/msvc2022_64/lib/fonts."},
+     "D:/a/clayground/Qt/6.10.1/msvc2022_64/lib/fonts.\nNote that Qt no longer "
+     "ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for "
+     "example) or switch to fontconfig."},
     {"level": "log", "text": "qml: a log line is never a diagnostic"},
 ]
 

@@ -320,8 +320,9 @@ ENVIRONMENT = [
      re.compile(r"^PulseAudioService: pa_context_connect\(\) failed$"), None),
     # Offscreen on Windows reads fonts from the Qt installation's lib/fonts,
     # which a Qt install does not ship, so the machine has no fonts at all.
+    # Two lines: the second says "Note that Qt no longer ships fonts. ...".
     ("offscreen-no-font-directory",
-     re.compile(r"^QFontDatabase: Cannot find font directory .+$"), None),
+     re.compile(r"^QFontDatabase: Cannot find font directory "), None),
 ]
 
 # A QML or JS location as Qt prints it at the start of a diagnostic:
