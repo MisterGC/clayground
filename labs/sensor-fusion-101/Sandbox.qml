@@ -175,6 +175,20 @@ Item {
 
     KalmanFilter2D { id: kf; processNoise: 1.2 }
 
+    // --- snapshot (#568) ---------------------------------------------------
+    // The sensors carry their own state; what is left is the filter, the
+    // weighing bookkeeping and the sky - the satellites move on the sample
+    // grid, so they are state too - and what the scenario switched on.
+    ModelState {
+        name: "fusion"; target: root
+        properties: ["sigmaPredicted", "lastUpdate", "_lastT", "satellites",
+                     "tunnelOn", "_lidarOn"]
+    }
+    ModelState {
+        name: "kalman"; target: kf
+        properties: ["_x", "_P", "estX", "estY", "sigmaX", "sigmaY"]
+    }
+
     GpsSensor {
         id: gps; clock: clock; truePos: root.truePos
         sigmaM: pGpsSigma.value; rateHz: pGpsRate.value
