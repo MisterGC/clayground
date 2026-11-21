@@ -34,7 +34,9 @@ rendered yet, so DE narrates in text only.
 ## Spoken forms
 
 The on-screen line is not the line to speak: units are read out (`mA` ->
-"milliamps", `V` -> "volts", `Ω` -> "ohms"), em-dashes become commas, and
+"milliamps", `V` -> "volts", `Ω` -> "ohms"), a decimal is written out in
+words where a render garbled the digits ("2.4" -> "two point four"; checked
+by transcribing the clip back), em-dashes become commas, and
 anything that only works for the eye is rewritten for the ear. The exact
 texts rendered:
 
@@ -44,11 +46,11 @@ texts rendered:
 - `switch`: And a switch. Open, it breaks the loop; closed, it joins it. It starts open.
 - `wire`: Now the loop: cell to switch, switch to LED, LED through the resistor and back to the cell. Current needs a closed loop.
 - `flip`: Your turn: click the switch to close the circuit.
-- `current`: What flows round a closed loop is current: how much charge passes each second, measured in amps. The LED gets 5.1 milliamps, thousandths of an amp, and the plot draws it.
+- `current`: What flows round a closed loop is current: how much charge passes each second, measured in amps. The LED gets five point one milliamps, thousandths of an amp, and the plot draws it.
 - `values`: Read it off the board: every part carries the same 5.1 milliamps. Same current everywhere in one loop, that is a series circuit.
 - `volts`: Now the voltages: about 2.1 volts across the LED and 2.4 volts across the resistor. Together they use up the cell's 4.5 volts.
-- `ohm`: That is Ohm's law: current is voltage divided by resistance. 2.4 volts over 470 ohms is 5.1 milliamps. The resistor sets the current.
-- `power`: The plot now shows power: voltage times current, the energy a part turns into light and heat each second, in watts. The LED: 2.1 volts times 5.1 milliamps, about 11 milliwatts; the plot rounds it to 0.01 watts.
+- `ohm`: That is Ohm's law: current is voltage divided by resistance. Two point four volts over 470 ohms is five point one milliamps. The resistor sets the current.
+- `power`: The plot now shows power: voltage times current, the energy a part turns into light and heat each second, in watts. The LED: two point one volts times five point one milliamps, about 11 milliwatts; the plot rounds it to zero point zero one watts.
 - `try`: Try it yourself: select the resistor and drag its slider. Less resistance, more current, brighter LED, until it gives up.
 - `battery-0`: This is the cell, the part that drives everything on this board.
 - `battery-1`: The gold pad is its plus side.
@@ -58,8 +60,8 @@ texts rendered:
 - `resistor-1`: Without it the LED would let through as much as the cell can push, and burn out. This is its seatbelt.
 - `lit-0`: There it is.
 - `lit-1`: The loop is closed, and the LED glows.
-- `why-0`: Why 5.1 milliamps? The LED keeps about 2.1 volts for itself, as LEDs do.
-- `why-1`: The 2.4 volts left over is what pushes the current through the resistor.
+- `why-0`: Why five point one milliamps? The LED keeps about two point one volts for itself, as LEDs do.
+- `why-1`: The two point four volts left over is what pushes the current through the resistor.
 - `logic-meet`: This is a transistor. A small current into one of its legs lets a much larger one through the other two.
 - `logic-legs`: Three legs: the collector at the back, toward the LED, the emitter at the front, toward you, and the base on the left, where the current from the switch comes in. The board says which is which.
 - `logic-switch`: Your turn: close the switch, so a current can reach the base.
