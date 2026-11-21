@@ -50,6 +50,13 @@ static constexpr const char* INSTANCE_ARG_DESCR =
                       "protocol to .clay/inspect/i/<name>/ so several "
                       "instances of the same sandbox can run side by side.";
 
+static constexpr const char* LAB_SRC_ARG = "lab-src";
+static constexpr const char* LAB_SRC_ARG_DESCR =
+                      "Loads Clayground.Lab from its source directory "
+                      "(plugins/clay_lab) instead of the copy compiled into the "
+                      "plugin, so an edit to the lab kernel is live on the next "
+                      "reload - no rebuild, no restart. Needs a build tree.";
+
 static constexpr const char* LIVE_LOADER_CAT = "ClayLiveLoad";
 
 /** Wait this time (in ms) until reacting on file change
@@ -57,3 +64,11 @@ static constexpr const char* LIVE_LOADER_CAT = "ClayLiveLoad";
 static constexpr int RAPID_CHANGE_CATCHTIME = 50;
 
 void addCommonArgs(QCommandLineParser &parser);
+
+// What --lab-src points at, both fixed by the build tree: the directory to put
+// first on the import path (it holds Clayground/Lab/qmldir, written by
+// cmake/claysourcemodule.cmake) and the kernel's source directory, which a
+// live loader has to watch. Empty, with *error saying why, when the import
+// directory is not there - a moved or installed binary has no source tree.
+QString labSourceImportDir(QString* error = nullptr);
+QString labSourceDir();

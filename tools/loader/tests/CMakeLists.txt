@@ -106,8 +106,10 @@ target_link_libraries(tst_inspector_dojo PRIVATE
 )
 
 add_test(NAME inspector_dojo COMMAND tst_inspector_dojo)
+# It also checks that --lab-src takes Clayground.Lab from plugins/clay_lab
+# (#570), so a kernel change runs it (verify.sh, #384).
 set_tests_properties(inspector_dojo PROPERTIES
-    LABELS "inspector;integration"
+    LABELS "inspector;integration;plugins/clay_lab"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 60
 )

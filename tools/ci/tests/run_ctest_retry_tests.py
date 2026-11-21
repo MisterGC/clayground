@@ -126,6 +126,11 @@ with tempfile.TemporaryDirectory() as root:
           ("net_ok" in summary, "other_ok" in summary), (False, False))
     check("a warning names net_once",
           "::warning title=Flaky network test::net_once failed and passed on attempt 2" in out, True)
+    tmp = os.path.join(build, "Testing", "Temporary")
+    first = open(os.path.join(tmp, "FirstRunTest.log")).read()
+    last = open(os.path.join(tmp, "LastTest.log")).read()
+    check("the first run's test log is kept apart from the repeats' (#535)",
+          ("other_ok" in first, "other_ok" in last), (True, False))
 
     # at most two repeats: a third failure fails the job and says so
     code, runs, summary, _ = run(root, build, ["-R", "^(net_once|net_thrice)$"])

@@ -84,16 +84,27 @@ def main():
         return SKIP
 
     page = os.path.relpath(sandbox, root)
-    with lab_check.Loader(loader, sandbox) as session:
-        ready = session.ready(timeout=90)
-        if ready:
-            time.sleep(args.settle)
-        state = session.insp.state()
-        found = problems(os.path.join(session.insp.dir, "log.jsonl"))
-    shutil.rmtree(os.path.join(os.path.dirname(sandbox), ".clay"), ignore_errors=True)
+    try:
+        with lab_check.Loader(loader, sandbox) as session:
+            ready = session.ready()
+            if ready:
+                time.sleep(args.settle)
+                session.check_alive("the settle time to pass")
+            state = session.insp.state()
+            found = problems(os.path.join(session.insp.dir, "log.jsonl"))
+    except lab_check.LoaderDied as died:
+        # a crash ends the wait at once and says why (#536)
+        print(f"FAIL  {page}: {died}")
+        for line in died.tail:
+            print("      " + line)
+        return 1
+    finally:
+        shutil.rmtree(os.path.join(os.path.dirname(sandbox), ".clay"),
+                      ignore_errors=True)
 
     if not ready:
-        print(f"FAIL  {page} never reached phase ready (phase={state.get('phase')})")
+        print(f"FAIL  {page} never reached phase ready within "
+              f"{lab_check.DEFAULT_READY_TIMEOUT} s (phase={state.get('phase')})")
         for p in found:
             print("      " + p)
         return 1

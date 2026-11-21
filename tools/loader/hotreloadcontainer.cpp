@@ -33,14 +33,18 @@ const QString kReloadMarker = QStringLiteral("clayreload");
 class ReloadUrlInterceptor : public QQmlAbstractUrlInterceptor
 {
 public:
-    ReloadUrlInterceptor(const QString& dir, int serial)
-        : m_dir(QDir::cleanPath(dir) + QLatin1Char('/')), m_serial(serial) {}
+    ReloadUrlInterceptor(const QStringList& dirs, int serial)
+        : m_serial(serial)
+    {
+        for (const auto& dir : dirs)
+            m_dirs << QDir::cleanPath(dir) + QLatin1Char('/');
+    }
 
     QUrl intercept(const QUrl& url, DataType type) override
     {
         if (type != QmlFile && type != JavaScriptFile)
             return url;
-        if (!url.isLocalFile() || !url.toLocalFile().startsWith(m_dir))
+        if (!url.isLocalFile() || !underOneOfDirs(url.toLocalFile()))
             return url;
         QUrlQuery query(url);
         query.removeAllQueryItems(kReloadMarker);
@@ -51,7 +55,15 @@ public:
     }
 
 private:
-    QString m_dir;
+    bool underOneOfDirs(const QString& file) const
+    {
+        for (const auto& dir : m_dirs)
+            if (file.startsWith(dir))
+                return true;
+        return false;
+    }
+
+    QStringList m_dirs;
     int m_serial;
 };
 
@@ -275,7 +287,8 @@ void HotReloadContainer::createCandidate()
     ClayScene::applyStorageDir(m_nextEngine.get());
     if (needsReloadUrls() && m_source.isLocalFile()) {
         m_nextInterceptor = std::make_unique<ReloadUrlInterceptor>(
-            QFileInfo(m_source.toLocalFile()).absolutePath(), ++m_reloadSerial);
+            QStringList{QFileInfo(m_source.toLocalFile()).absolutePath()}
+                + m_extraReloadDirs, ++m_reloadSerial);
         m_nextEngine->addUrlInterceptor(m_nextInterceptor.get());
     }
 

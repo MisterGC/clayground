@@ -43,8 +43,10 @@ if(BUILD_TESTING)
                     ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_render_tests.py
                     --clayrender $<TARGET_FILE:clayrender>)
         # Needs a GPU session; the script reports 77 when it cannot get one.
+        # It also reads plugins/clay_lab through --lab-src (#570), so a
+        # kernel change runs it (verify.sh, #384).
         set_tests_properties(clayrender PROPERTIES
-            LABELS "render;integration"
+            LABELS "render;integration;plugins/clay_lab"
             SKIP_RETURN_CODE 77
             TIMEOUT 180)
     endif()

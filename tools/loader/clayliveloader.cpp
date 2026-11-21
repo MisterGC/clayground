@@ -186,6 +186,16 @@ void ClayLiveLoader::addDynImportDir(const QString &path)
     fileObserver_.observeDir(path);
 }
 
+void ClayLiveLoader::setLabSource(const QString &importDir, const QString &sourceDir)
+{
+    labSrcImportDir_ = importDir;
+    labSrcDir_ = sourceDir;
+    // Watched like a sandbox's own directory: an edit to a kernel file is
+    // then an ordinary reload, which reads it from here.
+    fileObserver_.observeDir(sourceDir);
+    qInfo().noquote() << "Clayground.Lab from source:" << sourceDir;
+}
+
 void ClayLiveLoader::addDynPluginDir(const QString &path)
 {
     // Just observe the directory for changes

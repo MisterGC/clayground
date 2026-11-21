@@ -12,24 +12,25 @@ itself, so the promise is checked for every kind and every purpose rather
 than believed. A research lab that shipped no study passed the boot test and
 failed its own check on the first run (#531).
 
-The lab is written into a throwaway checkout-shaped tree:
+The lab is made the way a user makes one outside the repository -
+`lab-new <slug> --dir <tmp>` - into a temp dir with no checkout and no build
+folder around it, so it never sits in the real labs/ beside the gates and the
+website importer that read that directory while ctest runs in parallel. Its
+records regenerate only because lab-check hands records/make.sh and lab-sweep
+the --clayrender given here (#535); the checkout-shaped tree with a build link
+this used before hid that neither looked at it.
 
-    <tmp>/.git                  an empty marker - lab-check and lab-sweep
-                                find the checkout root by it
-    <tmp>/build -> <repo>/build so records/make.sh and lab-sweep find
-                                clayrender where they look for it
-    <tmp>/labs/<slug>/          the generated lab
-
-so it never sits in the real labs/ beside the gates and the website importer
-that read that directory while ctest runs in parallel. Where the link cannot
-be made (Windows without the privilege) lab-check reports the records check
-as NOT RUN, as it does on any machine without clayrender.
+With --clayrender the check runs --strict: records that were not regenerated
+are red, not a quiet pass. The one exception is QT_QPA_PLATFORM=offscreen
+(CI's Linux runners), where clayrender does not start at all and NOT RUN is
+the honest answer.
 
 Exit codes are lab-check's: 0 green, 1 a check failed, 77 (SKIP) no loader.
 """
 
 import argparse
 import os
+import shlex
 import shutil
 import subprocess
 import sys
@@ -38,13 +39,11 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 TOOLDIR = os.path.dirname(HERE)
 REPO = os.path.dirname(os.path.dirname(TOOLDIR))
-sys.path.insert(0, TOOLDIR)
-
-import lab_new as L            # noqa: E402
 
 SKIP = 77
 SLUG = "check-101"
 LAB_CHECK = os.path.join(REPO, "tools", "lab-check", "lab_check.py")
+LAB_NEW = os.path.join(TOOLDIR, "lab_new.py")
 
 
 def main():
@@ -63,21 +62,21 @@ def main():
 
     tmp = tempfile.mkdtemp(prefix=f"lab-new-check-{args.kind}-{args.purpose}-")
     try:
-        open(os.path.join(tmp, ".git"), "w").close()
-        if args.clayrender:
-            build = os.path.dirname(os.path.dirname(os.path.abspath(args.clayrender)))
-            try:
-                os.symlink(build, os.path.join(tmp, "build"),
-                           target_is_directory=True)
-            except OSError as e:
-                print(f"      no build link ({e}) - records will be NOT RUN")
-        lab = os.path.join(tmp, "labs", SLUG)
-        L.generate(SLUG, args.kind, args.purpose, lab)
+        new = [sys.executable, LAB_NEW, SLUG, "--kind", args.kind,
+               "--purpose", args.purpose, "--dir", tmp]
+        made = subprocess.run(new, capture_output=True, text=True)
+        if made.returncode != 0:
+            print(f"FAIL  {' '.join(shlex.quote(c) for c in new)}  "
+                  f"(exit {made.returncode})\n{made.stdout}{made.stderr}")
+            return 1
+        lab = os.path.join(tmp, SLUG)
         print(f"generated {args.kind} x {args.purpose} into {lab}", flush=True)
 
         cmd = [sys.executable, LAB_CHECK, lab, "--loader", loader]
         if args.clayrender:
             cmd += ["--clayrender", os.path.abspath(args.clayrender)]
+            if os.environ.get("QT_QPA_PLATFORM") != "offscreen":
+                cmd.append("--strict")
         return subprocess.run(cmd).returncode
     finally:
         if args.keep:

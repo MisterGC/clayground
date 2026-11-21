@@ -38,6 +38,10 @@ public:
 
     void hotReload();
 
+    // A directory outside the sandbox's whose files a reload must read again,
+    // like the sandbox's own - the lab kernel's sources under --lab-src (#570).
+    void addReloadDir(const QString& dir) { m_extraReloadDirs << dir; }
+
     // Qt 6.10 workaround (see reloadUrlInterceptor in the .cpp): the marker a
     // reload puts on the sandbox's file URLs, removed again from any text an
     // agent or a person reads - a file:line after it would not parse.
@@ -99,4 +103,5 @@ private:
     bool m_completionScheduled = false;
     int m_reloadSerial = 0;
     QStringList m_pendingErrors;
+    QStringList m_extraReloadDirs;
 };

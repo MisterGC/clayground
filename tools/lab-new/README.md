@@ -164,11 +164,14 @@ python3 tools/lab-new/tests/run_boot_test.py \
 **`lab_new_check_<kind>_<purpose>`** — `tests/run_check_test.py`, one per
 discovered kind and purpose. It generates a lab and runs
 `tools/lab-check/lab-check` on it unchanged: the promise this README opens
-with, checked rather than believed. The lab is written into a throwaway tree
-shaped like a checkout (a `.git` marker, a `build` link to the real build,
-`labs/<slug>/`) so it never sits in the real `labs/` while other tests read
-it. Where `clayrender` cannot run, the records check reports NOT RUN, as
-`lab-check` does anywhere. Exits 77 when the loader has not been built.
+with, checked rather than believed. The lab is made as a user makes one outside
+the repository, `lab-new <slug> --dir <tmp>`, into a temp dir with no checkout
+and no build folder around it, so it never sits in the real `labs/` while other
+tests read it, and its records regenerate only with the `--clayrender` passed
+on (#535). The check runs `--strict`: records that were not regenerated are
+red. Only under `QT_QPA_PLATFORM=offscreen` (CI's Linux runners), where
+`clayrender` does not start, does the records check stay NOT RUN. Exits 77 when
+the loader has not been built.
 
 ```sh
 python3 tools/lab-new/tests/run_check_test.py --kind build --purpose research \
