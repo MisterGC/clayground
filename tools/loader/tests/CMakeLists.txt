@@ -142,6 +142,25 @@ if(Python3_FOUND)
         TIMEOUT 180
     )
 
+    # A reload of a lab whose model offers state restores it from the
+    # snapshot its viewState() carries instead of replaying the clock (#568):
+    # at 60 sim seconds the reloaded root holds the same snapshot and runs on
+    # like the outgoing one, and the reload is timed (about 0.1 s; the replay
+    # of the same 60 s of sensor-fusion-101 took 3 to 5 s). It reads a lab
+    # and its kits, so a change under labs/ runs it too.
+    foreach(_snap_lab sensor-fusion-101 hydraulics-101)
+        add_test(NAME loader_snapshot_reload_${_snap_lab}
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload/run_snapshot_reload_test.py
+                    --loader $<TARGET_FILE:clayliveloader>
+                    --lab ${CMAKE_SOURCE_DIR}/labs/${_snap_lab}
+        )
+        set_tests_properties(loader_snapshot_reload_${_snap_lab} PROPERTIES
+            LABELS "inspector;integration;labs;plugins/clay_lab"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_SOUND_MUTE=1"
+            TIMEOUT 180
+        )
+    endforeach()
+
     # A loader kept running carries no state from one question to the next
     # when the reload asks to start fresh: the scenario it names, sim time 0,
     # declared parameters, and two such runs of 600 steps write the same

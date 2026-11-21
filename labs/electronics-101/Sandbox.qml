@@ -210,6 +210,15 @@ Item {
     readonly property int rows: 16
     readonly property real cell: 5
 
+    // --- snapshot (#568) -----------------------------------------------------
+    // A build lab's model is its board: the solver keeps no state of its own
+    // over time, so the board and the clock are the whole run.
+    ModelState {
+        name: "board"
+        save: () => board.state()
+        load: (s) => board.load(s)
+    }
+
     Board {
         id: board
         cols: root.cols; rows: root.rows; cell: root.cell

@@ -19,6 +19,8 @@ import Clayground.Text
 - **CsvModel** - High-level component combining CSV reading/writing with a TableModel for UI display and data binding.
 - **CsvReader** - Low-level CSV file reader that emits signals for column headers and each row.
 - **CsvWriter** - Low-level CSV file writer for creating CSV files programmatically.
+- **TextWriter** - Writes a whole text file in one call and says whether it worked.
+- **TextReader** - Reads a whole text file in one call and says whether it worked.
 - **HighlightedText** - TextArea with regular expression highlighting support for search and emphasis.
 - **TextHighlighter** - Low-level syntax highlighter for QML text documents.
 - **JsonataTransform** - JSONata query processor for powerful JSON data transformation and querying.

@@ -17,6 +17,7 @@ for the first time; the skill does not repeat it.
 - **`Lab`** (singleton) — Global registry connecting parameters, probes and the sim clock. — `plugins/clay_lab/Lab.qml`
 - **`LabPrefs`** (singleton) — The handful of settings that must outlive a reload, and where they go. — `plugins/clay_lab/LabPrefs.qml`
 - **`LabView`** (singleton) — Session-wide view state - currently, whether the HUD is out of the way. — `plugins/clay_lab/LabView.qml`
+- **`ModelState`** — The part of a lab's state only its model knows, for Lab.snapshot(). — `plugins/clay_lab/ModelState.qml`
 - **`ParamPanel`** — Auto-generated slider panel for all registered parameters. — `plugins/clay_lab/ParamPanel.qml`
 - **`Parameter`** — A named, ranged lab parameter, auto-registered with Lab. — `plugins/clay_lab/Parameter.qml`
 - **`Plot2D`** — Live time-series plot of probe samples: lines, scatter, uncertainty bands. — `plugins/clay_lab/Plot2D.qml`

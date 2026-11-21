@@ -193,6 +193,7 @@ Rectangle {
     Connections {
         target: Lab
         function onSampled(t) { _canvas.requestPaint() }
+        function onRestored() { _canvas.requestPaint() }
     }
     Connections {
         target: LabLang
