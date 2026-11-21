@@ -194,10 +194,16 @@ jobs:
     # own (clayrender, the inspector's, the labs' records) aborted on xcb
     # and renders offscreen there. A test that sets its own platform (the
     # QML suites: minimal) keeps it. Windows runners have a desktop.
+    # A failed test labeled network runs up to two more times and the job
+    # passes when a repeat does: a signaling timeout (#421) turned PRs red
+    # that never touched the network. Each repeated test is named in the
+    # job summary; a failure of any other test is never repeated (#574).
     - name: Test
       working-directory: build
       shell: bash
-      run: ctest --output-on-failure ${{ matrix.shard.ctest }}
+      run: |
+        PY=$(command -v python3 || command -v python)
+        "$PY" ../tools/ci/ctest_retry.py --label network --retries 2 -- --output-on-failure ${{ matrix.shard.ctest }}
       env:
         QT_QPA_PLATFORM: ${{ runner.os == 'Linux' && 'offscreen' || '' }}
 
