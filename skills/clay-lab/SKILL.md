@@ -234,7 +234,8 @@ ctest --preset default -R lab_check                       # every lab
 
 Then, in order (clay-crew skill has the inspector protocol):
 
-1. `qmllint` + `waitForRoot` after every edit round.
+1. `$CMAKE_PREFIX_PATH/bin/qmllint -I build/bin/qml <file>` (it ships with
+   Qt, not on the PATH) + `waitForRoot` after every edit round.
 2. Determinism: `lab-check --only determinism`. Both runs need their own
    process and a clock paused before the measured root exists.
 3. **Assertions over screenshots.** `eval` the quantity you changed; if the
