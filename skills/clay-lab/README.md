@@ -7,8 +7,10 @@ verification commands — rules only, under 300 lines. The `references/`
 files carry the depth: `catalog.md` (every kernel block, **generated** from
 the qdoc briefs by `docs/scripts/lab_catalog.py`; ctest `lab_catalog` fails
 when it is stale), `pitfalls.md` (the one list of traps), `flows.md` (the
-flow-authoring recipe) and `triad.md` (paper, board, records, figures,
-studies). The *why* behind the rules is `plugins/clay_lab/README.md`.
+flow-authoring recipe), `teaching.md` (what makes a lesson explain, the
+German, the narration audio, the checklist before handover) and
+`triad.md` (paper, board, records, figures, studies). The *why* behind
+the rules is `plugins/clay_lab/README.md`.
 
 Sibling of `skills/clay-crew`, which owns *verification* through the
 Dojo's inspector protocol — clay-lab composes, clay-crew proves. Both are
