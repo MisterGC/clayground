@@ -27,8 +27,9 @@ a snapshot with a live root, to `time` whether it was started with --paused,
 and to any eval the probe JSON of a lab with two scenarios and no flows.
 Started with --instance <name> it serves under .clay/inspect/i/<name>/, as
 the loader does. That is all lab-check's first session asks before it
-starts a process per run. The count of processes so far is kept in
-<lab>/stand-in-spawns, outside the .clay that lab-check removes per process.
+starts a process per run. Which process is the first is decided by who
+creates <lab>/stand-in-first, outside the .clay that lab-check removes per
+process.
 """
 
 import json
@@ -99,18 +100,20 @@ def main():
     if "--instance" in sys.argv:
         inspect = os.path.join(inspect, "i", sys.argv[sys.argv.index("--instance") + 1])
     os.makedirs(inspect, exist_ok=True)
-    counter = os.path.join(lab, "stand-in-spawns")
+    # The first process is the one whose exclusive create succeeds. A count
+    # read and rewritten in one file raced once the runs went side by side
+    # (#572): a process that read it while another had just truncated it
+    # took itself for the first, and served where it should have crashed.
     try:
-        with open(counter) as f:
-            n = int(f.read() or 0)
-    except OSError:
-        n = 0
-    with open(counter, "w") as f:
-        f.write(str(n + 1))
+        os.close(os.open(os.path.join(lab, "stand-in-first"),
+                         os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+        first = True
+    except FileExistsError:
+        first = False
 
     mode = os.environ.get("STAND_IN_MODE", "crash")
     if mode.endswith("-after-first"):
-        mode = "serve" if n == 0 else mode[:-len("-after-first")]
+        mode = "serve" if first else mode[:-len("-after-first")]
     if mode == "stall":
         mode = "never-ready"
     if mode == "slow":
