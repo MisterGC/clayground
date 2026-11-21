@@ -287,7 +287,9 @@ gives you confidence. Read `status` on every response you get along the
 way — a layer that "passed" against a dead or pre-edit scene is worse
 than no verification at all.
 
-1. **Static analysis (always):** `qmllint <file> -I build/qml`.
+1. **Static analysis (always):** `qmllint <file> -I build/bin/qml`.
+   `qmllint` ships with Qt, not on the PATH:
+   `$CMAKE_PREFIX_PATH/bin/qmllint` (e.g. `~/Qt/6.11.1/macos/bin/qmllint`).
 2. **Load + state check (one batch):** wait for the load to resolve and
    read the result in the same round trip.
    ```json
