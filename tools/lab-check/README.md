@@ -179,19 +179,17 @@ run by hand through `clayrender` and a flow run by the gate have to agree, or
 one of them is lying. What the gate adds is running *every* flow of a lab, each
 in a lab nobody has touched, and turning the answer into a line.
 
-Three things the runs do that are easy to get wrong, and each cost a session:
+Two things the runs do that are easy to get wrong, and each cost a session:
 
-- **The clock is paused before the root that will be measured exists.** The
-  pause is a property of the loader, not of the scene, so it survives a reload:
-  pause, then reload, and the new root's `SimClock` never ticks a wall-clock
+- **The clock is paused before the root that will be measured exists.** Every
+  stepped run starts its loader with `--paused`, so the root is created with
+  `Clayground.paused` already set and its `SimClock` never ticks a wall-clock
   frame. That is what "no wall-clock frame ran before `applyScenario`" means,
   and it is exactly the drift #208 predicted — sensor-fusion-101's first GPS
   sample used to depend on how many frames happened to run during the load.
-- **The outgoing root's clock is reset before the reload.** The loader captures
-  `viewState()` from every root it discards and re-applies it to the next one,
-  and a lab's view state carries its sim time — so `Lab.applyViewState()`
-  re-steps the brand-new clock to where the finished run left it. Without the
-  reset a "fresh" root arrives having already replayed the previous run.
+  Until #572 the run paused by request, reset the clock and reloaded to reach
+  such a root; the root of a loader started paused is that root from birth,
+  and has no outgoing root whose `viewState()` it could inherit.
 - **Every stepped run gets its own loader process.** Two runs sharing a process
   share everything a QML engine does not throw away with the root. Under one
   process electronics-101's parts come back numbered `part12` in the first run

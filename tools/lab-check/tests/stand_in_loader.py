@@ -18,8 +18,10 @@ with the rest of its environment:
                      mute
 
 Serving the lab means phase "ready" and an answer to every inspector request:
-a snapshot with a live root, and to any eval the probe JSON of a lab with two
-scenarios and no flows. That is all lab-check's first session asks before it
+a snapshot with a live root, to `time` whether it was started with --paused,
+and to any eval the probe JSON of a lab with two scenarios and no flows.
+Started with --instance <name> it serves under .clay/inspect/i/<name>/, as
+the loader does. That is all lab-check's first session asks before it
 starts a process per run. The count of processes so far is kept in
 <lab>/stand-in-spawns, outside the .clay that lab-check removes per process.
 """
@@ -59,7 +61,7 @@ def mute(inspect):
         time.sleep(0.1)
 
 
-def serve(inspect):
+def serve(inspect, paused):
     write_json(os.path.join(inspect, "state.json"), {"phase": "ready"})
     request = os.path.join(inspect, "request.json")
     done = None
@@ -75,6 +77,8 @@ def serve(inspect):
                     "status": {"rootLoaded": True, "alive": True}}
             if req.get("action") == "eval":
                 resp["eval"] = {e: json.dumps(PROBE) for e in req.get("eval", [])}
+            elif req.get("action") == "time":
+                resp["paused"] = req.get("paused", paused)
             write_json(os.path.join(inspect, "response.json"), resp)
         time.sleep(0.02)
 
@@ -82,6 +86,8 @@ def serve(inspect):
 def main():
     lab = os.path.dirname(os.path.abspath(sys.argv[sys.argv.index("--sbx") + 1]))
     inspect = os.path.join(lab, ".clay", "inspect")
+    if "--instance" in sys.argv:
+        inspect = os.path.join(inspect, "i", sys.argv[sys.argv.index("--instance") + 1])
     os.makedirs(inspect, exist_ok=True)
     counter = os.path.join(lab, "stand-in-spawns")
     try:
@@ -104,7 +110,7 @@ def main():
     elif mode == "mute":
         mute(inspect)
     else:
-        serve(inspect)
+        serve(inspect, "--paused" in sys.argv)
 
 
 if __name__ == "__main__":
