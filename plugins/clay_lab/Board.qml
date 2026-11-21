@@ -18,6 +18,18 @@ import "board.js" as B
     part types (see \c board.js) and reads the parts back through
     \l changed to solve them; the board never interprets a part's fields.
 
+    \section2 A field change is not a layout change
+
+    \l setField - a switch flipped, a resistor stepped, a battery's volts -
+    changes what a part \e is, not where it is or what it is wired to. It
+    bumps \l rev and re-solves, and that is all: the arrays stay the same
+    arrays, so no Repeater3D hands out new parts, and \l layoutRev stays
+    put, so no wire is routed again. Handing out fresh copies of both arrays
+    and rerouting every wire for a flipped switch froze the XOR board for
+    about 100 ms per flip (#577). A binding about where things are - a
+    position, a turn, a path - reads \l layoutRev; one about what a part
+    holds reads \l rev.
+
     \section2 Mutations publish once
 
     Every mutation edits \l parts / \l wires \e {in place} and then says so.
@@ -64,7 +76,8 @@ QtObject {
         Mutated in place by the board's own verbs; read it, never assign it.
         A binding that reads a part must list \l rev as well: a mutation
         hands back the same object, and re-assigning an identical reference is
-        not a change as far as QML is concerned.
+        not a change as far as QML is concerned. The array itself is replaced
+        only when parts come or go, never for a \l setField.
     */
     property var parts: []
 
@@ -79,6 +92,16 @@ QtObject {
         \brief Bumped by every mutation and every move; the dependency in-place edits need.
     */
     property int rev: 0
+
+    /*!
+        \qmlproperty int Board::layoutRev
+        \brief Bumped when where things are changes: a part added, moved, turned or removed, a wire made or taken away, a load.
+
+        Never by \l setField. \l routes, \l terminalPos and \l terminalDir
+        follow it, so a flipped switch reroutes nothing. Every bump of it is
+        also a bump of \l rev.
+    */
+    property int layoutRev: 0
 
     /*!
         \qmlproperty var Board::router
@@ -153,7 +176,7 @@ QtObject {
     */
     property real padY: 0.35
     function terminalPos(id, ti) {
-        rev
+        layoutRev
         const el = partAt(id)
         if (!el) return Qt.vector3d(0, 0, 0)
         const p = B.terminalPos(spec, geom, el, ti)
@@ -161,7 +184,7 @@ QtObject {
     }
     /*! \qmlmethod var Board::terminalDir(int id, int ti) \brief Which way a lead leaves its pad, \c {{x, z}} or null. */
     function terminalDir(id, ti) {
-        rev
+        layoutRev
         const el = partAt(id)
         return el ? B.terminalDir(spec, el, ti) : null
     }
@@ -180,11 +203,12 @@ QtObject {
         \qmlproperty var Board::routes
         \brief Every wire's drawn path, \c {{ wireId: [{x, z}, ...] }}, from the \l router.
 
-        Routing is GEOMETRY: it follows \l rev and never the solve, so a
-        search over candidate paths cannot end up inside the solve loop.
+        Routing is GEOMETRY: it follows \l layoutRev and never the solve or
+        a field, so a search over candidate paths cannot end up inside the
+        solve loop, and a flipped switch routes nothing again.
     */
     readonly property var routes: {
-        rev
+        layoutRev
         if (!router || !router.all) return ({})
         return router.all(B.linksOf(spec, geom, parts, wires), B.obstaclesOf(spec, geom, parts), lane)
     }
@@ -224,6 +248,7 @@ QtObject {
     property int batchDepth: 0
     property bool _partsDirty: false
     property bool _wiresDirty: false
+    property bool _layoutDirty: false
     property bool _revDirty: false
 
     /*! \qmlmethod void Board::beginBatch() */
@@ -233,22 +258,30 @@ QtObject {
         if (batchDepth > 0) --batchDepth
         if (batchDepth === 0) _flush()
     }
-    // what: "parts", "wires", or anything else for both
+    // what: "parts", "wires", "both", or "fields" - a field leaves both
+    // arrays and the layout alone (#577)
     function _touch(what) {
-        if (what !== "wires") _partsDirty = true
-        if (what !== "parts") _wiresDirty = true
+        if (what === "parts" || what === "both") _partsDirty = true
+        if (what === "wires" || what === "both") _wiresDirty = true
+        if (what !== "fields") _layoutDirty = true
         _revDirty = true
         if (batchDepth === 0) _flush()
     }
     // A view-only change (a part moved or turned): no re-solve, because
     // geometry is not the domain - but the bindings still have to re-read.
     function _touchView() {
+        _layoutDirty = true
         _revDirty = true
-        if (batchDepth === 0) { ++rev; _revDirty = false; changed("view") }
+        if (batchDepth === 0) {
+            ++layoutRev; ++rev
+            _layoutDirty = false; _revDirty = false
+            changed("view")
+        }
     }
     function _flush() {
         if (_partsDirty) { parts = parts.slice(); _partsDirty = false }
         if (_wiresDirty) { wires = wires.slice(); _wiresDirty = false }
+        if (_layoutDirty) { ++layoutRev; _layoutDirty = false }
         if (_revDirty) { ++rev; _revDirty = false }
         changed("solve")
     }
@@ -344,6 +377,9 @@ QtObject {
     /*!
         \qmlmethod bool Board::setField(int id, string key, var value)
         \brief Sets one domain field and publishes; false when nothing changed.
+
+        Publishes \l rev and \l changed, not \l layoutRev, and leaves the
+        arrays as they are: what a part holds is not where it is.
     */
     function setField(id, key, value) {
         const el = partAt(id)
@@ -385,6 +421,7 @@ QtObject {
         nextId = r.nextId
         wiringFrom = null
         selectedId = -1
+        ++layoutRev
         ++rev
         changed("solve")
     }
