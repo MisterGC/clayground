@@ -164,8 +164,23 @@ QtObject {
         if (!par) { console.warn("Lab: unknown parameter " + name); return false }
         let v = Number(value)
         if (par.to > par.from) v = Math.max(par.from, Math.min(par.to, v))
+        par._keepDefault()
         par.value = v
         return true
+    }
+
+    /*!
+        \qmlmethod void Lab::resetParameters()
+        \brief Puts every registered parameter back to its \c defaultValue.
+
+        Touches parameters only: the clock, the probes and the scenario stay
+        as they are. Applying a scenario resets the clock; this is the other
+        half of a clean start without a reload.
+
+        \sa Parameter::reset
+    */
+    function resetParameters() {
+        for (const n of paramNames) _params[n].reset()
     }
 
     function takeSamples(t) {
