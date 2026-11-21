@@ -28,6 +28,7 @@
 #include <QMutexLocker>
 #include <QQuickItem>
 #include <QTemporaryDir>
+#include <QTemporaryFile>
 #include <QTextStream>
 
 #include <memory>
@@ -288,7 +289,14 @@ int main(int argc, char* argv[])
 
     QCommandLineParser parser;
     parser.setApplicationDescription(
-        "Render one Clayground sandbox to a PNG and exit.\n"
+        "Render one Clayground sandbox to a PNG, or answer a question about\n"
+        "it, and exit.\n"
+        "\n"
+        "A picture is written with --out, or when a picture option (--crop,\n"
+        "--crop-pad, --scale, --width) or nothing else is asked - then into a\n"
+        "new file in the temp directory, whose path is printed. A run that only\n"
+        "asks (--stats, --dump, --project, --pick, --anchor, --result,\n"
+        "--trace) writes no picture.\n"
         "\n"
         "Stateless by design: no dojo, no session, no protocol - so several\n"
         "variants can be rendered in parallel and a stale or dead instance\n"
@@ -322,7 +330,10 @@ int main(int argc, char* argv[])
             "which any other headless host can set the same way.")
             .arg(QLatin1String(ClayScene::StorageDirEnvVar)),
         "isolated|user|dir", "isolated");
-    QCommandLineOption outOpt({"o", "out"}, "Write the PNG here.", "file", "shot.png");
+    QCommandLineOption outOpt({"o", "out"},
+        "Write the PNG here. Without it a run that asks a question writes no "
+        "picture, and one that asks nothing writes it into the temp directory "
+        "- never into the current one.", "file");
     QCommandLineOption sizeOpt("size", "Viewport size, e.g. 1600x1000.", "WxH", "1280x800");
     QCommandLineOption setOpt("set",
         "Assign a property after load, before capture: --set 'showLabels=false'. "
@@ -482,6 +493,17 @@ int main(int argc, char* argv[])
             return fail(QString("--stats wants a frame count, got '%1'")
                             .arg(parser.value(statsOpt)));
     }
+
+    // A picture when one is named or shaped, or when nothing else is asked: a
+    // run that came for numbers should not leave a PNG behind, and one that
+    // names no file must not drop it into whatever folder it was started in.
+    const bool asksQuestion = statsSlots > 0 || !traced.isEmpty()
+        || parser.isSet(dumpOpt) || parser.isSet(projectOpt)
+        || parser.isSet(pickOpt) || parser.isSet(anchorOpt)
+        || parser.isSet(resultOpt);
+    const bool shapesPicture = parser.isSet(cropOpt) || parser.isSet(cropPadOpt)
+        || parser.isSet(scaleOpt) || parser.isSet(widthOpt);
+    const bool wantPicture = parser.isSet(outOpt) || shapesPicture || !asksQuestion;
 
     RenderHost host;
     host.setPausedOnLoad(parser.isSet(pausedOpt));
@@ -699,13 +721,15 @@ int main(int argc, char* argv[])
     if (parser.isSet(widthOpt))
         capReq.targetWidth = parser.value(widthOpt).toInt();
 
-    auto capture = ClayScene::capture(host, capReq);
+    ClayScene::CaptureResult capture;
+    if (wantPicture)
+        capture = ClayScene::capture(host, capReq);
     // The capture's frame is the last sample: it is the frame the picture
     // shows. Whatever renders after this (--pick grabs the full frame again)
     // is not part of the run being observed.
     host.setFrameRendered({});
     trace.close();
-    if (!capture.ok())
+    if (wantPicture && !capture.ok())
         return fail(capture.error);
 
     if (parser.isSet(pickOpt)) {
@@ -723,17 +747,28 @@ int main(int argc, char* argv[])
             << "\n";
     }
 
-    QString saveError;
-    const QString outPath = parser.value(outOpt);
-    if (!ClayScene::saveImage(capture.image, outPath, &saveError))
-        return fail(saveError);
+    if (wantPicture) {
+        QString outPath = parser.value(outOpt);
+        if (outPath.isEmpty()) {
+            // A file of its own, so two runs at once never share a name.
+            QTemporaryFile file(QDir::tempPath() + "/clayrender-XXXXXX.png");
+            file.setAutoRemove(false);
+            if (!file.open())
+                return fail(QString("cannot create a picture in %1: %2")
+                                .arg(QDir::tempPath(), file.errorString()));
+            outPath = file.fileName();
+        }
+        QString saveError;
+        if (!ClayScene::saveImage(capture.image, outPath, &saveError))
+            return fail(saveError);
 
-    QTextStream(stdout) << outPath << " ("
-                        << capture.image.width() << "x"
-                        << capture.image.height() << ")\n";
+        QTextStream(stdout) << outPath << " ("
+                            << capture.image.width() << "x"
+                            << capture.image.height() << ")\n";
+    }
 
-    // The picture exists either way - but a scene that threw is not a scene
-    // you should trust, so say so and exit non-zero.
+    // The picture and the answers exist either way - but a scene that threw
+    // is not a scene you should trust, so say so and exit non-zero.
     const int problems = qmlProblemCount();
     if (problems > 0) {
         QTextStream(stderr) << "clayrender: " << problems
