@@ -4,6 +4,7 @@
 
     flip_check.py <Sandbox.qml> --open JS --flip JS
                   [--flips 10] [--flip-limit 16] [--opens 3] [--open-limit 50]
+                  [--timings enforce|report]
                   [--keep JS]... [--keep-each JS]... [--clayrender build/bin/clayrender]
 
 On the XOR board of electronics-101 one switch flip blocked the window for
@@ -26,6 +27,13 @@ The limits are the issue's: a flip under 16 ms at the median, an open under
 50 ms. Measured on an M-series Mac a flip takes 3 to 5 ms and an open 25 to
 37 ms; before #577, 85 to 125 ms and 88 to 98 ms. The fastest open is the one checked, not the median: a build beside it
 slows a run down, and the fastest of three still says what an open costs.
+
+--timings report prints the timings and fails on the object checks alone.
+The limits are milliseconds measured on a Mac with a GPU; the Windows CI
+runner draws without one and took 106 to 160 ms to open the board and up to
+15 ms for a flip, so a fixed limit there fails on the runner, not on the
+board. labs/CMakeLists.txt enforces the limits on macOS and reports them
+elsewhere.
 
 Exit 0 under the limits, 1 not, 77 no clayrender built or no GPU session.
 """
@@ -77,6 +85,7 @@ def main():
     ap.add_argument("--flip-limit", type=float, default=16)
     ap.add_argument("--keep", action="append", default=[])
     ap.add_argument("--keep-each", action="append", default=[])
+    ap.add_argument("--timings", choices=("enforce", "report"), default="enforce")
     ap.add_argument("--clayrender", default="build/bin/clayrender")
     a = ap.parse_args()
 
@@ -115,10 +124,13 @@ def main():
           f"limit {a.flip_limit:g}), open fastest {open_min} ms "
           f"(of {o['open']}, limit {a.open_limit:g})")
     ok = True
-    if flip_med >= a.flip_limit:
+    enforce = a.timings == "enforce"
+    if not enforce:
+        print("  timings reported, not checked (--timings report)")
+    if enforce and flip_med >= a.flip_limit:
         print(f"FAIL: a flip takes {flip_med} ms at the median, the limit is {a.flip_limit:g}")
         ok = False
-    if open_min >= a.open_limit:
+    if enforce and open_min >= a.open_limit:
         print(f"FAIL: the fastest open took {open_min} ms, the limit is {a.open_limit:g}")
         ok = False
     for k, same in o["kept"].items():
