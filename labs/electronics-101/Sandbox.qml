@@ -337,12 +337,32 @@ Item {
             on: (switchStates && switchStates[el.id] !== undefined)
                 ? switchStates[el.id] : el.on,
             func: el.func,
+            // an LED that has burnt out is open for good - the solver has to
+            // be told, it cannot remember
+            blown: !!el.blown,
             // a battery carries its own volts; the panel slider is a master
             // that moves them all at once
             value: el.type === "battery" ? (el.value || defaultVolts) : el.value
         }))
     }
-    function resolve() { sim = Circuit.solve(solverElements(null), wires) }
+    // Solve, and let an LED past its maximum burn out. The kit decides which
+    // LEDs burn (burnOut); the board is where it sticks, so a burnt LED stays
+    // dark after the current comes back down - until its card replaces it or
+    // the scenario is loaded again (#539). Marking it re-enters resolve once,
+    // which then finds nothing left to burn.
+    function resolve() {
+        const r = Circuit.burnOut(solverElements(null), wires)
+        sim = r.result
+        if (r.burnt.length === 0) return
+        board.beginBatch()
+        for (const id of r.burnt) board.setField(id, "blown", true)
+        board.endBatch()
+    }
+    // a new LED in the old one's place: same pads, same wires, intact
+    function replaceLed(id) {
+        const el = elemAt(id)
+        if (el && el.type === "led") board.setField(id, "blown", false)
+    }
     function setBatteryVolts(id, v) {
         const el = elemAt(id)
         if (!el || el.type !== "battery") return
@@ -1142,6 +1162,7 @@ Item {
             "flipSwitch": (id) => toggleSwitch(id),
             "setVolts":   (id, v) => setBatteryVolts(id, v),
             "setOhms":    (id, ohms) => setResistanceStep(id, resistorStepOf(ohms)),
+            "replaceLed": (id) => replaceLed(id),
             "watch":      (id, on) => setWatched(id, on),
             // which quantity the plot draws: "I", "V" or "P"
             "plot":       (q) => { monitor.quantity = q },
@@ -1521,7 +1542,10 @@ Item {
         for (const el of elements) byType[el.type] = (byType[el.type] || 0) + 1
         info.circuit = { elements: byType, wires: wires.length,
                          nets: sim.netCount || 0, shorted: sim.shorted,
-                         overloaded: sim.overloaded, iterations: sim.iterations }
+                         overloaded: sim.overloaded, iterations: sim.iterations,
+                         // the LEDs that have burnt out and not been replaced
+                         blown: elements.filter(e => e.type === "led" && e.blown)
+                                        .map(e => e.id) }
         // the gate's answer, measured, so an agent can check what the lab
         // teaches without reading a single pixel
         if (hasLogic)
@@ -1840,6 +1864,11 @@ Item {
                 simV: root.simOf(modelData.id).v
                 simPower: root.simOf(modelData.id).power
                 lit: root.simOf(modelData.id).on
+                blown: {
+                    root.elemRev
+                    const e = root.elemAt(modelData.id)
+                    return e ? !!e.blown : false
+                }
                 // which region a transistor is working in, so five identical
                 // black blobs stop looking identical
                 mode: {
@@ -2858,11 +2887,14 @@ Item {
         }
         if (e.type === "gate")
             return LabLang.t("gate." + (e.func || "and")).toUpperCase()
+        if (e.type === "led")
+            return name + "  " + LabLang.t(e.blown ? "led.burnt" : "led.intact")
         return name
     }
     // h/l on the card's rows: a switch's state, a gate's function, a value.
     function adjustCardRow(el, row, d) {
         if (row === "state") { setSwitch(el.id, !el.on); return true }
+        if (row === "replace") { replaceLed(el.id); return true }
         if (row === "func") {
             const i = gateFuncs.indexOf(el.func || "and")
             const n = gateFuncs.length
@@ -3022,6 +3054,39 @@ Item {
                                        root.setSwitch(selCard.part.id, parent.modelData)
                     }
                 }
+            }
+        }
+
+        // An LED's limit, and the way back once it is past it. Intact, the
+        // row says what the part takes at most - the number the lesson
+        // asks the learner to find; burnt out, it is the one thing on the
+        // card worth doing: put a new LED in (#539).
+        Rectangle {
+            id: ledState
+            visible: selCard.part !== null && selCard.part.type === "led"
+            readonly property bool blown: {
+                root.elemRev
+                return selCard.part !== null && !!selCard.part.blown
+            }
+            width: selCard.width - 20
+            height: visible ? LabTheme.px(20) : 0
+            radius: LabTheme.px(4)
+            color: blown ? LabTheme.alarm : LabTheme.paper
+            border.color: blown ? LabTheme.alarm : LabTheme.panelEdge
+            border.width: LabTheme.borderWidth
+            CardFocusRing { on: selCard.focusedRow === "replace" }
+            Text {
+                anchors.centerIn: parent
+                text: ledState.blown ? LabLang.t("led.replace")
+                                     : LabLang.tf("led.rated", LabLang.num(Circuit.I_MAX_LED * 1000, 0) + " mA")
+                color: LabTheme.inkOn(parent.color)
+                font.pixelSize: LabTheme.fontSmall; font.bold: ledState.blown
+                font.family: LabTheme.monoFont
+            }
+            MouseArea {
+                anchors.fill: parent
+                enabled: ledState.blown
+                onClicked: if (selCard.part) root.replaceLed(selCard.part.id)
             }
         }
 
