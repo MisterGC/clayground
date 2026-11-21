@@ -15,6 +15,7 @@
 #include "sound_mixer.h"
 #include "synth_instrument.h"
 
+#include <QScopeGuard>
 #include <QtTest/QtTest>
 #include <QAudioOutput>
 #include <QSignalSpy>
@@ -352,6 +353,16 @@ void SoundMixTest::musicFollowsTheMusicBus()
 {
     // Music plays on QMediaPlayer, not on the engine; what it hands its
     // QAudioOutput is its own volume times the music bus volume.
+    //
+    // CLAY_SOUND_MUTE holds that output at 0, and a muted test run sets it
+    // (#555). Only volumes are read here and no source is set, so nothing
+    // plays: the mute is lifted for this test and put back after it.
+    const QByteArray mute = qgetenv("CLAY_SOUND_MUTE");
+    qunsetenv("CLAY_SOUND_MUTE");
+    const auto restoreMute = qScopeGuard([&mute] {
+        if (!mute.isNull()) qputenv("CLAY_SOUND_MUTE", mute);
+    });
+
     Music music;
     auto *out = music.findChild<QAudioOutput *>();
     QVERIFY(out);
