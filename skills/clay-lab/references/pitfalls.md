@@ -231,9 +231,8 @@ until you publish.
 - **Measure determinism with the clock PAUSED.** The frame ticker keeps
   running between inspector round-trips, so "same seed, same N steps"
   silently compares N and N+30 steps. Pause before the root exists —
-  `clayrender --paused`; in a loader, pause with the inspector's `time`
-  action (the same `Clayground.paused`) and then reload, as `lab-check`
-  does — then `time step`, then read, otherwise you will chase a
+  `clayrender --paused`, or start the loader (or dojo) with `--paused`, as
+  `lab-check` does — then `time step`, then read, otherwise you will chase a
   determinism bug that is not there.
 - `SimClock.wasReset` exists so sensors/estimators snap at scenario
   boundaries instead of blending across a reset.
@@ -252,10 +251,9 @@ until you publish.
   the outgoing root and re-applies it to the new one, and
   `Lab.applyViewState` re-steps a world-less clock to the recorded sim
   time — so a reloaded lab arrives having replayed the run you just
-  finished. Reset the outgoing clock *after* pausing and before asking for
-  the reload, or take a new process. (Reset before pausing and the ticker
-  fills the gap, which is why the first run of a session was the only one
-  that differed.)
+  finished. Ask for `{"action": "reload", "fresh": true}` (#566), which
+  drops the captured view state, or take a new process started with
+  `--paused`, as `lab-check` does (#572).
 - **A record's identity is per-process.** A probe named after a
   monotonically increasing part id (`part12`) names a different part in a
   session that built something earlier. Two runs of one scenario belong in

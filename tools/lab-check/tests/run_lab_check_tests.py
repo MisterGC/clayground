@@ -277,6 +277,25 @@ printf 'a\n' > "$2/a-42.labrec"
 """
 
 
+# The same, for a make.sh given one scenario per run: it writes that
+# scenario's record and notes the call.
+FAKE_MAKE_PER_SCENARIO = """#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ "$1" = "--out-dir" ]
+echo "$3" >> "$here/calls"
+cp "$here/$3-42.labrec" "$2/$3-42.labrec"
+"""
+
+
+def record_text(scenario):
+    """A committed record whose command names its make.sh scenario."""
+    header = {"format": "clay-lab-record/1", "id": f"{scenario}-42",
+              "command": f"labs/rec-split-101/records/make.sh {scenario}"}
+    return ("# Clayground lab record v1\n" + json.dumps(header, indent=2)
+            + "\n# samples\nt\n0\n")
+
+
 def fake_lab(tmp, name, committed):
     lab = os.path.join(tmp, name)
     rec = os.path.join(lab, "records")
@@ -348,6 +367,25 @@ def test_records(tmp):
     strict = subprocess.run(base + ["--strict"], capture_output=True, text=True)
     check("records: --strict exits 1 when a check did not run",
           strict.returncode == 1, f"exit {strict.returncode}")
+
+    # Records that say which make.sh run regenerates them are regenerated one
+    # run each, side by side (#572)
+    lab, render = fake_lab(tmp, "rec-split-101", {
+        f"{sc}-42.labrec": record_text(sc) for sc in ("one", "two")})
+    with open(os.path.join(lab, "records", "make.sh"), "w") as f:
+        f.write(FAKE_MAKE_PER_SCENARIO)
+    check("records: the scenario each record's command names is read",
+          L.record_scenarios(os.path.join(lab, "records")) == ["one", "two"],
+          str(L.record_scenarios(os.path.join(lab, "records"))))
+    rep = Recorder()
+    ok = L.check_records(rep, lab, os.path.join(work, "p"), render)
+    calls = open(os.path.join(lab, "records", "calls")).read().split()
+    check("records: make.sh runs once per committed record, with its scenario",
+          sorted(calls) == ["one", "two"], str(calls))
+    check("records: the per-record runs pass as one line",
+          ok and rep.detail("records: make.sh") == "2 records", str(rep.lines))
+    check("records: a record that names no scenario means one run for all",
+          L.record_scenarios(os.path.join(tmp, "rec-given-101", "records")) is None)
 
 
 # -- remarks ----------------------------------------------------------------
@@ -628,6 +666,10 @@ ENV_LINES = [
      "D:/a/clayground/Qt/6.10.1/msvc2022_64/lib/fonts.\nNote that Qt no longer "
      "ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for "
      "example) or switch to fontconfig."},
+    # ... and on Windows, while lab-check reads the inspector's files (#572)
+    {"level": "warning", "text": "ClayInspector: replacing \"D:/a/clayground/"
+     "clayground/labs/character-101/.clay/inspect/i/lab-check-2/state.json\" "
+     "took 2 attempts"},
     {"level": "log", "text": "qml: a log line is never a diagnostic"},
 ]
 
@@ -638,9 +680,13 @@ def test_load_diagnostics(tmp):
           came_up and clean is True, det)
     check("load: every message the five labs log offscreen, macOS, Linux and Windows, is on the list",
           all(L.environment_name(e["text"], e.get("category", "default"))
-              for e in ENV_LINES[:9]),
+              for e in ENV_LINES if e["level"] != "log"),
           str([L.environment_name(e["text"], e.get("category", "default"))
-               for e in ENV_LINES[:9]]))
+               for e in ENV_LINES if e["level"] != "log"]))
+    check("load: an inspector replace that never succeeded is not the environment",
+          L.environment_name("ClayInspector: failed to write state.json") is None
+          and L.environment_name('ClayInspector: replacing "/x/labs/a/B.qml" '
+                                 "took 2 attempts") is None)
     check("load: the README holds the environment list, entry by entry",
           all(f"`{name}`" in open(os.path.join(os.path.dirname(HERE),
                                                "README.md")).read()
@@ -740,6 +786,21 @@ def run_with_stand_in(tmp, name, mode, ready_timeout):
          "--only", "load,determinism,flows,triad,remarks"], mode)
 
 
+def most_at_once(log):
+    """The most intervals of a "start end" log that overlap at one instant."""
+    try:
+        spans = [tuple(map(float, l.split())) for l in open(log) if l.strip()]
+    except OSError:
+        return 0
+    edges = sorted([(a, 1) for a, _b in spans] + [(b, -1) for _a, b in spans],
+                   key=lambda e: (e[0], e[1]))
+    now = peak = 0
+    for _t, step in edges:
+        now += step
+        peak = max(peak, now)
+    return peak
+
+
 def quote(out):
     """The output a failing line carries - its last lines, where the verdict is."""
     return " | ".join(out.splitlines()[-8:])
@@ -812,6 +873,47 @@ def test_loader_watch(tmp):
           "PASS  triad: paper.md exists" in out, quote(out))
     check("loader: a protocol timeout ends within its ready timeout",
           took < 15, f"{took:.1f} s against a 2 s timeout")
+
+    # --jobs: the stepped runs go side by side, and no more of them than
+    # asked for (#572). Two scenarios are four runs, each holding its eval
+    # for half a second.
+    for jobs, most in ((1, 1), (3, 3)):
+        lab = stand_in_lab(tmp, f"jobs{jobs}-101")
+        _code, out, took = run_timed(
+            [sys.executable, LAB_CHECK, lab, "--loader", STAND_IN,
+             "--jobs", str(jobs), "--only", "determinism"], "slow-after-first")
+        peak = most_at_once(os.path.join(lab, "stand-in-evals"))
+        check(f"jobs: --jobs {jobs} runs at most {most} at once",
+              1 <= peak <= most, f"{peak} at once, {took:.1f} s: {quote(out)}")
+        if jobs > 1:
+            check(f"jobs: --jobs {jobs} runs more than one at once", peak > 1,
+                  f"{peak} at once")
+        check(f"jobs: the header names --jobs {jobs}", f"jobs={jobs}," in out,
+              out.splitlines()[0] if out else "")
+
+    # A flow lab-check.json names does not wait for the first session, which
+    # asks whether the lab loads: it needs nothing that session answers, so
+    # the session's question and the flow's run are held at the same time
+    lab = stand_in_lab(tmp, "flow-first-101")
+    with open(os.path.join(lab, "lab-check.json"), "w") as f:
+        json.dump({"purpose": "learning", "flows": ["f1"]}, f)
+    _code, out, _took = run_timed([sys.executable, LAB_CHECK, lab, "--loader",
+                                   STAND_IN, "--only", "load,flows"], "slow")
+    peak = most_at_once(os.path.join(lab, "stand-in-evals"))
+    check("jobs: a named flow runs beside the first session, not after it",
+          peak == 2, f"{peak} at once: {quote(out)}")
+
+    # ...so the two must not share a settings store: two loaders opening one
+    # LocalStorage database at once race on its version (#572)
+    lines = [l.split(" ", 1) for l in
+             open(os.path.join(lab, "stand-in-stores")).read().splitlines()]
+    session = [store for kind, store in lines if kind == "ticking"]
+    stepped = [store for kind, store in lines if kind == "paused"]
+    check("jobs: the first session keeps the settings store it was given",
+          session == [os.environ.get("CLAY_STORAGE_DIR", "-")], str(lines))
+    check("jobs: a stepped run gets a settings store of its own",
+          stepped and all(s != "-" and s not in session for s in stepped)
+          and len(set(stepped)) == len(stepped), str(lines))
 
     # load_check.py, the load stage for pages that are not labs, reports a
     # dead loader the same way

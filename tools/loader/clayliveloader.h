@@ -33,6 +33,9 @@ public:
     void setAltMessage(const QString &altMessage);
     QString instanceName() const;
     void setInstanceName(const QString &name);
+    // --paused (#572): the time control starts paused, before the first root
+    bool startPaused() const { return startPaused_; }
+    void setStartPaused(bool paused) { startPaused_ = paused; }
     int numRestarts() const;
     // --lab-src (#570): the directory put first on every engine's import path
     // and the kernel source directory watched for edits; empty when not set.
@@ -80,6 +83,7 @@ private:
     QTimer reload_;
     QString altMessage_;
     QString instanceName_;
+    bool startPaused_ = false;
     int numRestarts_ = 0;
     QString labSrcImportDir_;
     QString labSrcDir_;

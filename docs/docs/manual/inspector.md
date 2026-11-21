@@ -357,6 +357,11 @@ count is 0 with a clean error when no world consumed the request (plain QML
 app). Non-world apps can opt in by binding their own timers/animations to the
 two Clayground properties.
 
+Start the loader (or the dojo, which passes it on) with `--paused` to have the
+clock paused before the sandbox root exists: no frame runs before your first
+request, so a stepped run starts from sim time 0 without pausing and reloading
+first. `{"action": "time", "paused": false}` lets it run.
+
 ### input — synthesized player input
 
 ```json

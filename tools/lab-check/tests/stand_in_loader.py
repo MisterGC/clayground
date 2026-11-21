@@ -16,12 +16,23 @@ with the rest of its environment:
                      crash
   mute-after-first   the first process serves the lab; every later one is
                      mute
+  slow               serve the lab, holding each eval for 0.5 s and noting
+                     when it held it in <lab>/stand-in-evals - which is how
+                     a test sees how many runs went at the same time (#572)
+  slow-after-first   the first process serves the lab; every later one is
+                     slow
 
 Serving the lab means phase "ready" and an answer to every inspector request:
-a snapshot with a live root, and to any eval the probe JSON of a lab with two
-scenarios and no flows. That is all lab-check's first session asks before it
-starts a process per run. The count of processes so far is kept in
-<lab>/stand-in-spawns, outside the .clay that lab-check removes per process.
+a snapshot with a live root, to `time` whether it was started with --paused,
+and to any eval the probe JSON of a lab with two scenarios and no flows.
+Started with --instance <name> it serves under .clay/inspect/i/<name>/, as
+the loader does. That is all lab-check's first session asks before it
+starts a process per run. The first process is the one that creates
+<lab>/stand-in-first, outside the .clay that lab-check removes: an exclusive
+create, because the runs start side by side and a counter in a file was read
+half-written, so a later process took itself for the first (#572). Every
+process appends its CLAY_STORAGE_DIR, "-" when it has none, to
+<lab>/stand-in-stores.
 """
 
 import json
@@ -59,7 +70,7 @@ def mute(inspect):
         time.sleep(0.1)
 
 
-def serve(inspect):
+def serve(inspect, paused, hold_log=None):
     write_json(os.path.join(inspect, "state.json"), {"phase": "ready"})
     request = os.path.join(inspect, "request.json")
     done = None
@@ -73,8 +84,15 @@ def serve(inspect):
             done = req.get("id")
             resp = {"requestId": done,
                     "status": {"rootLoaded": True, "alive": True}}
+            if req.get("action") == "eval" and hold_log:
+                start = time.time()
+                time.sleep(0.5)
+                with open(hold_log, "a") as f:
+                    f.write(f"{start} {time.time()}\n")
             if req.get("action") == "eval":
                 resp["eval"] = {e: json.dumps(PROBE) for e in req.get("eval", [])}
+            elif req.get("action") == "time":
+                resp["paused"] = req.get("paused", paused)
             write_json(os.path.join(inspect, "response.json"), resp)
         time.sleep(0.02)
 
@@ -82,29 +100,35 @@ def serve(inspect):
 def main():
     lab = os.path.dirname(os.path.abspath(sys.argv[sys.argv.index("--sbx") + 1]))
     inspect = os.path.join(lab, ".clay", "inspect")
+    if "--instance" in sys.argv:
+        inspect = os.path.join(inspect, "i", sys.argv[sys.argv.index("--instance") + 1])
     os.makedirs(inspect, exist_ok=True)
-    counter = os.path.join(lab, "stand-in-spawns")
     try:
-        with open(counter) as f:
-            n = int(f.read() or 0)
-    except OSError:
-        n = 0
-    with open(counter, "w") as f:
-        f.write(str(n + 1))
+        os.close(os.open(os.path.join(lab, "stand-in-first"),
+                         os.O_CREAT | os.O_EXCL | os.O_WRONLY))
+        first = True
+    except FileExistsError:
+        first = False
+
+    with open(os.path.join(lab, "stand-in-stores"), "a") as f:
+        f.write(("paused " if "--paused" in sys.argv else "ticking ")
+                + os.environ.get("CLAY_STORAGE_DIR", "-") + "\n")
 
     mode = os.environ.get("STAND_IN_MODE", "crash")
     if mode.endswith("-after-first"):
-        mode = "serve" if n == 0 else mode[:-len("-after-first")]
+        mode = "serve" if first else mode[:-len("-after-first")]
     if mode == "stall":
         mode = "never-ready"
+    if mode == "slow":
+        serve(inspect, "--paused" in sys.argv, os.path.join(lab, "stand-in-evals"))
     if mode == "crash":
         crash()
     elif mode == "never-ready":
         never_ready(inspect)
     elif mode == "mute":
         mute(inspect)
-    else:
-        serve(inspect)
+    elif mode != "slow":
+        serve(inspect, "--paused" in sys.argv)
 
 
 if __name__ == "__main__":
