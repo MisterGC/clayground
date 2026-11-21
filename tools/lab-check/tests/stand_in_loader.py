@@ -16,6 +16,10 @@ with the rest of its environment:
                      crash
   mute-after-first   the first process serves the lab; every later one is
                      mute
+  slow-after-first   the first process serves the lab; every later one
+                     serves it too, holding each eval for 0.5 s and noting
+                     when it held it in <lab>/stand-in-evals - which is how
+                     a test sees how many runs went at the same time (#572)
 
 Serving the lab means phase "ready" and an answer to every inspector request:
 a snapshot with a live root, to `time` whether it was started with --paused,
@@ -61,7 +65,7 @@ def mute(inspect):
         time.sleep(0.1)
 
 
-def serve(inspect, paused):
+def serve(inspect, paused, hold_log=None):
     write_json(os.path.join(inspect, "state.json"), {"phase": "ready"})
     request = os.path.join(inspect, "request.json")
     done = None
@@ -75,6 +79,11 @@ def serve(inspect, paused):
             done = req.get("id")
             resp = {"requestId": done,
                     "status": {"rootLoaded": True, "alive": True}}
+            if req.get("action") == "eval" and hold_log:
+                start = time.time()
+                time.sleep(0.5)
+                with open(hold_log, "a") as f:
+                    f.write(f"{start} {time.time()}\n")
             if req.get("action") == "eval":
                 resp["eval"] = {e: json.dumps(PROBE) for e in req.get("eval", [])}
             elif req.get("action") == "time":
@@ -103,13 +112,15 @@ def main():
         mode = "serve" if n == 0 else mode[:-len("-after-first")]
     if mode == "stall":
         mode = "never-ready"
+    if mode == "slow":
+        serve(inspect, "--paused" in sys.argv, os.path.join(lab, "stand-in-evals"))
     if mode == "crash":
         crash()
     elif mode == "never-ready":
         never_ready(inspect)
     elif mode == "mute":
         mute(inspect)
-    else:
+    elif mode != "slow":
         serve(inspect, "--paused" in sys.argv)
 
 

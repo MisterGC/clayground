@@ -277,6 +277,25 @@ printf 'a\n' > "$2/a-42.labrec"
 """
 
 
+# The same, for a make.sh given one scenario per run: it writes that
+# scenario's record and notes the call.
+FAKE_MAKE_PER_SCENARIO = """#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ "$1" = "--out-dir" ]
+echo "$3" >> "$here/calls"
+cp "$here/$3-42.labrec" "$2/$3-42.labrec"
+"""
+
+
+def record_text(scenario):
+    """A committed record whose command names its make.sh scenario."""
+    header = {"format": "clay-lab-record/1", "id": f"{scenario}-42",
+              "command": f"labs/rec-split-101/records/make.sh {scenario}"}
+    return ("# Clayground lab record v1\n" + json.dumps(header, indent=2)
+            + "\n# samples\nt\n0\n")
+
+
 def fake_lab(tmp, name, committed):
     lab = os.path.join(tmp, name)
     rec = os.path.join(lab, "records")
@@ -348,6 +367,25 @@ def test_records(tmp):
     strict = subprocess.run(base + ["--strict"], capture_output=True, text=True)
     check("records: --strict exits 1 when a check did not run",
           strict.returncode == 1, f"exit {strict.returncode}")
+
+    # Records that say which make.sh run regenerates them are regenerated one
+    # run each, side by side (#572)
+    lab, render = fake_lab(tmp, "rec-split-101", {
+        f"{sc}-42.labrec": record_text(sc) for sc in ("one", "two")})
+    with open(os.path.join(lab, "records", "make.sh"), "w") as f:
+        f.write(FAKE_MAKE_PER_SCENARIO)
+    check("records: the scenario each record's command names is read",
+          L.record_scenarios(os.path.join(lab, "records")) == ["one", "two"],
+          str(L.record_scenarios(os.path.join(lab, "records"))))
+    rep = Recorder()
+    ok = L.check_records(rep, lab, os.path.join(work, "p"), render)
+    calls = open(os.path.join(lab, "records", "calls")).read().split()
+    check("records: make.sh runs once per committed record, with its scenario",
+          sorted(calls) == ["one", "two"], str(calls))
+    check("records: the per-record runs pass as one line",
+          ok and rep.detail("records: make.sh") == "2 records", str(rep.lines))
+    check("records: a record that names no scenario means one run for all",
+          L.record_scenarios(os.path.join(tmp, "rec-given-101", "records")) is None)
 
 
 # -- remarks ----------------------------------------------------------------
@@ -737,6 +775,21 @@ def run_with_stand_in(tmp, name, mode, ready_timeout):
          "--only", "load,determinism,flows,triad,remarks"], mode)
 
 
+def most_at_once(log):
+    """The most intervals of a "start end" log that overlap at one instant."""
+    try:
+        spans = [tuple(map(float, l.split())) for l in open(log) if l.strip()]
+    except OSError:
+        return 0
+    edges = sorted([(a, 1) for a, _b in spans] + [(b, -1) for _a, b in spans],
+                   key=lambda e: (e[0], e[1]))
+    now = peak = 0
+    for _t, step in edges:
+        now += step
+        peak = max(peak, now)
+    return peak
+
+
 def quote(out):
     """The output a failing line carries - its last lines, where the verdict is."""
     return " | ".join(out.splitlines()[-8:])
@@ -809,6 +862,23 @@ def test_loader_watch(tmp):
           "PASS  triad: paper.md exists" in out, quote(out))
     check("loader: a protocol timeout ends within its ready timeout",
           took < 15, f"{took:.1f} s against a 2 s timeout")
+
+    # --jobs: the stepped runs go side by side, and no more of them than
+    # asked for (#572). Two scenarios are four runs, each holding its eval
+    # for half a second.
+    for jobs, most in ((1, 1), (3, 3)):
+        lab = stand_in_lab(tmp, f"jobs{jobs}-101")
+        _code, out, took = run_timed(
+            [sys.executable, LAB_CHECK, lab, "--loader", STAND_IN,
+             "--jobs", str(jobs), "--only", "determinism"], "slow-after-first")
+        peak = most_at_once(os.path.join(lab, "stand-in-evals"))
+        check(f"jobs: --jobs {jobs} runs at most {most} at once",
+              1 <= peak <= most, f"{peak} at once, {took:.1f} s: {quote(out)}")
+        if jobs > 1:
+            check(f"jobs: --jobs {jobs} runs more than one at once", peak > 1,
+                  f"{peak} at once")
+        check(f"jobs: the header names --jobs {jobs}", f"jobs={jobs}," in out,
+              out.splitlines()[0] if out else "")
 
     # load_check.py, the load stage for pages that are not labs, reports a
     # dead loader the same way
