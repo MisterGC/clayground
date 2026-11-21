@@ -197,6 +197,32 @@ QtObject {
     readonly property string handFont: _pick(["Patrick Hand", "Bradley Hand",
         "Chalkboard SE", "Comic Sans MS"], "")
 
+    /*!
+        \qmlproperty string LabTheme::canvasMono
+        \readonly
+        \brief monoFont as the family part of a Canvas \c ctx.font.
+
+        The quoted family where it is installed, \c monospace where it is
+        not. Use it as \c{ctx.font = LabTheme.fontSmall + "px " +
+        LabTheme.canvasMono}.
+    */
+    // A Text item falls back quietly from a family that is not installed;
+    // Context2D logs "The font families specified are invalid" instead and
+    // drops the declaration. monoFont falls back to "Courier", which is not
+    // installed where there are no fonts at all (offscreen on Windows), and
+    // handFont to "" where no hand font is (a Linux runner): a generic family
+    // is valid on every machine (#534).
+    readonly property string canvasMono: _canvasFamily(monoFont, "monospace")
+    /*!
+        \qmlproperty string LabTheme::canvasHand
+        \readonly
+        \brief handFont as the family part of a Canvas \c ctx.font.
+
+        The quoted family where it is installed, \c sans-serif where it is
+        not, the same way as canvasMono.
+    */
+    readonly property string canvasHand: _canvasFamily(handFont, "sans-serif")
+
     // The type scale. Seven roles because seven sizes were in use and each one
     // was carrying a distinction; named by job, so a widget says what it is
     // showing rather than how big it is. Definitions and the node suite that
@@ -318,6 +344,13 @@ QtObject {
         \brief Switches to the other palette.
     */
     function toggle() { mode = dark ? "light" : "dark" }
+
+    function _canvasFamily(family, generic) {
+        // quoted: a family with a space in it is not a valid CSS font
+        // shorthand unquoted, and Context2D rejects the whole declaration
+        return family && Qt.fontFamilies().indexOf(family) !== -1
+                ? '"' + family + '"' : generic
+    }
 
     function _pick(want, fallback) {
         const have = Qt.fontFamilies()

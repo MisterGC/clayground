@@ -223,25 +223,25 @@ this section was typed from memory.
 | rank | network | `stddev/mean` of arrivals | spread over seeds | mean arrivals /min | mean waiting % | mean speed u/s |
 |---|---|---|---|---|---|---|
 | 1 | `ring` | **0.045** | 0.019 | 222.6 | 0.0 | 13.50 |
-| 2 | `cross` | 0.099 | 0.061 | 53.4 | 29.9 | 6.21 |
-| 3 | `tree` | 0.101 | 0.025 | 64.5 | 13.5 | 8.90 |
-| 4 | `grid` | 0.111 | 0.101 | 87.9 | 10.7 | 10.68 |
+| 2 | `cross` | 0.099 | 0.060 | 53.4 | 29.9 | 6.21 |
+| 3 | `tree` | 0.101 | 0.026 | 64.6 | 13.5 | 8.90 |
+| 4 | `grid` | 0.110 | 0.102 | 87.9 | 10.7 | 10.68 |
 
 The fleet check first, because the whole comparison rests on it: the
-per-network mean of the `cars` probe runs from 19.16 (`ring`) to 19.88
+per-network mean of the `cars` probe runs from 19.15 (`ring`) to 19.87
 (`cross`) against a pinned target of 20, and no single run leaves the band
-19.06 (`ring-57`) – 19.90 (`cross-11`). Every network really did carry the
+19.08 (`ring-57`) – 19.90 (`cross-11`). Every network really did carry the
 same traffic, so nothing below is a lane-length effect in disguise.
 
 **The ring wins, and it wins cleanly.** Its worst run (`ring-11`, 0.056) is
-steadier than the best run of every other network (`grid-42` 0.070,
-`cross-11` 0.072, `tree-57` 0.085). Not one of the twelve non-ring runs
+steadier than the best run of every other network (`grid-42` 0.068,
+`cross-11` 0.075, `tree-57` 0.085). Not one of the twelve non-ring runs
 overlaps any of the four ring runs, which is a stronger statement than the
 means alone — with four seeds each, a gap that no realisation crosses is
 worth more than a difference between averages.
 
 **The other three are indistinguishable.** `cross` 0.099, `tree` 0.101,
-`grid` 0.111 sit inside their own seed spreads (0.061, 0.025, 0.101). Four
+`grid` 0.110 sit inside their own seed spreads (0.060, 0.026, 0.102). Four
 seeds cannot separate them and this study does not claim to. Their *order* in
 the table is not a result.
 
