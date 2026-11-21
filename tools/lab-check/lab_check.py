@@ -1449,26 +1449,36 @@ def main():
         # The .clay of an earlier check, once: each loader of this one only
         # clears its own instance directory
         shutil.rmtree(os.path.join(lab_dir, ".clay"), ignore_errors=True)
-        records = start_records(pool, lab_dir, workdir, render, jobs) \
-            if "records" in wanted else None
         if needs_scene:
             runs = iter(range(1, 1 << 30))
             lock = threading.Lock()
 
             def spawn(stepped=True):
-                # A stepped run gets a paused clock and an instance of its
-                # own; the first session, which asks whether the lab loads,
-                # runs the lab as a person sees it, ticking.
+                # A stepped run gets a paused clock; the first session, which
+                # asks whether the lab loads, runs the lab as a person sees
+                # it, ticking. Every one serves under an instance of its own,
+                # the first session too: flows can be running beside it.
                 with lock:
                     n = next(runs)
                 return Loader(loader, sandbox, quiet=not args.verbose,
                               ready_timeout=args.ready_timeout, paused=stepped,
-                              instance=f"lab-check-{n}" if stepped else None)
+                              instance=f"lab-check-{n}")
             spawn.stalled = None
             spawn.stall_reported = False
+        # A flow is usually the longest run of a check, so flows that
+        # lab-check.json names go first - they need nothing the first session
+        # answers - and the records after them
+        flow_runs = None
+        if needs_scene and "flows" in wanted and isinstance(cfg.get("flows"), list):
+            flow_runs = start_flows(pool, spawn, flows_to_run(cfg, []),
+                                    max_flow_steps)
+        records = start_records(pool, lab_dir, workdir, render, jobs) \
+            if "records" in wanted else None
+        if needs_scene:
             try:
                 run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir,
-                                 lab_id, steps, max_flow_steps, workdir)
+                                 lab_id, steps, max_flow_steps, workdir,
+                                 flow_runs)
             except TimeoutError as e:
                 # A loader that is up and no longer answers. The scene checks
                 # left cannot ask it anything; the checks below never needed
@@ -1524,7 +1534,9 @@ def flows_to_run(cfg, published):
 
 
 def run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir, lab_id,
-                     steps, max_flow_steps, workdir):
+                     steps, max_flow_steps, workdir, flow_runs=None):
+    """`flow_runs` are flows already handed to the pool, when lab-check.json
+    named them; otherwise the flows are the ones the lab publishes."""
     # One session answers everything that is a QUESTION about the lab - does
     # it load, what does it call its scenarios, what does it say in German.
     # The runs that are EXPERIMENTS each get their own process further down.
@@ -1560,7 +1572,8 @@ def run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir, lab_id,
     # determinism pairs. The report reads them back in the order it always
     # printed them.
     flows = flows_to_run(cfg, probe.get("flows", [])) if "flows" in wanted else []
-    flow_runs = start_flows(pool, spawn, flows, max_flow_steps)
+    if flow_runs is None:
+        flow_runs = start_flows(pool, spawn, flows, max_flow_steps)
     det_runs = start_determinism(pool, spawn, lab_dir, lab_id, scenarios, steps,
                                  workdir) \
         if "determinism" in wanted and isinstance(scenarios, list) else []
