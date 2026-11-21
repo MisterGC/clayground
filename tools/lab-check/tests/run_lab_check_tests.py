@@ -40,14 +40,14 @@ def check(name, ok, detail=""):
 class Recorder(L.Report):
     """A Report that keeps quiet, so a test can assert on what it collected."""
 
-    def check(self, name, ok, detail=""):
+    def check(self, name, ok, detail="", seconds=None):
         self.lines.append((name, ok, detail))
         return ok
 
     def note(self, text):
         pass
 
-    def not_run(self, name, why):
+    def not_run(self, name, why, seconds=None):
         self.skipped.append((name, why))
 
     def detail(self, needle):
@@ -277,6 +277,25 @@ printf 'a\n' > "$2/a-42.labrec"
 """
 
 
+# The same, for a make.sh given one scenario per run: it writes that
+# scenario's record and notes the call.
+FAKE_MAKE_PER_SCENARIO = """#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ "$1" = "--out-dir" ]
+echo "$3" >> "$here/calls"
+cp "$here/$3-42.labrec" "$2/$3-42.labrec"
+"""
+
+
+def record_text(scenario):
+    """A committed record whose command names its make.sh scenario."""
+    header = {"format": "clay-lab-record/1", "id": f"{scenario}-42",
+              "command": f"labs/rec-split-101/records/make.sh {scenario}"}
+    return ("# Clayground lab record v1\n" + json.dumps(header, indent=2)
+            + "\n# samples\nt\n0\n")
+
+
 def fake_lab(tmp, name, committed):
     lab = os.path.join(tmp, name)
     rec = os.path.join(lab, "records")
@@ -348,6 +367,25 @@ def test_records(tmp):
     strict = subprocess.run(base + ["--strict"], capture_output=True, text=True)
     check("records: --strict exits 1 when a check did not run",
           strict.returncode == 1, f"exit {strict.returncode}")
+
+    # Records that say which make.sh run regenerates them are regenerated one
+    # run each, side by side (#572)
+    lab, render = fake_lab(tmp, "rec-split-101", {
+        f"{sc}-42.labrec": record_text(sc) for sc in ("one", "two")})
+    with open(os.path.join(lab, "records", "make.sh"), "w") as f:
+        f.write(FAKE_MAKE_PER_SCENARIO)
+    check("records: the scenario each record's command names is read",
+          L.record_scenarios(os.path.join(lab, "records")) == ["one", "two"],
+          str(L.record_scenarios(os.path.join(lab, "records"))))
+    rep = Recorder()
+    ok = L.check_records(rep, lab, os.path.join(work, "p"), render)
+    calls = open(os.path.join(lab, "records", "calls")).read().split()
+    check("records: make.sh runs once per committed record, with its scenario",
+          sorted(calls) == ["one", "two"], str(calls))
+    check("records: the per-record runs pass as one line",
+          ok and rep.detail("records: make.sh") == "2 records", str(rep.lines))
+    check("records: a record that names no scenario means one run for all",
+          L.record_scenarios(os.path.join(tmp, "rec-given-101", "records")) is None)
 
 
 # -- remarks ----------------------------------------------------------------
@@ -527,7 +565,7 @@ def test_drivers():
     a runtime error inside a lab an hour later. Render both here."""
     ok = True
     try:
-        L.FLOW_JS % {"flow": L.js_str("f"), "maxSteps": 10}
+        L.FLOW_JS % {"flow": L.js_str("f"), "lang": L.js_str("de"), "maxSteps": 10}
         L.RUN_JS % {"scenario": L.js_str("s"), "steps": 5, "lab": L.js_str("l"),
                     "dest": L.js_str("/tmp/x"), "command": L.js_str("c")}
     except (KeyError, ValueError, TypeError) as e:
@@ -535,9 +573,13 @@ def test_drivers():
     if ok:
         check("drivers: every template renders", True)
 
-    js = L.FLOW_JS % {"flow": L.js_str("led-basics"), "maxSteps": 42}
+    js = L.FLOW_JS % {"flow": L.js_str("led-basics"), "lang": L.js_str("de"),
+                      "maxSteps": 42}
     check("drivers: the flow check calls the kernel's runFlow, not its own loop",
           "Lab.runFlow(" in js and '"led-basics"' in js and "maxSteps: 42" in js)
+    check("drivers: the flow runs in the language it is handed (#573)",
+          'LabLang.lang = "de"' in js
+          and js.index('LabLang.lang = "de"') < js.index("Lab.runFlow("))
     check("drivers: braces balance in the rendered flow driver",
           js.count("{") == js.count("}"),
           f"{js.count('{')} open, {js.count('}')} close")
@@ -628,6 +670,10 @@ ENV_LINES = [
      "D:/a/clayground/Qt/6.10.1/msvc2022_64/lib/fonts.\nNote that Qt no longer "
      "ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for "
      "example) or switch to fontconfig."},
+    # ... and on Windows, while lab-check reads the inspector's files (#572)
+    {"level": "warning", "text": "ClayInspector: replacing \"D:/a/clayground/"
+     "clayground/labs/character-101/.clay/inspect/i/lab-check-2/state.json\" "
+     "took 2 attempts"},
     {"level": "log", "text": "qml: a log line is never a diagnostic"},
 ]
 
@@ -638,9 +684,13 @@ def test_load_diagnostics(tmp):
           came_up and clean is True, det)
     check("load: every message the five labs log offscreen, macOS, Linux and Windows, is on the list",
           all(L.environment_name(e["text"], e.get("category", "default"))
-              for e in ENV_LINES[:9]),
+              for e in ENV_LINES if e["level"] != "log"),
           str([L.environment_name(e["text"], e.get("category", "default"))
-               for e in ENV_LINES[:9]]))
+               for e in ENV_LINES if e["level"] != "log"]))
+    check("load: an inspector replace that never succeeded is not the environment",
+          L.environment_name("ClayInspector: failed to write state.json") is None
+          and L.environment_name('ClayInspector: replacing "/x/labs/a/B.qml" '
+                                 "took 2 attempts") is None)
     check("load: the README holds the environment list, entry by entry",
           all(f"`{name}`" in open(os.path.join(os.path.dirname(HERE),
                                                "README.md")).read()
@@ -722,9 +772,9 @@ def stand_in_lab(tmp, name):
     return lab
 
 
-def run_timed(cmd, mode):
+def run_timed(cmd, mode, **extra_env):
     """(exit code, output, seconds it took) of cmd with STAND_IN_MODE=mode."""
-    env = dict(os.environ, STAND_IN_MODE=mode)
+    env = dict(os.environ, STAND_IN_MODE=mode, **extra_env)
     start = time.time()
     proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
                           stderr=subprocess.STDOUT, text=True, timeout=120)
@@ -738,6 +788,21 @@ def run_with_stand_in(tmp, name, mode, ready_timeout):
         [sys.executable, LAB_CHECK, lab, "--loader", STAND_IN,
          "--ready-timeout", str(ready_timeout),
          "--only", "load,determinism,flows,triad,remarks"], mode)
+
+
+def most_at_once(log):
+    """The most intervals of a "start end" log that overlap at one instant."""
+    try:
+        spans = [tuple(map(float, l.split())) for l in open(log) if l.strip()]
+    except OSError:
+        return 0
+    edges = sorted([(a, 1) for a, _b in spans] + [(b, -1) for _a, b in spans],
+                   key=lambda e: (e[0], e[1]))
+    now = peak = 0
+    for _t, step in edges:
+        now += step
+        peak = max(peak, now)
+    return peak
 
 
 def quote(out):
@@ -813,6 +878,47 @@ def test_loader_watch(tmp):
     check("loader: a protocol timeout ends within its ready timeout",
           took < 15, f"{took:.1f} s against a 2 s timeout")
 
+    # --jobs: the stepped runs go side by side, and no more of them than
+    # asked for (#572). Two scenarios are four runs, each holding its eval
+    # for half a second.
+    for jobs, most in ((1, 1), (3, 3)):
+        lab = stand_in_lab(tmp, f"jobs{jobs}-101")
+        _code, out, took = run_timed(
+            [sys.executable, LAB_CHECK, lab, "--loader", STAND_IN,
+             "--jobs", str(jobs), "--only", "determinism"], "slow-after-first")
+        peak = most_at_once(os.path.join(lab, "stand-in-evals"))
+        check(f"jobs: --jobs {jobs} runs at most {most} at once",
+              1 <= peak <= most, f"{peak} at once, {took:.1f} s: {quote(out)}")
+        if jobs > 1:
+            check(f"jobs: --jobs {jobs} runs more than one at once", peak > 1,
+                  f"{peak} at once")
+        check(f"jobs: the header names --jobs {jobs}", f"jobs={jobs}," in out,
+              out.splitlines()[0] if out else "")
+
+    # A flow lab-check.json names does not wait for the first session, which
+    # asks whether the lab loads: it needs nothing that session answers, so
+    # the session's question and the flow's run are held at the same time
+    lab = stand_in_lab(tmp, "flow-first-101")
+    with open(os.path.join(lab, "lab-check.json"), "w") as f:
+        json.dump({"purpose": "learning", "flows": ["f1"]}, f)
+    _code, out, _took = run_timed([sys.executable, LAB_CHECK, lab, "--loader",
+                                   STAND_IN, "--only", "load,flows"], "slow")
+    peak = most_at_once(os.path.join(lab, "stand-in-evals"))
+    check("jobs: a named flow runs beside the first session, not after it",
+          peak == 2, f"{peak} at once: {quote(out)}")
+
+    # ...so the two must not share a settings store: two loaders opening one
+    # LocalStorage database at once race on its version (#572)
+    lines = [l.split(" ", 1) for l in
+             open(os.path.join(lab, "stand-in-stores")).read().splitlines()]
+    session = [store for kind, store in lines if kind == "ticking"]
+    stepped = [store for kind, store in lines if kind == "paused"]
+    check("jobs: the first session keeps the settings store it was given",
+          session == [os.environ.get("CLAY_STORAGE_DIR", "-")], str(lines))
+    check("jobs: a stepped run gets a settings store of its own",
+          stepped and all(s != "-" and s not in session for s in stepped)
+          and len(set(stepped)) == len(stepped), str(lines))
+
     # load_check.py, the load stage for pages that are not labs, reports a
     # dead loader the same way
     lab = stand_in_lab(tmp, "load-crash-101")
@@ -827,6 +933,148 @@ def test_loader_watch(tmp):
           'module "Clayground.Missing" is not installed' in out, quote(out))
     check("load_check: a dead loader is seen well within the 90 s timeout",
           took < 15, f"{took:.1f} s")
+
+
+# -- a lab outside the checkout, every language, --json (#573) ----------------
+
+
+def test_default_binary(tmp):
+    tool_build = os.path.join(L.TOOL_ROOT, "build", "bin")
+    exe = "clayliveloader" + (".exe" if os.name == "nt" else "")
+
+    # a lab copied to a folder in no checkout: the build beside the tool
+    far = os.path.join(tmp, "copied", "far-101")
+    os.makedirs(far)
+    got = L.default_binary(far, "clayliveloader")
+    check("binary: a lab in no checkout uses the build beside the tool",
+          got == os.path.join(tool_build, exe), got)
+
+    # a lab in a checkout with a build of its own: that build, as before
+    co = os.path.join(tmp, "other-checkout")
+    lab = os.path.join(co, "labs", "near-101")
+    os.makedirs(lab)
+    os.makedirs(os.path.join(co, "build", "bin"))
+    open(os.path.join(co, ".git"), "w").close()   # a worktree's .git is a file
+    own = os.path.join(co, "build", "bin", exe)
+    open(own, "w").close()
+    got = L.default_binary(lab, "clayliveloader")
+    check("binary: a lab in a built checkout uses that checkout's build",
+          got == own, got)
+
+    # ...and a checkout with no build: the tool's again
+    os.remove(own)
+    got = L.default_binary(lab, "clayliveloader")
+    check("binary: a lab in an unbuilt checkout falls back to the tool's build",
+          got == os.path.join(tool_build, exe) or got == own, got)
+    if os.path.isfile(os.path.join(tool_build, exe)):
+        check("binary: ...which exists here, so it is chosen",
+              got == os.path.join(tool_build, exe), got)
+
+
+def test_flow_langs():
+    check("langs: every registered language, English first",
+          L.flow_langs({"langs": ["de", "en", "fr"]}) == ["en", "de", "fr"],
+          str(L.flow_langs({"langs": ["de", "en", "fr"]})))
+    check("langs: a lab that names none still runs in English",
+          L.flow_langs({}) == ["en"], str(L.flow_langs({})))
+
+
+def test_every_language(tmp):
+    """A flow is run once per language the lab registers, each run in a
+    loader with a settings store of its own: a run in German sets
+    LabLang.lang, which LabPrefs would otherwise keep for the next one."""
+    lab = stand_in_lab(tmp, "langs-101")
+    with open(os.path.join(lab, "lab-check.json"), "w") as f:
+        json.dump({"purpose": "learning", "flows": ["f1", "f2"]}, f)
+    _code, out, _took = run_timed(
+        [sys.executable, LAB_CHECK, lab, "--loader", STAND_IN,
+         "--only", "load,flows"], "serve", STAND_IN_LANGS="en,de")
+    names = [l.split("  ")[1] for l in out.splitlines()
+             if l.startswith(("PASS  flows:", "FAIL  flows:"))]
+    check("langs: every flow runs in every language, flow by flow",
+          names == ["flows: f1 [en]", "flows: f1 [de]",
+                    "flows: f2 [en]", "flows: f2 [de]"], str(names))
+    # "paused <dir>" per flow run, "ticking -" for the first session, which
+    # keeps the store it was given (#572)
+    stores = [l.split(" ", 1)[1] for l in
+              open(os.path.join(lab, "stand-in-stores")).read().splitlines()
+              if l.startswith("paused ")]
+    check("langs: every flow run gets a settings store of its own",
+          len(stores) == 4 and "-" not in stores and len(set(stores)) == 4,
+          str(stores))
+
+
+def run_json(cmd, mode="serve"):
+    """(exit code, the parsed stdout or None, stdout) of a --json run."""
+    env = dict(os.environ, STAND_IN_MODE=mode)
+    proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True, timeout=120)
+    try:
+        doc = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        doc = None
+    return proc.returncode, doc, proc.stdout
+
+
+def test_json(tmp):
+    lab = stand_in_lab(tmp, "json-101")
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--loader",
+                               STAND_IN, "--only", "load,triad", "--json"])
+    check("json: stdout is one JSON document and nothing else",
+          doc is not None, raw[:200])
+    if doc is None:
+        return
+    check("json: it carries the exit code the process ended with",
+          doc.get("exit") == code == 0, f"exit {code}, json {doc.get('exit')}")
+    check("json: it names the lab and its purpose",
+          doc.get("lab") == "json-101" and doc.get("purpose") == "learning",
+          f"{doc.get('lab')} {doc.get('purpose')}")
+    checks = doc.get("checks", [])
+    keys = {"name", "check", "status", "passed", "detail", "seconds"}
+    check("json: every check has name, status, passed, detail and seconds",
+          checks and all(keys <= set(c) for c in checks),
+          str(checks[:1]))
+    check("json: seconds are numbers, none negative",
+          all(isinstance(c["seconds"], (int, float)) and c["seconds"] >= 0
+              for c in checks), str([c["seconds"] for c in checks]))
+    names = [c["name"] for c in checks]
+    check("json: the checks are the lines, in their order",
+          names[:1] == ["load: the lab reaches phase ready"]
+          and "triad: paper.md exists" in names, str(names))
+    check("json: the counts add up",
+          doc.get("passed") + doc.get("failed") + doc.get("notRun") == len(checks)
+          and doc.get("failed") == 0, str({k: doc.get(k) for k in
+                                           ("passed", "failed", "notRun")}))
+
+    # a failing run: exit 1, the failing check passed: false with its detail
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--loader",
+                               STAND_IN, "--only", "load", "--json"], "crash")
+    failed = [c for c in (doc or {}).get("checks", []) if c["status"] == "fail"]
+    check("json: a failing run says exit 1 and which check failed",
+          code == 1 and doc and doc["exit"] == 1 and failed
+          and failed[0]["passed"] is False
+          and "exit code 3" in failed[0]["detail"], raw[:300])
+
+    # nothing checked: exit 2 and 77 still print a document with the reason
+    empty = os.path.join(tmp, "not-a-lab")
+    os.makedirs(empty)
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, empty, "--json"])
+    check("json: a directory with no Sandbox.qml is exit 2 with the reason",
+          code == 2 and doc and doc["exit"] == 2 and doc["checks"] == []
+          and "Sandbox.qml" in (doc["error"] or ""), raw[:300])
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--json",
+                               "--only", "nonsense"])
+    check("json: an unknown check is exit 2 with the reason",
+          code == 2 and doc and "nonsense" in (doc["error"] or ""), raw[:300])
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--json",
+                               "--no-such-option"])
+    check("json: a wrong option is exit 2, still a document",
+          code == 2 and doc and doc["exit"] == 2, raw[:300])
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--json",
+                               "--loader", os.path.join(tmp, "no-loader")])
+    check("json: no loader is exit 77 with the reason",
+          code == L.SKIP and doc and doc["exit"] == L.SKIP
+          and "does not exist" in (doc["error"] or ""), raw[:300])
 
 
 def main():
@@ -849,9 +1097,13 @@ def main():
         test_drivers()
         test_step_of()
         test_load_diagnostics(tmp)
+        test_default_binary(tmp)
+        test_flow_langs()
         if os.name != "nt":
             # the stand-in loader is started as an executable script
             test_loader_watch(tmp)
+            test_every_language(tmp)
+            test_json(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

@@ -347,9 +347,13 @@ name, every parameter, the parameter log (values at the last reset and
 every change since, with its sim time), each probe's samples, and a
 `DataRecorder` that is recording — so a record finished after a restore
 holds the whole run. Not in it: how the frame ticker is paced
-(`timeScale`, `Clayground.paused`, a clock left resting or woken), the
-camera and what the sandbox shows. Pacing decides when time moves, not what
-the run is, which is why it stays out.
+(`timeScale`, `Clayground.paused`, `SimClock.resting`), the camera and what
+the sandbox shows. Pacing decides when time moves, not what the run is,
+which is why it stays out. `resting` is a binding on the model, so a
+restored lab rests again exactly when its restored model says so; the
+private `_awake` that `wake()` sets is not snapshot state either - it only
+lets the ticker run on to the next sample, and every sample clears it, so a
+wake pending when the snapshot is taken is not carried.
 
 What only the model knows - what it has built up while time ran - it hands
 over through a `ModelState` per object that keeps such state:

@@ -56,17 +56,18 @@ temporary directory with the determinism runs' records.
 
 ## Flows
 
-| detail after `flows: <id>` | what to do |
+| detail after `flows: <id> [<lang>]` | what to do |
 |---|---|
 | `flows: the lab has at least one` | a teaching lab owes a flow: add one and list it in `flows()` |
 | `unresolved verb <name>` | a step names a verb that `flowActions()` does not return — a typo, or the verb was renamed |
 | `task never satisfied: <step>` | a learner task's condition never became true while the flow drove the lab. Read its condition against what the steps before it built; the flow's own verbs must make it reachable |
 | `expect failed: <step>` | the measured value is not the one the step claims. Either the lab changed (fix the narration and the expect together) or the expect reads an interpolant: read a goal (`spread`, `focus`), never a `…Now` value |
 | `finished: false` | the flow stopped before its last step — often `maxFlowSteps` in `lab-check.json` (default 20000 sim frames) is shorter than the flow's waits |
+| red in one language only, `flows: <id> [de]` | each flow runs once per registered language, and a step waits as long as its line takes to read: the longer German lines move every later task and expect in time. Run it by hand in that language: add `LabLang.lang = "de";` before `Lab.runFlow` in the command below |
 | `flows() does not publish this id` | `lab-check.json` lists an id that `flows()` does not return |
 | `the lab never reached phase ready within <n> s` or `the lab did not come back from a reload within <n> s` | a fresh lab for this flow failed to load; see *Load* |
 | `the loader ended with exit code <n>` | the loader died during this flow; its last output follows. See `load: the loader keeps running` |
-| `NOT RUN  flows: <id>` or `NOT RUN  determinism: <scenario>` | an earlier run's loader never got the lab ready, so this run was not started: one timeout, not one per run. Fix the run that failed first |
+| `NOT RUN  flows: <id> [<lang>]` or `NOT RUN  determinism: <scenario>` | an earlier run's loader never got the lab ready, so this run was not started: one timeout, not one per run. Fix the run that failed first |
 
 One flow by hand: `clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png
 --paused --result - --eval 'Lab.runFlow("<id>")'` (`flows.md`).

@@ -48,6 +48,7 @@ void applyCliArgsToLoader(QCommandLineParser& parser, ClayLiveLoader& loader)
             loader.setInstanceName(parser.value(INSTANCE_ARG));
 
         loader.setRestoreView(parser.isSet(RESTORE_VIEW_ARG));
+        loader.setStartPaused(parser.isSet(PAUSED_ARG));
 
         if (parser.isSet(LAB_SRC_ARG)) {
             QString error;

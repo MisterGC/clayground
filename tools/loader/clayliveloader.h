@@ -37,6 +37,9 @@ public:
     // process saved for the sandbox.
     bool restoreView() const { return restoreView_; }
     void setRestoreView(bool on) { restoreView_ = on; }
+    // --paused (#572): the time control starts paused, before the first root
+    bool startPaused() const { return startPaused_; }
+    void setStartPaused(bool paused) { startPaused_ = paused; }
     int numRestarts() const;
     // --lab-src (#570): the directory put first on every engine's import path
     // and the kernel source directory watched for edits; empty when not set.
@@ -85,6 +88,7 @@ private:
     QString altMessage_;
     QString instanceName_;
     bool restoreView_ = false;
+    bool startPaused_ = false;
     int numRestarts_ = 0;
     QString labSrcImportDir_;
     QString labSrcDir_;

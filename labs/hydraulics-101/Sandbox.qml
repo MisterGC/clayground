@@ -148,8 +148,18 @@ Item {
 
     // --- the clock and the probes ---------------------------------------------------
     // The solver has no time of its own; the clock paces the samples and the
-    // wheel's spin, so a record is a pure function of the step count.
-    SimClock { id: clock; seed: 42; sampleInterval: 0.1 }
+    // wheel's spin, so a record is a pure function of the step count. With
+    // no water moving, no lesson running and nothing recorded there is
+    // nothing for it to pace, and it rests rather than redraw a still board
+    // sixty times a second (#575); an edit wakes it for one sample, so the
+    // watched strips still get the new reading.
+    SimClock {
+        id: clock; seed: 42; sampleInterval: 0.1
+        resting: !wires3d.flowing && !wheelFlow.running
+                 && !recorder.recording
+        readonly property var _solve: root.sim
+        on_SolveChanged: wake()
+    }
     Probe {
         name: "qPump"; unit: "L/s"
         expr: () => {
@@ -428,8 +438,15 @@ Item {
                 turning: root.simOf(modelData.id).on
                 speed: root.simOf(modelData.id).speed
                 // the wheel's angle from the sim clock, so a stepped record
-                // and the live lab agree on where it stands
-                phase: (clock.time * root.simOf(modelData.id).speed * 6) % 360
+                // and the live lab agree on where it stands. A wheel that
+                // stands still does not read the clock: the time in a binding
+                // redraws the scene every frame, and every part has this
+                // binding, so a board with nothing flowing drew 60 frames a
+                // second (#575). Speed 0 put the angle at 0 before as well.
+                phase: {
+                    const s = root.simOf(modelData.id).speed
+                    return s !== 0 ? (clock.time * s * 6) % 360 : 0
+                }
                 shorted: { const p = root.pumpOf(modelData.id); return p !== null && p.shorted }
                 overloaded: { const p = root.pumpOf(modelData.id); return p !== null && p.overloaded }
                 selected: board.selectedId === modelData.id

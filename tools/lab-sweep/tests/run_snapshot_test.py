@@ -12,6 +12,11 @@ street-network-101, grid scenario, recorded from step 0:
 A, B and C must be the same bytes: a restored run goes on exactly as the
 uninterrupted one, and the recording in progress comes back with it.
 
+A lab at rest (#575): hydraulics-101 with its valve shut has nothing
+flowing, so its clock rests. A snapshot taken while it rests restores and
+steps on exactly like the run that was not interrupted, and the restored lab
+still rests - resting is a binding on the model, not part of the snapshot.
+
 Then the cost of a restore: sensor-fusion-101 (the most probe samples per
 simulated second) and street-network-101 (the biggest model) are run to 60
 simulated seconds and restored five times each, and the run after the restore
@@ -38,6 +43,7 @@ ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 NO_SESSION = "needs a real graphics session"
 STREET = "labs/street-network-101/Sandbox.qml"
 FUSION = "labs/sensor-fusion-101/Sandbox.qml"
+HYDRO = "labs/hydraulics-101/Sandbox.qml"
 PROBES = ["throughput", "asked", "cars", "meanSpeed", "waiting"]
 LIMIT_MS = 50
 LIMIT_UNDER_LOAD_MS = 150
@@ -204,6 +210,41 @@ def main():
                       texts["restored"] == a)
                 check("restored in a new process and run to 900 is the straight run, byte for byte",
                       texts["new process"] == a)
+
+            rest = render(tmp, "resting", HYDRO, """(function () {
+    clock._frameTicker.running = false
+    function steps(n) { for (var i = 0; i < n; ++i) clock._advance(1 / 60) }
+    function fp() { return JSON.stringify({ probes: Lab.probeSummary(),
+                                            board: board.state(), r: clock.random() }) }
+    root.setValve(2, false)
+    steps(600)
+    var restingAt = clock.resting
+    clock.wake()
+    var snap = Lab.snapshot()
+    if (snap.error) return { error: snap.error }
+    steps(300)
+    var straight = fp()
+    root.setValve(2, true)
+    steps(120)
+    var flowingBetween = !clock.resting
+    var r = Lab.restore(JSON.parse(JSON.stringify(snap)))
+    var restingAfter = clock.resting
+    steps(300)
+    return { restingAt: restingAt, flowingBetween: flowingBetween,
+             restingAfter: restingAfter, restored: r.restored === true,
+             same: fp() === straight, inSnapshot: JSON.stringify(snap.clock) }
+})()
+""")
+            if rest is not None and check("resting: snapshot taken", "error" not in rest,
+                                          rest.get("error", "")):
+                check("resting: the lab rested at the snapshot and flowed between",
+                      rest["restingAt"] and rest["flowingBetween"], json.dumps(rest))
+                check("resting: restored, it rests again and steps on like the straight run",
+                      rest["restored"] and rest["restingAfter"] and rest["same"],
+                      json.dumps(rest))
+                check("resting: neither resting nor a pending wake() is in the snapshot",
+                      "resting" not in rest["inSnapshot"] and "awake" not in rest["inSnapshot"],
+                      rest["inSnapshot"])
 
             for name, sandbox, fingerprint in (
                     ("sensor-fusion-101", FUSION,

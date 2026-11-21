@@ -53,10 +53,12 @@ endif()
 # machine with no build tells you nothing about the contract.
 #
 # The gate drives clayliveloader offscreen through the inspector protocol, one
-# process per stepped run, so it is minutes rather than seconds: electronics-101
-# runs eleven scenarios twice plus two flows. Run one by hand while working on a
-# lab - `tools/lab-check/lab-check labs/<slug> --only flows` - and let ctest run
-# the whole thing.
+# process per stepped run: electronics-101 runs eleven scenarios twice plus two
+# flows. The runs go four at a time (lab-check's default --jobs, #572), which
+# PROCESSORS tells ctest so it does not start eight gates of four at once. Run
+# one by hand while working on a lab -
+# `tools/lab-check/lab-check labs/<slug> --only flows` - and let ctest run the
+# whole thing.
 if(BUILD_TESTING AND TARGET clayliveloader)
     find_package(Python3 COMPONENTS Interpreter)
     if(Python3_FOUND)
@@ -85,6 +87,39 @@ if(BUILD_TESTING AND TARGET clayliveloader)
             LABELS "labs;integration;tools/lab-check"
             SKIP_RETURN_CODE 77 TIMEOUT 180)
 
+        # lab_rest_<lab> / lab_moving_<lab> - a lab with nothing moving draws
+        # no frame, and one with a current or a flow draws again (#575). Both
+        # labs drew 60 frames a second at rest, and only a frame count says
+        # so. The rest check of electronics-101 also holds the professor to
+        # having no body loaded while it is away.
+        if(TARGET clayrender)
+            set(_rest ${CMAKE_SOURCE_DIR}/tools/lab-check/rest_check.py)
+            set(_elec ${CMAKE_CURRENT_SOURCE_DIR}/electronics-101/Sandbox.qml)
+            set(_hydro ${CMAKE_CURRENT_SOURCE_DIR}/hydraulics-101/Sandbox.qml)
+            set(_switchOn "root.elements.filter(e => e.type === 'switch').forEach(e => root.setSwitch(e.id, true))")
+            add_test(NAME lab_rest_electronics-101
+                COMMAND ${Python3_EXECUTABLE} ${_rest} ${_elec} --expect rest
+                        --wait-for "clock.resting && !prof.present && prof.character === null"
+                        --clayrender $<TARGET_FILE:clayrender>)
+            add_test(NAME lab_moving_electronics-101
+                COMMAND ${Python3_EXECUTABLE} ${_rest} ${_elec} --expect moving
+                        --eval "${_switchOn}" --wait-for "wires3d.flowing"
+                        --clayrender $<TARGET_FILE:clayrender>)
+            # hydraulics-101 opens with water running; the valve shuts it off
+            add_test(NAME lab_rest_hydraulics-101
+                COMMAND ${Python3_EXECUTABLE} ${_rest} ${_hydro} --expect rest
+                        --eval "root.setValve(2, false)" --wait-for "clock.resting"
+                        --clayrender $<TARGET_FILE:clayrender>)
+            add_test(NAME lab_moving_hydraulics-101
+                COMMAND ${Python3_EXECUTABLE} ${_rest} ${_hydro} --expect moving
+                        --wait-for "wires3d.flowing"
+                        --clayrender $<TARGET_FILE:clayrender>)
+            set_tests_properties(lab_rest_electronics-101 lab_moving_electronics-101
+                                 lab_rest_hydraulics-101 lab_moving_hydraulics-101
+                PROPERTIES LABELS "labs;integration;plugins/clay_lab;tools/lab-check"
+                           SKIP_RETURN_CODE 77 TIMEOUT 180)
+        endif()
+
         foreach(_sbx IN LISTS _lab_sandboxes)
             get_filename_component(_dir ${_sbx} DIRECTORY)
             get_filename_component(_lab ${_dir} NAME)
@@ -97,6 +132,7 @@ if(BUILD_TESTING AND TARGET clayliveloader)
             set_tests_properties(lab_check_${_lab} PROPERTIES
                 LABELS "labs;integration"
                 SKIP_RETURN_CODE 77
+                PROCESSORS 4
                 TIMEOUT 1800)
         endforeach()
     endif()

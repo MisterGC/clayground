@@ -15,8 +15,20 @@ tools/lab-check/lab-check labs/electronics-101
 tools/lab-check/lab-check labs/electronics-101 --only flows
 tools/lab-check/lab-check labs/electronics-101 --only determinism --keep
 tools/lab-check/lab-check labs/electronics-101 --ready-timeout 30 --verbose
+tools/lab-check/lab-check labs/electronics-101 --jobs 8
 tools/lab-check/lab-check labs/electronics-101 --clayrender build-debug/bin/clayrender --strict
+tools/lab-check/lab-check labs/electronics-101 --json > result.json
+tools/lab-check/lab-check ~/elsewhere/heat-101      # a lab in no checkout
 ```
+
+With no `--loader` and no `--clayrender` it takes the build of the checkout
+the lab sits in, `build/bin/` under the root it finds by walking up to
+`.git`. A lab in no checkout - copied to a folder of its own, or made with
+`tools/lab-new/lab-new <slug> --dir <elsewhere>` - or a lab whose checkout
+has no build takes the build beside the tool instead: `build/bin/` of the
+checkout `tools/lab-check/` is in. Until #573 such a lab skipped with
+"clayliveloader does not exist". `lab-sweep` finds its `clayrender` the same
+way.
 
 One `lab_check_<lab>` CTest gate per lab is registered from `labs/CMakeLists.txt`,
 discovered from the tree: a directory with a `Sandbox.qml` is a lab and gets a
@@ -39,20 +51,84 @@ counted as a pass: the summary reads `17/17 checks passed, 2 not run`, and with
 |---|---|
 | `load` | the lab reaches phase `ready`, a root exists, and nothing but [the environment](#what-counts-as-the-environment) logged a warning or error — the lab, its kits and the kernel alike |
 | `determinism` | for every name in `scenarios()`, two stepped runs of N steps produce byte-identical run records |
-| `flows` | every id in `flows()` runs to `finished` through `Lab.runFlow()`, with no unresolved verb, no unsatisfied task and no failed `expect` |
+| `flows` | every id in `flows()` runs to `finished` through `Lab.runFlow()`, with no unresolved verb, no unsatisfied task and no failed `expect` - once in every language the lab registers, one line each: `flows: <id> [en]`, `flows: <id> [de]` |
 | `strings` | EN and DE carry the same key set, and every `flow.<flowId>.<key>` a `FlowStep` needs exists in both |
 | `teaching` | for a teaching lab, the lesson rules a program can test (#542): every flow has a step the learner acts on (a `task`, which a question the lab takes an answer to and a `"wiring": true` task are) and an `expect`; every line a flow can say — its steps' keys, answered variants and scripts, the hints its tasks name, its title — is at most 240 characters in every language, a script's `*cues*` not counted; and no step's narration is a `say` literal in the QML |
-| `records` | `records/make.sh` and every `studies/*/records/` regenerate to the committed bytes, with the `clayrender` given as `--clayrender` (default `build/bin/clayrender` beside the lab's checkout); `records/session.labrec`, the scratch run `Shift+R` writes, is not compared |
+| `records` | `records/make.sh` and every `studies/*/records/` regenerate to the committed bytes, with the `clayrender` given as `--clayrender` (default: the build's, found as above); `records/session.labrec`, the scratch run `Shift+R` writes, is not compared |
 | `tables` | every `<!-- table: … -->` block in `paper.md` and `studies/*/study.md` renders to the committed bytes (`tools/lab-sweep/lab-table --check`); pure, never NOT RUN |
 | `study` | a research lab has at least one `studies/<slug>/study.md` whose manifest parses, with committed `records/` and an `## Answerability` section |
 | `triad` | `paper.md` exists; `overview.grafli` exists where the purpose owes a board |
 | `remarks` | open CriticMarkup marks in `paper.md` and `studies/*/study.md` — counted, reported, never failed |
 
-Exit codes: `0` everything passed (with no `--strict`: or did not run), `1`
-something failed, or with `--strict` did not run, `2` the command line is
-wrong — the directory has no `Sandbox.qml`, or `--only` names a check that
-does not exist — and nothing was checked, `77` (CTest's `SKIP_RETURN_CODE`)
-the machine cannot run the check at all — `clayliveloader` is not built.
+### Exit codes
+
+| Code | Meaning |
+|---|---|
+| `0` | every check passed; without `--strict`, a check may also have been NOT RUN |
+| `1` | a check failed - `lab-check.json` that does not parse or names no `purpose` included - or, with `--strict`, a check was NOT RUN |
+| `2` | the command line is wrong and nothing was checked: the directory has no `Sandbox.qml`, `--only` names a check that does not exist, or an option is unknown or misspelt |
+| `77` | the machine cannot run the check at all: no `clayliveloader` where it looked (CTest's `SKIP_RETURN_CODE`) |
+
+`--json` changes none of them.
+
+### Every lesson in every language
+
+A flow runs once per language the lab registers with `LabLang`, English
+first. A step waits for as long as its line takes to read (`dwellOf` in
+`Flow.qml`), so a lesson takes a different number of frames in each
+language - sensor-fusion-101's `fusion-basics` runs 5358 frames in English
+and 4494 in German - and a flow can
+finish in one and run out of `maxFlowSteps`, or reach a task at another
+moment, in the other (#573). The run sets `LabLang.lang` before
+`Lab.runFlow()`. Every loader the check starts gets a settings store of its
+own (`CLAY_STORAGE_DIR` under the check's temporary directory), because
+LabPrefs keeps the language: a run in German would otherwise leave the
+reader's own dojo, and every run after it, in German.
+
+## Reading the result from a program
+
+`--json` prints one JSON document on stdout, and the lines a person reads
+on stderr, for every exit code - `2` and `77` too, with nothing checked:
+
+```json
+{
+  "lab": "electronics-101",
+  "path": "/home/me/clayground/labs/electronics-101",
+  "purpose": "teaching",
+  "exit": 1,
+  "error": null,
+  "seconds": 41.207,
+  "passed": 37,
+  "failed": 1,
+  "notRun": 0,
+  "checks": [
+    {"name": "load: the lab reaches phase ready", "check": "load",
+     "status": "pass", "passed": true, "detail": "phase=ready",
+     "seconds": 1.302},
+    {"name": "flows: led-basics [de]", "check": "flows",
+     "status": "fail", "passed": false,
+     "detail": "expect failed: measure-led", "seconds": 12.48}
+  ],
+  "notes": ["records: first difference in ..."]
+}
+```
+
+| Key | Meaning |
+|---|---|
+| `lab`, `path` | the lab's directory name and its absolute path; `null` when the command line did not get that far |
+| `purpose` | what `lab-check.json` declares, `null` before it is read or when it is wrong |
+| `exit` | the process's exit code, as in the table above |
+| `error` | why nothing was checked, for exit `2` and `77`; `null` otherwise |
+| `seconds` | the whole check, wall-clock |
+| `passed`, `failed`, `notRun` | how many entries of `checks` have each status; they add up to its length |
+| `checks` | one entry per `PASS`, `FAIL` and `NOT RUN` line, in the order printed |
+| `checks[].name` | the line's name, as printed - `flows: led-basics [de]` |
+| `checks[].check` | the check it belongs to, the part of `name` before the first `:` - one of the checks above, or `config`, `contract`, `protocol` |
+| `checks[].status` | `"pass"`, `"fail"` or `"not run"` |
+| `checks[].passed` | `true`, `false`, or `null` for a check that did not run |
+| `checks[].detail` | the text in brackets after the line's name, `""` when there is none; for `not run` the reason |
+| `checks[].seconds` | how long the work behind the line took. A determinism line is its two runs together, a flow line its run, a records line its regenerating runs together - each a process of its own, from its start, so with `--jobs` above 1 these add up to more than `seconds`. Every other line is timed from the start of its check in lab-check itself; the `load` lines include the loader's start |
+| `notes` | the indented lines that are not checks - environment messages, the first differing line of a record, open remarks - in the order printed |
 
 ### When the loader dies or the lab never gets ready
 
@@ -92,6 +168,7 @@ do not fail `load`; they are matched by name in `ENVIRONMENT` in
 | `linux-multimedia-libraries` | `Couldn't load <library> library` or `Couldn't resolve <library> symbols`, in the category `qt.multimedia.symbolsresolver` only | on Linux Qt Multimedia loads optional system libraries (PipeWire, VA-API) at run time and logs each one the machine lacks; the CI runner lacks them all |
 | `linux-no-pulseaudio` | `PulseAudioService: pa_context_connect() failed` | the same Qt Multimedia on a Linux machine with no PulseAudio server, such as the CI runner |
 | `offscreen-no-font-directory` | `QFontDatabase: Cannot find font directory <dir>` | offscreen on Windows reads fonts from the Qt installation's `lib/fonts`, which a Qt install does not ship, so the machine has no fonts at all |
+| `inspector-replace-retry` | `ClayInspector: replacing "<…>/.clay/inspect/<…>" took <n> attempts` | on Windows a file cannot be renamed over while it is open, and lab-check's own reads of `state.json` and `response.json` sometimes are; the inspector's retry succeeded. One that never succeeds logs `failed to write` and still fails `load` (#572) |
 
 Every other warning or error fails `load`, wherever it comes from: a file of
 the lab, a kit under `labs/kits/`, the kernel in `plugins/clay_lab/` (shown as
@@ -179,25 +256,32 @@ run by hand through `clayrender` and a flow run by the gate have to agree, or
 one of them is lying. What the gate adds is running *every* flow of a lab, each
 in a lab nobody has touched, and turning the answer into a line.
 
-Three things the runs do that are easy to get wrong, and each cost a session:
+Two things the runs do that are easy to get wrong, and each cost a session:
 
-- **The clock is paused before the root that will be measured exists.** The
-  pause is a property of the loader, not of the scene, so it survives a reload:
-  pause, then reload, and the new root's `SimClock` never ticks a wall-clock
+- **The clock is paused before the root that will be measured exists.** Every
+  stepped run starts its loader with `--paused`, so the root is created with
+  `Clayground.paused` already set and its `SimClock` never ticks a wall-clock
   frame. That is what "no wall-clock frame ran before `applyScenario`" means,
   and it is exactly the drift #208 predicted — sensor-fusion-101's first GPS
   sample used to depend on how many frames happened to run during the load.
-- **The outgoing root's clock is reset before the reload.** The loader captures
-  `viewState()` from every root it discards and re-applies it to the next one,
-  and a lab's view state carries its sim time — so `Lab.applyViewState()`
-  re-steps the brand-new clock to where the finished run left it. Without the
-  reset a "fresh" root arrives having already replayed the previous run.
+  Until #572 the run paused by request, reset the clock and reloaded to reach
+  such a root; the root of a loader started paused is that root from birth,
+  and has no outgoing root whose `viewState()` it could inherit.
 - **Every stepped run gets its own loader process.** Two runs sharing a process
   share everything a QML engine does not throw away with the root. Under one
   process electronics-101's parts come back numbered `part12` in the first run
   and `part20` in the second: two records with identical numbers in them and
   different bytes, a determinism failure that says nothing about determinism.
-  That is also why one gate takes minutes rather than seconds.
+  The processes are independent, so they run side by side: `--jobs` of them
+  at a time (4 by default, as `lab-sweep`'s), each under `--instance` so it
+  serves its protocol in a directory of its own, and with an empty settings
+  store of its own (`CLAY_STORAGE_DIR`), since two loaders opening one
+  LocalStorage database at once race on its version. The flows, the determinism
+  pairs and the records regeneration share that one limit; `records/make.sh`
+  runs once per committed record when each record's `command` names its
+  scenario, and `lab-sweep` gets `--jobs` for a study. The output keeps its
+  order whichever run ends first, so a check takes about as long as its
+  longest run (#572).
 
 ## What it needs from a lab
 
