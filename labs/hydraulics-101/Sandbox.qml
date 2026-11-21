@@ -295,6 +295,7 @@ Item {
             overlay: overlay.state(),
             sections: Object.assign({}, palette.sectionsOpen),
             lang: LabLang.lang,
+            selected: board.selectedId,      // the part in hand (#569)
             cam: rig.state()
         })
     }
@@ -309,6 +310,9 @@ Item {
         if (s.traces) monitor.traceOnly(s.traces.filter(t => board.partAt(t.id) !== null))
         if (s.overlay) overlay.load(s.overlay)
         Lab.applyViewState(s)
+        // after the board: loading one drops the selection
+        if (s.selected !== undefined && s.selected !== -1 && board.partAt(s.selected) !== null)
+            board.selectedId = s.selected
         if (s.cam) rig.applyState(s.cam)
     }
     // One mutation API, three drivers: the UI, a Flow by name, an agent

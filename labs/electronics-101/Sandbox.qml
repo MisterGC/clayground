@@ -656,6 +656,10 @@ Item {
             // and whether the schematic is up, and how big - the same kind of
             // fact: it is about how this reader wants to look at the board
             plan: { open: showPlan, max: planMax },
+            // the part the reader had in hand, and what a lesson was told so
+            // far - a reload keeps the lesson, so it keeps its answers (#569)
+            selected: selectedId,
+            answers: Object.assign({}, answers),
             cam: rig.state()
         })
     }
@@ -689,7 +693,14 @@ Item {
         if (s.cam) {
             rig.applyState(s.cam)
         }
+        // A lesson's answers come back with the lesson: only a reload's view
+        // state carries flows. A step's checkpoint never does, so stepping
+        // back keeps what was answered since, as it always did.
+        if (s.flows && s.answers) answers = Object.assign({}, s.answers)
         Lab.applyViewState(s)
+        // after the board: loading one drops the selection
+        if (s.selected !== undefined && s.selected !== -1 && elemAt(s.selected) !== null)
+            selectedId = s.selected
     }
 
     // --- scenarios --------------------------------------------------------
@@ -1231,7 +1242,8 @@ Item {
     // the line of the step after the question. One table per question - its
     // choices and the right one - and one verb to answer it, so the panel,
     // the flow's "show me" and an agent all answer the same way. Lesson
-    // state, not the learner's place: it is not in viewState().
+    // state: viewState() carries it, and only a reload's - the one that
+    // carries the running lesson too - puts it back.
     property var answers: ({})
     readonly property var questions: ({
         "guess": { choices: ["brighter", "same", "dimmer"], right: "dimmer" },
