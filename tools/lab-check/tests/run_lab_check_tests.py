@@ -106,6 +106,18 @@ def test_flows_gate():
           not rep.failed(), str(rep.failed()))
 
 
+def test_flows_to_run():
+    published = ["lab-intro", "lab-later"]
+    check('flows: "all" runs every flow the lab publishes, a later one too',
+          L.flows_to_run({"flows": "all"}, published) == published)
+    check("flows: no flows key means all of them",
+          L.flows_to_run({}, published) == published)
+    check("flows: an explicit list is run as written",
+          L.flows_to_run({"flows": ["lab-intro"]}, published) == ["lab-intro"])
+    check('flows: "none" runs none',
+          L.flows_to_run({"flows": "none"}, published) == [])
+
+
 def test_study(tmp):
     lab = os.path.join(tmp, "study-101")
     os.makedirs(lab)
@@ -509,6 +521,7 @@ def main():
         test_config(tmp)
         test_purpose()
         test_flows_gate()
+        test_flows_to_run()
         test_study(tmp)
         test_triad(tmp)
         test_tables(tmp)

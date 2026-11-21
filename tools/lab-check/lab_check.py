@@ -82,8 +82,9 @@ DEFAULT_MAX_FLOW_STEPS = 20000
 
 # lab-sweep owns the study manifest, the record reader and the table renderer;
 # the study and tables checks are those modules asked about committed files.
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                                "lab-sweep"))
+SWEEP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                         "lab-sweep")
+sys.path.insert(0, SWEEP_DIR)
 import lab_table as LT         # noqa: E402
 import manifest as M           # noqa: E402
 
@@ -726,7 +727,10 @@ def check_records(rep, lab_dir, workdir, render):
         for name in sorted(os.listdir(studies)):
             study = os.path.join(studies, name)
             if os.path.isdir(os.path.join(study, "records")):
-                sweep = os.path.join(repo_root(lab_dir), "tools", "lab-sweep", "lab_sweep.py")
+                # Beside this tool, the lab-sweep it imports above - not under
+                # the lab's checkout, which for a lab generated into a temp
+                # tree has no tools/ (#531)
+                sweep = os.path.join(SWEEP_DIR, "lab_sweep.py")
                 jobs.append((f"studies/{name}", [sys.executable, sweep, study, "--records-dir"],
                              os.path.join(study, "records")))
     if not jobs:
@@ -1057,6 +1061,20 @@ def main():
     return 1 if failed else 0
 
 
+def flows_to_run(cfg, published):
+    """The flow ids a run checks: an explicit list as written, "none" as
+    none, and anything else - "all", or no key at all - as whatever the lab's
+    flows() answers. So a flow a lab publishes after its lab-check.json was
+    written is run without the file changing (#531).
+
+    Whether none is ALLOWED is the purpose's call, so the flowsReason of #208
+    is no longer read."""
+    declared = cfg.get("flows")
+    if declared == "none":
+        return []
+    return list(declared) if isinstance(declared, list) else list(published)
+
+
 def run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id, steps,
                      max_flow_steps, workdir):
     # One session answers everything that is a QUESTION about the lab - does
@@ -1088,13 +1106,7 @@ def run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id, steps,
         check_determinism(rep, spawn, lab_dir, lab_id, scenarios, steps, workdir)
 
     if "flows" in wanted:
-        # "flows": "none" means run none; whether none is ALLOWED is the
-        # purpose's call, so the flowsReason of #208 is no longer read.
-        declared = cfg.get("flows")
-        if declared == "none":
-            flows = []
-        else:
-            flows = declared if isinstance(declared, list) else probe.get("flows", [])
+        flows = flows_to_run(cfg, probe.get("flows", []))
         check_flows(rep, spawn, flows, purpose == "teaching",
                     probe.get("expects", {}), max_flow_steps)
 
