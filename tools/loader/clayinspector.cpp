@@ -53,22 +53,31 @@ static constexpr qint64 EVENT_LOG_ROTATE_BYTES = 5LL * 1024 * 1024;
 // has it open, and a driver polls state.json and response.json many times a
 // second: a lost "ready" is never written again, a lost response is a request
 // that times out (#301). Ten attempts 10 ms apart outlast any single read.
-static bool replaceFile(const QString& path, const QByteArray& data)
+// A retry that worked is the design doing its job, so it says so only at
+// debug level: lab_check fails a lab on any warning, and one such retry
+// failed lab_check_sensor-fusion-101 on Windows (#625). Only a replace that
+// failed every attempt warns, with the reason of the last one.
+bool ClayInspector::replaceFile(const QString& path, const QByteArray& data,
+                                const std::function<bool(QSaveFile&)>& commit)
 {
     constexpr int kAttempts = 10;
+    QString lastError;
     for (int attempt = 1; attempt <= kAttempts; ++attempt) {
         QSaveFile file(path);
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             file.write(data);
-            if (file.commit()) {
+            if (commit ? commit(file) : file.commit()) {
                 if (attempt > 1)
-                    qWarning() << "ClayInspector: replacing" << path << "took"
-                               << attempt << "attempts";
+                    qDebug() << "ClayInspector: replacing" << path << "took"
+                             << attempt << "attempts";
                 return true;
             }
         }
+        lastError = file.errorString();
         QThread::msleep(10);
     }
+    qWarning().noquote() << "ClayInspector: could not replace" << path
+                         << "after" << kAttempts << "attempts:" << lastError;
     return false;
 }
 
@@ -351,9 +360,9 @@ void ClayInspector::writeState()
     state["openAnnotations"] = openAnnotationCount();
     state["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
-    if (!replaceFile(m_inspectDir + "/state.json",
-                     QJsonDocument(state).toJson(QJsonDocument::Indented)))
-        qWarning() << "ClayInspector: failed to write state.json";
+    // a failure warns inside replaceFile
+    replaceFile(m_inspectDir + "/state.json",
+                QJsonDocument(state).toJson(QJsonDocument::Indented));
 }
 
 void ClayInspector::setSandboxDir(const QString& dir)
@@ -1873,8 +1882,7 @@ void ClayInspector::writeResponse(const QJsonObject& response)
     // a half-written payload. Plain open(Truncate) briefly exposes an empty
     // file, which has been known to confuse QFileSystemWatcher-based waiters.
     QString responsePath = m_inspectDir + "/response.json";
-    if (!replaceFile(responsePath, QJsonDocument(enveloped).toJson(QJsonDocument::Indented)))
-        qWarning() << "ClayInspector: failed to write response to" << responsePath;
+    replaceFile(responsePath, QJsonDocument(enveloped).toJson(QJsonDocument::Indented));
 }
 
 QJsonObject ClayInspector::handleTrace(const QJsonObject& request)

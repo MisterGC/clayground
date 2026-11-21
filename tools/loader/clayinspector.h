@@ -19,6 +19,8 @@
 #include "clayanchorresolver.h"
 #include "loaderscenehost.h"
 
+class QSaveFile;
+
 class QTimer;
 class QFile;
 class QImage;
@@ -39,6 +41,13 @@ public:
     // warnings and errors without having to be wired up after construction.
     // Returns nullptr before an inspector exists.
     static ClayInspector* current();
+
+    // Replaces \a path with \a data atomically, retrying a failed commit
+    // (Windows refuses the rename while a reader holds the file). Warns only
+    // when every attempt failed. \a commit stands in for QSaveFile::commit
+    // in a test.
+    static bool replaceFile(const QString& path, const QByteArray& data,
+                            const std::function<bool(QSaveFile&)>& commit = {});
 
     enum class Phase {
         Starting,
