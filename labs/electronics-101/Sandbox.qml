@@ -1398,52 +1398,32 @@ Item {
     // the face and lands its last sentence back on the resistor. The learner
     // task steps (flip, try) and the sweeps (wire, values) keep the beat.
     //
-    // English only, like the audio - a directed step falls back to the plain
-    // narrated step in German or without these entries.
-    readonly property var ledScripts: ({
-        "battery":
-            "*point at the battery* This is the cell. It pushes: 4.5 volts"
-            + " between its two pads."
-            + " *face viewer* *gesticulate* The gold pad is the plus side.",
-        "led":
-            "*point at the LED* The LED. It only conducts one way."
-            + " *face viewer* *gesticulate* And only above about 2 volts"
-            + " — its forward voltage.",
-        "resistor":
-            "*point at the resistor* And a 470 Ω resistor."
-            + " *face viewer* *gesticulate* Without it the LED would take all"
-            + " the current it can get and die. This is its seatbelt.",
-        // The insert: the LED alone for a beat as it is named, the way a
-        // science programme cuts to the thing at the moment it does its
-        // thing - then back out for the number, said to the reader.
-        "lit":
-            "*happy* *point at the LED* There it is. *cut to the LED* *pause 1.8s*"
-            + " *face viewer* *gesticulate* 5.1 mA flow, and the LED glows.",
-        "why":
-            "*face viewer* *gesticulate* Why 5.1 mA? The cell offers 4.5 V,"
-            + " the LED eats about 2.1 of them, and the rest — 2.4 V —"
-            + " falls across the resistor."
-            + " *point at the resistor* 2.4 V over 470 Ω is 5.1 mA."
-            + " The resistor sets the current."
-    })
-
-    function flowScript(i) {
+    // The scripts are strings like every other line the professor says
+    // (`flow.led-basics.<key>.script` in strings.js), so English and German
+    // are written side by side and the lab check sees both. A step whose
+    // script key is missing is narrated the plain way.
+    function flowScriptKey(i) {
         const f = root.currentFlow
-        if (!f || f.flowId !== "led-basics" || LabLang.lang !== "en")
+        if (!f || f.flowId !== "led-basics")
             return ""
         const s = (i >= 0 && i < f.steps.length) ? f.steps[i] : null
-        return s && root.ledScripts[s.key] ? root.ledScripts[s.key] : ""
+        if (!s || !s.key)
+            return ""
+        const k = "flow.led-basics." + s.key + ".script"
+        return LabLang.t(k) !== k ? k : ""
+    }
+    function flowScript(i) {
+        const k = root.flowScriptKey(i)
+        return k ? LabLang.t(k) : ""
     }
 
     // One recording per spoken LINE of a directed step - a pointed sentence
     // and an addressed one are two files (battery-0.wav, battery-1.wav).
+    // English only, like the per-step audio: German is directed in text.
     function flowScriptVoice(i, sayIndex) {
-        const f = root.currentFlow
-        if (!f || f.flowId !== "led-basics" || LabLang.lang !== "en")
+        if (LabLang.lang !== "en" || !root.flowScriptKey(i))
             return ""
-        const s = (i >= 0 && i < f.steps.length) ? f.steps[i] : null
-        if (!s || !root.ledScripts[s.key])
-            return ""
+        const s = root.currentFlow.steps[i]
         return Qt.resolvedUrl("voice/en/" + s.key + "-" + sayIndex + ".m4a")
     }
 
@@ -1466,7 +1446,7 @@ Item {
     })
     // The transistor's legs, by the terminal index circuit.js gives them.
     // This is what "or sub-parts" means here: a mark can land on one pad of
-    // one part, which is the whole of "collector on the left".
+    // one part, which is the whole of "the collector at the back".
     readonly property var scriptLegs: ({
         "the collector": 0, "collector": 0,
         "the base": 1, "base": 1,
@@ -2059,9 +2039,11 @@ Item {
 
         FlowStep {
             key: "meet"
-            // "collector on the left, emitter on the right, base facing you":
-            // three sub-parts of one part, each ringed and captioned in the
-            // reader's language while the line names them.
+            // "the collector at the back, the emitter at the front, the base
+            // on the left" - as the preset places the part, turned a quarter
+            // so the collector faces the LED: three sub-parts of one part,
+            // each ringed and captioned in the reader's language while the
+            // line names them.
             mark: ["collector", "base", "emitter"]
             demo: [["scenario", "transistor"], ["showValues", false],
                    ["setInputs", 0], ["frame", "setup"]]
