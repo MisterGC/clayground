@@ -455,7 +455,9 @@ QtObject {
             \c opts.solveGrace sim seconds after its own \c solve() ran;
         \li \c failedExpects - \c {{index, step}} (plus \c error when the
             predicate threw) for every \c FlowStep::expect that did not hold,
-            asserted the moment the flow leaves the step;
+            asserted the moment the flow leaves the step. An expect that names
+            what it looks at through its second argument, \c saw(label,
+            value), adds \c saw: \c {{label: value}} - the values it saw;
         \li \c finished - the flow reached its end. False means the bound was
             hit;
         \li \c error - the run never started (no such flow, no clock).
@@ -549,6 +551,21 @@ QtObject {
         return r
     }
 
+    // A value as JSON carries it: a number that is not finite, or something
+    // JSON has no form for, comes back as its String() rather than null.
+    function _plain(v) {
+        if (v === null || v === undefined) return v === null ? null : "undefined"
+        if (typeof v === "number") return isFinite(v) ? v : String(v)
+        if (typeof v === "boolean" || typeof v === "string") return v
+        if (Array.isArray(v)) return v.map(_plain)
+        if (typeof v === "object") {
+            const o = {}
+            for (const k in v) if (typeof v[k] !== "function") o[k] = _plain(v[k])
+            return o
+        }
+        return String(v)
+    }
+
     function _stepKey(f, i) {
         const s = f.steps[i]
         return s ? s.key : ""
@@ -559,11 +576,22 @@ QtObject {
         if (!s || !s.expect) return
         let ok = false
         let threw = ""
-        try { ok = !!s.expect(f.nameOf) }
+        // What the expect looked at, as it says through saw(label, value):
+        // "expect failed" alone sends the reader to rerun the lesson by hand
+        // to find out whether a current was off by a hair or by an order.
+        const seen = {}
+        let named = false
+        const saw = function(label, value) {
+            seen[String(label)] = value
+            named = true
+            return value
+        }
+        try { ok = !!s.expect(f.nameOf, saw) }
         catch (e) { threw = "" + e }
         if (ok) return
         const entry = { index: i, step: s.key }
         if (threw !== "") entry.error = threw
+        if (named) entry.saw = _plain(seen)
         r.failedExpects.push(entry)
     }
 

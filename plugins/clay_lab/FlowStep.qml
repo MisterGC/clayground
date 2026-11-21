@@ -130,6 +130,15 @@ QtObject {
     /*!
         \qmlproperty var FlowStep::expect
         \brief Optional predicate asserted after the step, for headless checks.
+
+        Called as \c{expect(n, saw)}: \c n resolves a flow name to the lab's
+        id, \c{saw(label, value)} returns \c value and keeps it under
+        \c label, so a failed expect reports what it saw rather than only that
+        it failed (\c{Lab.runFlow()}'s \c failedExpects):
+
+        \qml
+        expect: (n, saw) => Math.abs(saw("I", root.simOf(n("led")).i) - 0.00515) < 5e-5
+        \endqml
     */
     property var expect: null
 }

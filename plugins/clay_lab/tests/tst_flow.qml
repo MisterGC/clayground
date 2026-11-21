@@ -160,6 +160,18 @@ Item {
         flowId: "tst-wrong"
         FlowStep { key: "claims"; dwell: 0.2; expect: () => false }
         FlowStep { key: "throws"; dwell: 0.2; expect: () => nothingHere.atAll }
+        // what a failed expect saw (#567): a value off the mark, and one that
+        // JSON has no number for
+        FlowStep {
+            key: "sees"; dwell: 0.2
+            expect: (n, saw) => Math.abs(saw("I", 0.0049) - 0.00515) < 5e-5
+                                && saw("never", 1) === 1
+        }
+        FlowStep {
+            key: "seesOdd"; dwell: 0.2
+            expect: (n, saw) => saw("ratio", 1 / 0) < 1 && saw("parts", [1, NaN]) !== null
+        }
+        FlowStep { key: "holds"; dwell: 0.2; expect: (n, saw) => saw("I", 1) === 1 }
     }
 
     Flow {
@@ -384,12 +396,25 @@ Item {
 
         function test_aWrongExpectLandsInFailedExpectsWithItsKey() {
             const r = Lab.runFlow("tst-wrong")
-            compare(r.failedExpects.length, 2)
+            compare(r.failedExpects.length, 4, "a holding expect is not reported")
             compare(r.failedExpects[0].step, "claims")
             compare(r.failedExpects[0].index, 0)
+            verify(r.failedExpects[0].saw === undefined,
+                   "an expect that names nothing reports nothing it saw")
             compare(r.failedExpects[1].step, "throws")
             verify(r.failedExpects[1].error !== undefined,
                    "a predicate that throws is a failure with its message")
+        }
+
+        function test_aFailedExpectReportsTheValueItSaw() {
+            const r = Lab.runFlow("tst-wrong")
+            compare(r.failedExpects[2].step, "sees")
+            compare(r.failedExpects[2].saw, { I: 0.0049 },
+                    "the value the expect judged; the && after it never ran")
+            compare(r.failedExpects[3].step, "seesOdd")
+            compare(r.failedExpects[3].saw, { ratio: "Infinity" },
+                    "a value JSON has no number for comes back as its text")
+            compare(JSON.stringify(r.failedExpects[3].saw), '{"ratio":"Infinity"}')
         }
 
         function test_aTaskThatSolveCannotSatisfyIsReported() {
