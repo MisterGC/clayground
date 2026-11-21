@@ -361,13 +361,14 @@ Item {
         }
 
         // The parts. modelData is a COPY of the plain JS object: mutable state
-        // is read live from the board, and each binding lists board.rev.
+        // is read live from the board, and each binding lists board.rev -
+        // board.layoutRev for where the part is, which a flip does not move.
         Repeater3D {
             model: board.parts
             PartVisual {
                 required property var modelData
                 position: {
-                    board.rev
+                    board.layoutRev
                     const e = board.partAt(modelData.id)
                     return e ? Qt.vector3d(board.cellX(e.col), -0.45, board.cellZ(e.row))
                              : Qt.vector3d(0, 0, 0)
@@ -375,9 +376,9 @@ Item {
                 // No `Behavior on eulerRotation.y` here: under ComponentBehavior
                 // Bound, a Behavior on a Repeater3D delegate crashes the engine
                 // when the model is republished (Qt 6.11.1) - and a board
-                // republishes on every mutation. Animate inside the kit's part
-                // component instead, where the property is its own.
-                eulerRotation.y: { board.rev; const e = board.partAt(modelData.id); return e ? (e.rot || 0) : 0 }
+                // republishes whenever parts come or go. Animate inside the
+                // kit's part component instead, where the property is its own.
+                eulerRotation.y: { board.layoutRev; const e = board.partAt(modelData.id); return e ? (e.rot || 0) : 0 }
                 type: modelData.type
                 on: { board.rev; const e = board.partAt(modelData.id); return e ? e.on : false }
                 lit: root.simOf(modelData.id).lit
