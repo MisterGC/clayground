@@ -48,10 +48,14 @@ std::pair<std::string, std::string> selfSignedLocalhost()
     X509_gmtime_adj(X509_getm_notBefore(cert), -3600);
     X509_gmtime_adj(X509_getm_notAfter(cert), 3600 * 24);
     X509_set_pubkey(cert, key);
-    X509_NAME *name = X509_get_subject_name(cert);
+    // A name of its own, set as subject and issuer: OpenSSL 4 hands the
+    // certificate's subject name out read-only (#527)
+    X509_NAME *name = X509_NAME_new();
     X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC,
                                reinterpret_cast<const unsigned char *>("localhost"), -1, -1, 0);
+    X509_set_subject_name(cert, name);
     X509_set_issuer_name(cert, name);
+    X509_NAME_free(name);
     X509V3_CTX ctx;
     X509V3_set_ctx_nodb(&ctx);
     X509V3_set_ctx(&ctx, cert, cert, nullptr, nullptr, 0);
