@@ -24,11 +24,19 @@ Item {
         id: board
         cols: 20; rows: 12; cell: 5
         spec: root.spec
+        // straight paths, counted: what a field change may not trigger (#577)
+        router: ({ all: (links, obstacles, lane) => {
+            root.routeCalls++
+            const out = {}
+            for (const l of links) out[l.id] = [{ x: l.a.x, z: l.a.z }, { x: l.b.x, z: l.b.z }]
+            return out
+        } })
         onChanged: (kind) => { root.log.push(kind) }
         onRemoved: (id) => { root.removedIds.push(id) }
     }
     property var log: []
     property var removedIds: []
+    property int routeCalls: 0
     property var operated: []
 
     // A stage whose window coordinates ARE board coordinates.
@@ -174,6 +182,49 @@ Item {
             verify(!board.setField(a, "value", 5))
             compare(root.log.length, 1)
             compare(board.partAt(a).value, 5)
+        }
+
+        // What a part holds is not where it is: a field set hands out no new
+        // array (a Repeater3D would rebuild every part), routes nothing and
+        // leaves layoutRev - and still bumps rev and asks for a solve (#577).
+        function test_setFieldKeepsTheLayout() {
+            const a = board.addPart("lever", 2, 2)
+            const b = board.addPart("block", 8, 2)
+            board.addWire([a, 1], [b, 0])
+            const parts = board.parts, wires = board.wires, routes = board.routes
+            const layout = board.layoutRev, rev = board.rev
+            root.log = []; root.routeCalls = 0
+            verify(board.setField(a, "on", true))
+            verify(board.parts === parts)
+            verify(board.wires === wires)
+            verify(board.routes === routes)
+            compare(board.layoutRev, layout)
+            compare(board.rev, rev + 1)
+            compare(root.routeCalls, 0)
+            compare(root.log, ["solve"])
+        }
+
+        // A preset makes dozens of mutations and routes the board once, at
+        // the end; a move routes once and moves layoutRev with rev.
+        function test_layoutRoutesOncePerPublish() {
+            root.routeCalls = 0
+            const layout = board.layoutRev
+            board.beginBatch()
+            const a = board.addPart("block", 2, 2)
+            const b = board.addPart("block", 8, 2)
+            board.addWire([a, 1], [b, 0])
+            board.rotatePart(b)
+            compare(root.routeCalls, 0)
+            board.endBatch()
+            compare(root.routeCalls, 1)
+            compare(board.layoutRev, layout + 1)
+            compare(Object.keys(board.routes).length, 1)
+            const rev = board.rev
+            board.movePart(b, 8, 6, true)
+            compare(root.routeCalls, 2)
+            compare(board.layoutRev, layout + 2)
+            compare(board.rev, rev + 1)
+            fuzzyCompare(board.wirePath(board.wires[0])[1].z, board.terminalPos(b, 0).z, 1e-9)
         }
 
         function test_stateRoundTrips() {
