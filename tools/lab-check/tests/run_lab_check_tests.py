@@ -908,6 +908,43 @@ def test_loader_watch(tmp):
           took < 15, f"{took:.1f} s")
 
 
+def test_open_shared(tmp):
+    """The loader replaces state.json by renaming over it; a read that holds
+    the file open must not make that fail - on Windows it did (#572)."""
+    path = os.path.join(tmp, "state.json")
+    with open(path, "w") as f:
+        f.write('{"phase": "loading"}')
+    fresh = path + ".new"
+    with open(fresh, "w") as f:
+        f.write('{"phase": "ready"}')
+    try:
+        with L.open_shared(path) as held:
+            os.replace(fresh, path)
+            old = held.read()
+        replaced = True
+    except OSError as e:
+        replaced, old = False, str(e)
+    check("open_shared: the file can be replaced while it is being read",
+          replaced, str(old))
+    check("open_shared: the read gets the file it opened",
+          replaced and json.loads(old) == {"phase": "loading"}, str(old))
+    check("open_shared: read_json reads the replacement",
+          L.read_json(path) == {"phase": "ready"}, str(L.read_json(path)))
+    if os.name == "nt":
+        # the control: what Python's own open() does to the same replace,
+        # which is why open_shared exists
+        with open(fresh, "w") as f:
+            f.write('{"phase": "loading"}')
+        try:
+            with open(path, "rb"):
+                os.replace(fresh, path)
+            blocked = False
+        except PermissionError:
+            blocked = True
+        check("open_shared: a plain open() blocks the replace on Windows",
+              blocked)
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
@@ -928,6 +965,7 @@ def main():
         test_drivers()
         test_step_of()
         test_load_diagnostics(tmp)
+        test_open_shared(tmp)
         if os.name != "nt":
             # the stand-in loader is started as an executable script
             test_loader_watch(tmp)
