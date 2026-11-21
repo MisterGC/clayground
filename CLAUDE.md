@@ -17,6 +17,9 @@ ctest --preset default            # the full suite, 8 tests at a time
 ./verify.sh                       # build, then only the tests this change can reach
 ```
 
+`./verify.sh` without `CMAKE_PREFIX_PATH` takes the newest Qt >= 6.10 under
+`~/Qt` for a first configure and prints which; set the variable to choose.
+
 `debug` is the same into `build-debug/`. `macos` adds a Homebrew `OPENSSL_ROOT_DIR`
 for libdatachannel. Machine-specific settings belong in a gitignored
 `CMakeUserPresets.json` inheriting from `default` — never in `CMakePresets.json`.

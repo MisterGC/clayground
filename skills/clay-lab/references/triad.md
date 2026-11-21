@@ -194,9 +194,10 @@ this still true?" from an argument into a `diff`. Records live in
 - **Records must come from a stepped run, never a live one.** A frame is
   a wall-clock interval, so a lab left to play itself samples wherever
   the last frame landed and two same-seed runs diverge from the first
-  tick. Stop the ticker and advance the clock yourself:
-  `clock._frameTicker.running = false` then `clock._advance(1/60)` in a
-  loop. Commit the driver beside the records
+  tick. Start the lab with `clayrender --paused`, which sets
+  `Clayground.paused` before the root exists, so no frame ever advances the
+  clock; then advance it yourself with `clock._advance(1/60)` in a loop.
+  Commit the driver beside the records
   (`labs/<lab>/records/make.sh` is the pattern) and give it a `--verify`
   that runs a scenario twice and `cmp`s the two files.
 - Any change to the model, sensors, RNG consumption pattern, or
