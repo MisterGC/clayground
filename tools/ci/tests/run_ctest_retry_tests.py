@@ -7,6 +7,7 @@ case can check how often every test ran.
 Usage: run_ctest_retry_tests.py <cmake> <ctest> [<generator>]"""
 
 import os
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -14,10 +15,26 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "..", "ctest_retry.py")
 CMAKE, CTEST = sys.argv[1], sys.argv[2]
-# The scratch project takes the generator of the build that runs this suite:
-# CMake's default on Windows is Visual Studio, multi-config, where a test
-# without -C never runs and every count stayed 0
-GENERATOR = ["-G", sys.argv[3]] if len(sys.argv) > 3 else []
+
+
+def single_config_generator(given):
+    """The scratch project needs a single-config generator: under a
+    multi-config one (Visual Studio, CMake's default on Windows, Xcode,
+    Ninja Multi-Config) a test run without -C never starts, and every count
+    stayed 0. The build's own generator when it is single-config, else
+    Ninja when it is installed, else CMake's default with CMAKE_GENERATOR
+    cleared from the environment."""
+    multi = ("Visual Studio", "Xcode", "Ninja Multi-Config")
+    if given and not given.startswith(multi):
+        return ["-G", given]
+    if shutil.which("ninja"):
+        return ["-G", "Ninja"]
+    os.environ.pop("CMAKE_GENERATOR", None)
+    return []
+
+
+GENERATOR = single_config_generator(sys.argv[3] if len(sys.argv) > 3 else
+                                    os.environ.get("CMAKE_GENERATOR"))
 
 # name, labels, how many runs fail before it passes (-1: never passes)
 TESTS = [
