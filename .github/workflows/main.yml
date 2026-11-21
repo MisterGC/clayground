@@ -221,8 +221,11 @@ jobs:
         awk '/^[0-9]+\/[0-9]+ Test: / { t = ($3 ~ /^lab_(new_)?check_/) ? $3 : ""; next }
              t != "" && /^(PASS|FAIL|NOT RUN) +records: / {
                  print "  " t ": " $0
-                 if ($1 == "NOT") nr++; else if ($0 ~ /no committed records|nothing committed/) nc++; else rg++ }
-             END { printf "regenerated and compared: %d, NOT RUN: %d, nothing committed to compare: %d\n", rg, nr, nc }' "$log"
+                 if ($1 == "NOT") nr++
+                 else if ($1 == "FAIL" && $0 ~ / regenerates +\(exit /) df++
+                 else if ($0 ~ /no committed records|nothing committed/) nc++
+                 else rg++ }
+             END { printf "regenerated and compared: %d, driver failed: %d, NOT RUN: %d, nothing committed to compare: %d\n", rg, df, nr, nc }' "$log"
 
     # A red net gym keeps its loader logs and inspector state under
     # build/net-gym-logs (CLAY_NET_GYM_LOG_ROOT); without them a failed run
