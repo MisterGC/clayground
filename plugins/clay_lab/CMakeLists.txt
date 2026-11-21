@@ -97,11 +97,15 @@ clay_plugin( Lab
 
 # The kernel is QML only, so it can also be imported straight from this
 # directory: `--lab-src` on the dojo, the loader and clayrender puts
-# ${CMAKE_BINARY_DIR}/lab-src first on the import path, where this qmldir
+# ${Clayground_BINARY_DIR}/lab-src first on the import path, where this qmldir
 # names the files here instead of the copies compiled into the plugin. An edit
 # is then live on the next reload, without a rebuild and a restart (#570).
 set(_clay_lab_built_qmldir "${CLAY_PLUGIN_BASE_DIR}/Lab/qmldir")
-set(CLAY_LAB_SRC_IMPORT_DIR "${CMAKE_BINARY_DIR}/lab-src" CACHE INTERNAL "")
+# Clayground's own directories, never CMAKE_SOURCE_DIR/CMAKE_BINARY_DIR: in a
+# game that adds Clayground with add_subdirectory() those are the game's, and
+# the script below was "missing" from it - an ALL target that broke its build.
+set(CLAY_LAB_SRC_IMPORT_DIR "${Clayground_BINARY_DIR}/lab-src" CACHE INTERNAL "")
+set(CLAY_LAB_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}" CACHE INTERNAL "")
 set(_clay_lab_src_qmldir "${CLAY_LAB_SRC_IMPORT_DIR}/Clayground/Lab/qmldir")
 add_custom_command(
     OUTPUT ${_clay_lab_src_qmldir}
@@ -109,8 +113,8 @@ add_custom_command(
             -DIN=${_clay_lab_built_qmldir}
             -DOUT=${_clay_lab_src_qmldir}
             -DSRC_DIR=${CMAKE_CURRENT_SOURCE_DIR}
-            -P ${CMAKE_SOURCE_DIR}/cmake/claysourcemodule.cmake
-    DEPENDS ${_clay_lab_built_qmldir} ${CMAKE_SOURCE_DIR}/cmake/claysourcemodule.cmake
+            -P ${Clayground_SOURCE_DIR}/cmake/claysourcemodule.cmake
+    DEPENDS ${_clay_lab_built_qmldir} ${Clayground_SOURCE_DIR}/cmake/claysourcemodule.cmake
     COMMENT "Writing the source qmldir of Clayground.Lab"
     VERBATIM)
 add_custom_target(ClayLabSource ALL DEPENDS ${_clay_lab_src_qmldir})

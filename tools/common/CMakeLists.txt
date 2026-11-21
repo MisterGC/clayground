@@ -17,7 +17,7 @@ target_include_directories(${PROJECT_NAME} PUBLIC .)
 # are absolute, and ccache keys a file on its definitions, so the other files
 # stay shared between worktrees.
 set_source_files_properties(utilityfunctions.cpp PROPERTIES COMPILE_DEFINITIONS
-    "CLAY_LAB_SRC_IMPORT_DIR=\"${CLAY_LAB_SRC_IMPORT_DIR}\";CLAY_LAB_SRC_DIR=\"${CMAKE_SOURCE_DIR}/plugins/clay_lab\"")
+    "CLAY_LAB_SRC_IMPORT_DIR=\"${CLAY_LAB_SRC_IMPORT_DIR}\";CLAY_LAB_SRC_DIR=\"${CLAY_LAB_SRC_DIR}\"")
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME}
 PUBLIC
