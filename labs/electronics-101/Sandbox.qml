@@ -1446,7 +1446,7 @@ Item {
     })
     // The transistor's legs, by the terminal index circuit.js gives them.
     // This is what "or sub-parts" means here: a mark can land on one pad of
-    // one part, which is the whole of "collector on the left".
+    // one part, which is the whole of "the collector at the back".
     readonly property var scriptLegs: ({
         "the collector": 0, "collector": 0,
         "the base": 1, "base": 1,
@@ -2039,9 +2039,11 @@ Item {
 
         FlowStep {
             key: "meet"
-            // "collector on the left, emitter on the right, base facing you":
-            // three sub-parts of one part, each ringed and captioned in the
-            // reader's language while the line names them.
+            // "the collector at the back, the emitter at the front, the base
+            // on the left" - as the preset places the part, turned a quarter
+            // so the collector faces the LED: three sub-parts of one part,
+            // each ringed and captioned in the reader's language while the
+            // line names them.
             mark: ["collector", "base", "emitter"]
             demo: [["scenario", "transistor"], ["showValues", false],
                    ["setInputs", 0], ["frame", "setup"]]
