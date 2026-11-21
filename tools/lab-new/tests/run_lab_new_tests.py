@@ -48,6 +48,10 @@ REQUIRED = {
     "figures/make.sh",
 }
 EXECUTABLE = {"records/make.sh", "figures/make.sh"}
+# What a research lab gets on top: the study its purpose owes (#531), whose
+# manifest and committed records are the kind's own.
+STUDY = "studies/first-look/"
+STUDY_FILES = {STUDY + "study.md", STUDY + "results.md"}
 
 KINDS = L.discover_kinds()
 PURPOSES = L.discover_purposes()
@@ -166,7 +170,38 @@ class TestGeneratedSet(unittest.TestCase):
         for kind, purpose in self.each():
             with self.subTest(kind=kind, purpose=purpose), \
                     TempLab(kind, purpose) as lab:
-                self.assertEqual(lab.files(), REQUIRED)
+                files = lab.files()
+                if purpose != "research":
+                    self.assertEqual(files, REQUIRED)
+                    continue
+                study = {f for f in files if f.startswith(STUDY)}
+                self.assertEqual(files - study, REQUIRED)
+                self.assertTrue(STUDY_FILES <= study,
+                                f"{kind}: the study lacks {STUDY_FILES - study}")
+                self.assertTrue(any(f.endswith(".labrec") for f in study),
+                                f"{kind}: the study commits no record")
+
+    def test_research_study_names_the_generated_lab(self):
+        """The study's manifest, its records and its results all say which lab
+        they belong to - the generated one, not the template's."""
+        for kind in KINDS:
+            with self.subTest(kind=kind), TempLab(kind, "research") as lab:
+                doc = lab.read(STUDY + "study.md")
+                self.assertIn('"lab": "labs/heat-101/Sandbox.qml"', doc)
+                for rel in sorted(f for f in lab.files() if f.endswith(".labrec")):
+                    rec = lab.read(rel)
+                    self.assertIn('"lab": "labs/heat-101/Sandbox.qml"', rec)
+                    self.assertIn("lab-sweep labs/heat-101/studies/first-look", rec)
+
+    def test_a_kinds_purpose_layer_reaches_only_that_purpose(self):
+        for kind in KINDS:
+            for purpose in PURPOSES:
+                with self.subTest(kind=kind, purpose=purpose):
+                    planned = L.plan_files(kind, purpose)
+                    self.assertFalse(any(rel.startswith(L.PURPOSES + os.sep)
+                                         or rel.startswith(L.PURPOSES + "/")
+                                         for rel in planned),
+                                     "a kind's purposes/ directory was copied as content")
 
     def test_no_leftover_placeholder(self):
         for kind, purpose in self.each():
@@ -247,14 +282,12 @@ class TestGeneratedSet(unittest.TestCase):
                 self.assertEqual(doc["purpose"], purpose)
                 self.assertEqual(doc["steps"], 600)
                 self.assertEqual(doc["scenarios"], "all")
-                # A research lab owes no flow (#209), but the template ships a
-                # tour and whatever a lab has is run - so the research file
-                # says "all" rather than naming the scaffold it expects to lose.
+                # "all" for every purpose: whatever flows() answers is run,
+                # so a flow added after the lab was generated is checked
+                # without this file changing (#531). A list here would pin
+                # the gate to the scaffold's one tour.
                 self.assertNotIn("flowsReason", doc)
-                if purpose == "research":
-                    self.assertEqual(doc["flows"], "all")
-                else:
-                    self.assertEqual(doc["flows"], ["heat_101-intro"])
+                self.assertEqual(doc["flows"], "all")
 
     def test_flow_id_agrees_with_the_check_file_and_the_dictionary(self):
         for kind, purpose in self.each():
