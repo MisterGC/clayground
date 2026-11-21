@@ -21,6 +21,7 @@
 #endif
 #include <windows.h>
 #else
+#include <cstdlib>
 #include <ctime>
 #endif
 #if defined(Q_OS_MACOS)
@@ -107,6 +108,20 @@ double processInstructions()
     return static_cast<double>(usage.ri_instructions);
 #else
     return -1.0;
+#endif
+}
+
+// The machine's one-minute load average, or null where there is none
+// (Windows). CPU time moves with it, so a CPU time is read beside it.
+QJsonValue loadAverage()
+{
+#if defined(Q_OS_WIN)
+    return QJsonValue::Null;
+#else
+    double load[1] = {0.0};
+    if (getloadavg(load, 1) != 1)
+        return QJsonValue::Null;
+    return std::round(load[0] * 100.0) / 100.0;
 #endif
 }
 
@@ -241,6 +256,7 @@ QJsonObject measure(RenderHost& host, int slotCount)
     out["rendered"] = host.renderedFrames() - framesBefore;
     out["seconds"] = rounded(static_cast<double>(wall.nsecsElapsed()) / 1.0e9);
     out["cpuMs"] = summary(cpuMs, true);
+    out["loadAverage"] = loadAverage();
     out["cpuInstructions"] = summary(instructions, true);
     out["renderMs"] = summary(renderMs, true);
     out["drawCalls"] = summary(drawCalls, false);

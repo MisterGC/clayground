@@ -806,6 +806,13 @@ Item {
         check("--stats has no instruction count off macOS - null, not 0",
               moving and "cpuInstructions" in moving and instr is None,
               str(instr))
+    load = moving and moving.get("loadAverage")
+    if sys.platform == "win32":
+        check("--stats has no load average on Windows - null, not 0",
+              moving and "loadAverage" in moving and load is None, str(load))
+    else:
+        check("--stats reports the load average beside the CPU time",
+              isinstance(load, (int, float)) and load >= 0, str(load))
     other = runs[1][1]
     keys = ("rendered", "drawCalls", "vertices")
     check("two --stats runs of one scene draw the same",
