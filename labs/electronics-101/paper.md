@@ -91,9 +91,9 @@ in a branch which cannot carry current (behind an open switch, where the
 leak dividers fake a faint forward bias) would flip on/off forever; a
 flip counter pins it where it stands after six oscillations — the
 physically correct answer for a dead branch — inside a 40-iteration cap.
-Across every preset the lab ships, the fixed point is reached in
-**1 to 7 iterations**; the transistor gates below use the same loop and
-the same counter.
+Across every preset the lab ships, in every position of its switches, the
+fixed point is reached in **1 to 5 iterations**; the transistor gates below
+use the same loop and the same counter.
 
 That iteration *is* the lesson made mechanical: current does not flow
 because a wire exists, it flows because the node voltages, solved all at
@@ -220,9 +220,12 @@ of gain and settles into saturation at $V_{CE} = 0.19\,\mathrm{V}$. **The
 lamp, not the transistor, is setting the current** — which is exactly the
 condition every logic gate below is operated in.
 
-Starve the base instead (470 kΩ in the unit suite) and the same part sits
-in the active region, where the ratio is $\beta$ to within the Early leak.
-Same component, same equations, different circuit around it.
+Starve the base instead and the same part sits in the active region, where
+the ratio is $\beta$ to within the Early leak. On the board that is the base
+resistor's slider: the transistor stays saturated up to 33 kΩ and is active
+from 39 kΩ on, where $\beta I_B$ (9.7 mA) has fallen below what the lamp
+branch would take; at 1 MΩ the LED gets 0.40 mA. The unit suite pins the same
+case at 470 kΩ. Same component, same equations, different circuit around it.
 
 ## Logic gates
 
@@ -349,13 +352,13 @@ the fifth, bottom right of the output branch, has been cut off by the NAND.*
 The last row is the whole gate. Both inputs are high, both OR transistors
 are conducting, the supply is still there — and the lamp is dark, because
 Q5's base is looking at 0.15 V instead of 4.5 V. **The cell draws 3.4 mA in
-that row against 11.4 mA in the lit ones**: the current has not been
+that row against 11.4 and 10.6 mA in the lit ones**: the current has not been
 diverted, it has been refused.
 
 ![the XOR as a schematic](figures/logic-xor-plan.png)
 
-*Thirty-eight parts is where the lab's schematic view (`M`) stops being a
-nicety: the same board, drawn the way a circuit diagram draws it, is the
+*Eighteen parts and twenty junctions is where the lab's schematic view (`M`)
+stops being a nicety: the same board, drawn the way a circuit diagram draws it, is the
 only form of this circuit that can be followed with a finger.*
 
 ![the truth table panel](figures/truthtable.png)
@@ -364,8 +367,8 @@ only form of this circuit that can be followed with a finger.*
 is four solves of whatever is currently on the board, so erasing a wire
 redraws it. The highlighted row is where the switches are standing.*
 
-Thirty-eight parts and forty-seven wires for one bit of a decision. That
-count is not a failure of the drawing — it is the honest price of XOR in
+Eighteen parts, twenty junctions and forty-seven wires for one bit of a
+decision. That count is not a failure of the drawing — it is the honest price of XOR in
 this technology, and it is the reason the picture of a modern chip is
 worth having in mind while looking at the board.
 
@@ -399,7 +402,7 @@ function is printed on the case, and the green pip beside the output pin is
 the level it is driving. The chevrons on the supply wires are not decoration
 — that is the current the chip is drawing to do this.*
 
-Measured on the `gates` preset (`10`) at 4.5 V, an AND package driving an
+Measured on the `gates` preset (*logic gate* in the palette) at 4.5 V, an AND package driving an
 LED through 220 Ω:
 
 | A B | output | $V_Y$ | $I_Y$ | LED | cell |
@@ -428,7 +431,8 @@ a boolean expression.
 
 ### A half adder
 
-Which is the point of having them. The `half-adder` preset (`11`) is two
+Which is the point of having them. The `half-adder` preset (*half adder* in
+the palette) is two
 packages reading the same two inputs — an XOR and an AND — and it is the
 first thing gates were ever built for:
 
@@ -445,8 +449,9 @@ first thing gates were ever built for:
 the bottom row of the table above and also the answer to 1 + 1.*
 
 Read the bottom row as arithmetic rather than as logic: 1 + 1 gives a sum
-of 0 and carries 1, which is how binary writes 2. Twenty-eight parts,
-thirty-seven wires, twenty-five nets, and it settles in **two iterations**.
+of 0 and carries 1, which is how binary writes 2. Eleven parts, seventeen
+junctions, thirty-seven wires, twenty-five nets, and it settles in **two or
+three iterations**, depending on the row.
 
 ![the half adder as a schematic](figures/half-adder-plan.png)
 
@@ -519,7 +524,9 @@ same picture that shows the fault.
 ## Stated simplifications
 
 - **DC only.** No capacitors, inductors or AC sources — the solver has no
-  notion of time or frequency, only a steady operating point.
+  notion of time or frequency, only a steady operating point. The app says
+  so on the cell's card: *direct current only: this cell pushes one way,
+  steadily*.
 - **Ideal wires.** A wire has exactly zero resistance; it merges two
   terminals into one net. All contact resistance lives in the parts
   (closed switch and ammeter at $0.01\,\Omega$), never in the wiring.
@@ -552,7 +559,8 @@ same picture that shows the fault.
 - **Constant bulb resistance.** The filament is a fixed $6\,\Omega$; a
   real incandescent's resistance climbs several-fold as it heats, so its
   true cold-inrush and warm-running currents differ. Brightness here is
-  read straight off dissipated power.
+  read straight off dissipated power. The bulb's card says so: *a fixed
+  6 Ω: a real bulb's resistance climbs as it heats*.
 - **Ideal cells.** A battery's voltage is whatever you set on it (each cell
   has its own, so a board can mix a 1.5 V and a 9 V one); only its internal
   resistance limits current. Real cells sag and run down — these do not.
@@ -572,7 +580,7 @@ tools/lab-sweep/lab-table labs/electronics-101
 
 and `lab-check` goes red when a table here no longer matches the records.
 The transistor, the gates, the package and the half adder are pinned by the
-solver's 169-case node unit suite, not by a record; the readings quoted in
+solver's 205-case node unit suite, not by a record; the readings quoted in
 their sections above illustrate the argument, and this section makes no
 claim about them.
 
@@ -591,7 +599,11 @@ Series stacks the resistances ($0.5 + 6 + 6$) so the shared current is small
 barely glow at 0.78 W; parallel halves them ($0.5 + 3$) so the cell delivers
 1282 mA, 641 mA per rung, and each bulb blazes at 2.47 W — roughly
 $3.5\times$ the current and $3.2\times$ the light. That contrast, produced by
-rewiring alone, is the core physical lesson of the lab.
+rewiring alone, is the core physical lesson of the lab. `T` on the series, the
+parallel or the metering preset walks it as a guided lesson
+(`series-parallel`, below): the learner predicts what a second bulb in series
+does, wires one in parallel by hand, watches a deliberate short and reads
+the meters.
 
 ![two bulbs in series](figures/series.png)
 
@@ -672,6 +684,131 @@ bulbs stacked against the two bulbs halved. Every other number in the study
 follows from those two by Ohm's law, which is why none of the ratios move
 with voltage.
 
+## The guided lessons
+
+The lab teaches three lessons, and `T` starts the one that belongs to the
+preset on the board: `led-basics` on `led-basic` and on a board you built
+yourself, `series-parallel` on `series`, `parallel` and `metering`, and
+`logic-gates` on `transistor` and every gate preset after it. `Space` or `→`
+moves on, `←` goes back, and `T` again leaves. A step marked **learner**
+below waits until the learner has done it; after a while its hint appears,
+and *show me* does it for them. Every number the narration quotes is pinned
+by an `expect` on its step, and `lab-check` runs all three lessons to the
+end, so a lesson that says 5.1 mA is checked against a board that reads it.
+
+### Why does the LED light? (`led-basics`, 18 steps)
+
+The lesson builds the smallest circuit that lights an LED, part by part,
+then hands the learner the switch and the resistor.
+
+| steps | what they teach |
+|---|---|
+| `empty`, `battery`, `voltage` | the cell drives everything; voltage is its push, in volts — 4.5 V here |
+| `led` | an LED conducts one way only, and only above its forward voltage, about 2 V |
+| `resistor`, `resistance` | the resistor limits the current; resistance is in ohms — 470 Ω here |
+| `switch`, `wire` | an open switch breaks the loop; current needs a closed loop |
+| `flip` | **learner:** close the switch |
+| `lit`, `current` | the LED glows; current is charge per second, in amps — 5.1 mA, drawn on the plot |
+| `values`, `volts` | the same 5.1 mA on every part of one loop; 2.1 V on the LED and 2.4 V on the resistor add up to the cell's 4.5 V |
+| `why`, `ohm` | the LED keeps about 2.1 V for itself; the 2.4 V left drives the current through the resistor, 2.4 V / 470 Ω = 5.1 mA |
+| `power` | power is voltage times current: about 11 mW in the LED |
+| `try` | **learner:** lower the resistor until the LED gives up — it does at 56 Ω, 35 mA |
+| `burnt` | past 30 mA an LED burns out, and it stays dark when the current comes back down |
+
+The usual misconceptions it meets:
+
+- *The cell hands out a fixed current.* The current is what the loop lets
+  through: the same cell gives 5.1 mA through 470 Ω and burns the LED out
+  through 56 Ω.
+- *The LED uses the current up.* The `values` step shows the same 5.1 mA
+  on both sides of it. What it uses is voltage.
+- *An LED is a resistor that glows.* It keeps about 2 V whatever the current,
+  which is why the resistor, not the LED, sets the current.
+- *The resistor is an extra that wastes power.* The `try` task takes it away
+  step by step until the LED dies.
+
+Takeaway: current needs a closed loop; the resistor sets how much flows,
+$I = V/R$ on the volts the LED leaves over; and an LED has a limit the
+resistor is there to keep it under.
+
+### Two bulbs: series and parallel (`series-parallel`, 21 steps)
+
+The lesson asks before it shows: two predictions on a question panel, two
+circuits for the learner to wire, and a deliberate short.
+
+| steps | what they teach |
+|---|---|
+| `one` | the reference: one bulb alone, 690 mA |
+| `guess` | **learner:** predict what a second bulb in series does to the first — brighter, the same, dimmer |
+| `second` | the answer, in a line that answers the learner's pick: both dimmer, 360 mA each |
+| `same`, `why` | one loop, one current, wherever you look; two 6 Ω bulbs make 12 Ω, so the same cell pushes less round it |
+| `split` | the voltage is shared: 2.2 V on each where one bulb alone had 4.1 V — half the push and half the current, a quarter of the light |
+| `pair`, `wireup` | **learner:** wire the second bulb in so that both glow almost as brightly as one alone |
+| `parallel`, `add` | each bulb has its own path, a ladder of two rungs; 640 mA each, 1.28 A from the cell — the currents add |
+| `push` | 3.8 V across each bulb: nearly the whole push, a little less than one bulb alone, because the cell loses voltage inside when it delivers more |
+| `short`, `banner`, `fix` | a bare wire across the upper bulb: nearly 9 A, the bulbs dark, the banner up; take the wire away and both are back |
+| `meters`, `voltmeter` | an ammeter goes into the loop, in series; a voltmeter goes across a part, in parallel |
+| `ask`, `told` | **learner:** predict the current in the resistor beyond the LED — less, the same, none; the same 5.1 mA |
+| `move`, `moved` | **learner:** rewire the voltmeter to read the resistor; 2.4 V on it and 2.1 V on the LED share out the 4.5 V |
+| `yours` | the board is the learner's |
+
+The usual misconceptions it meets:
+
+- *A second bulb in series leaves the first as bright as before* — the
+  answer most people give, and the one the `second` step answers by name.
+  Some expect it brighter; the board answers that too.
+- *Current is used up on its way round the loop.* Asked about the resistor
+  beyond the LED, this is the learner who picks *less* or *none*; the
+  `told` step shows the same 5.1 mA as the ammeter and says what the LED
+  uses up instead, voltage.
+- *In parallel the cell's voltage is split between the bulbs.* The `push`
+  step shows nearly the full voltage across each.
+- *A short is just a lot of current.* It is a path with next to no
+  resistance beside the parts, which is why the parts go dark.
+- *A meter can go anywhere.* The closing task makes the learner move the
+  voltmeter, which means rewiring it across another part.
+
+Takeaway: in series there is one current and the voltages divide; in
+parallel there is one voltage and the currents add; an ammeter goes into the
+loop and a voltmeter across a part.
+
+### From one transistor to XOR (`logic-gates`, 18 steps)
+
+The lesson builds nothing by hand. Each step jumps to the preset that holds
+the circuit and asks the learner to work its truth table, because what it
+teaches is what a gate does, not where to click.
+
+| steps | what they teach |
+|---|---|
+| `meet`, `legs` | a small current into one leg lets a much larger one through the other two; collector, base and emitter, ringed on the part |
+| `switch` | **learner:** close the switch, so current reaches the base |
+| `gain`, `limit` | 0.80 mA into the base, 9.8 mA through the LED: twelve times, not a hundred, because the LED is what limits the current; the green collar means saturated |
+| `and`, `andtask` | two transistors in series are AND; **learner:** switch both inputs on |
+| `or` | the same two in parallel are OR |
+| `xor`, `nand`, `xorbuild` | NOT and NAND in plain words, then XOR as (A or B) and not (A and B) |
+| `xortask`, `both` | **learner:** turn exactly one input on; then both, and the NAND cuts the fifth transistor off |
+| `cost` | five transistors, nine resistors and an LED for one bit of a decision |
+| `chip`, `chiptask` | the same XOR as one package that needs its own supply; **learner:** check it with one input on |
+| `switchit` | the package set to NAND, and the table measured again |
+| `adder` | two packages are a half adder: SUM is A xor B, CARRY is A and B, and 1 + 1 reads 10 |
+
+The usual misconceptions it meets:
+
+- *A transistor always multiplies its base current by its gain.* The `gain`
+  step reads twelve times, and `limit` says why: the circuit around it sets
+  the current once the part is fully on.
+- *A truth table is something the gate looks up.* The panel is the board
+  solved once per row; the `switchit` step changes the function and the
+  table is measured again.
+- *XOR is as simple as AND or OR.* It is not a wiring of two parts: it
+  costs five transistors, which is the `cost` step and the reason the
+  package exists.
+- *A chip is a symbol.* The `chip` step points at its supply pins: it
+  needs feeding like any other part.
+
+Takeaway: a gate is a circuit — series is AND, parallel is OR — and a chip
+is that circuit sold as one part, with a supply of its own.
+
 ## Things to try
 
 - **Push the LED to its ceiling.** Set the resistor to 470 Ω and drag the
@@ -692,24 +829,29 @@ with voltage.
   wiring, different physics.
 - **Reverse an LED on purpose.** Wire its anode (the gold foot) to minus.
   It stays dark at exactly 0 mA. Polarity is real, not decorative.
-- **Meter a divider.** Load the `metering` preset (`4`): the ammeter sits
-  in series and reads loop current, the voltmeter sits across the LED and
-  reads its drop. Cycle the resistor (click it) and watch both readings
-  move together.
+- **Meter the loop.** Load the `metering` preset (`4`) and close its
+  switch: the ammeter sits in series and reads the loop current, 5.15 mA,
+  the voltmeter sits across the LED and reads its drop, 2.08 V. Select the
+  resistor and drag its slider: at 220 Ω the ammeter reads 10.6 mA and the
+  LED 2.16 V, at 1 kΩ 2.46 mA and 2.04 V. The current follows the resistor
+  by a factor of four; the LED's voltage barely moves, which is what a
+  forward voltage is.
 - **Make a short.** Run a single wire straight from $+$ to $-$. 9 A, the
   battery flashes red, the banner drops. Now put a resistor in that wire
   and watch the short clear — that is what a resistor is *for*.
 - **Starve a base and watch the region change.** Load `transistor` (`5`),
-  select the 4.7 kΩ base resistor and drag it up. The lamp dims, and the
-  selection card's region flips from *saturated* to *active* at the point
-  where $\beta I_B$ falls below what the lamp wants — which is the whole
-  definition of saturation, arrived at by turning one knob.
+  close the switch, select the 4.7 kΩ base resistor and drag its slider up.
+  The selection card of the transistor says *saturated* up to 33 kΩ and
+  *active* from 39 kΩ, the point where $\beta I_B$ falls below what the
+  lamp wants — which is the whole definition of saturation, arrived at by
+  turning one knob. From there the lamp dims with every step: 8.1 mA at
+  47 kΩ, 3.8 mA at 100 kΩ, 0.40 mA at 1 MΩ.
 - **Break an AND gate on purpose.** In `logic-and` (`7`), erase the wire
   between the two transistors and rewire them in parallel. The truth table
   redraws itself as an OR, because it is not a table — it is four solves of
   whatever is on the board.
 - **Find the row that costs the least.** In `logic-xor` (`9`), watch the
-  cell current as you walk the four rows: 0.4 mA, 11.4, 11.4, 3.4. The
+  cell current as you walk the four rows: 0.4 mA, 11.4, 10.6, 3.4. The
   gate's *answer* and the gate's *appetite* are different quantities, and
   the dark rows are not the cheap ones in the way you would guess.
 - **Take a diode out of the diode OR.** In `diode-or` (`6`), delete D2 and
@@ -718,7 +860,8 @@ with voltage.
   **3.719 V**, driven by A through the lamp it was supposed to be
   independent of. The diode was not there to make the gate work; it was
   there to keep the two inputs from becoming one.
-- **Turn one gate into six.** Load `gates` (`10`), select the package and
+- **Turn one gate into six.** Load `gates` (*logic gate* in the palette's
+  presets; it has no digit), select the package and
   click through AND, OR, XOR, NAND, NOR, NOT. The case relabels, the
   schematic symbol changes shape, and the truth table is *re-solved* each
   time — four fresh solves of the board, not a lookup.
@@ -727,7 +870,8 @@ with voltage.
   supply 0.000 V, output high-impedance. A chip with no power does not
   output low, it outputs nothing — which is a different fault, and one you
   can see the difference of here.
-- **Read an adder as arithmetic.** In `half-adder` (`11`) walk the four
+- **Read an adder as arithmetic.** In `half-adder` (*half adder* in the
+  palette's presets) walk the four
   rows and read SUM and CARRY as a two-digit binary number: 0, 1, 1, 10.
   That is addition, done by two parts and a battery.
 - **Clip a meter on and keep what it says.** Press `H` until the voltmeter
@@ -743,20 +887,59 @@ with voltage.
 ./build/bin/claydojo --sbx labs/electronics-101/Sandbox.qml
 ```
 
-Keys: `1` led-basic · `2` series · `3` parallel · `4` metering ·
-`T` the guided flow · `E` eraser · `C` clear · `V` value labels ·
-`M` the schematic · `#` grid mode · `R` turn the selected part ·
-`Q` put it on the plot · `Del` remove it · `F` frame it · `0` reset the
-view · `H` the next instrument · `P` keep a reading · `Esc` cancel ·
-`Shift+R` record a run. `EN`/`DE` in the top right switch the language.
+The eleven presets are the chips under *PRESETS* in the palette, in this
+order: `1` led-basic · `2` series · `3` parallel · `4` metering ·
+`5` transistor · `6` diode-or · `7` logic-and · `8` logic-or · `9` logic-xor
+· gates · half-adder. The digits stop at 9, so the last two — *logic gate*
+and *half adder* on their chips — are reached only by clicking them, and the
+key help says so in its second row.
+
+The keys, exactly as `?` lists them, in its order:
+
+| key | what `?` says it does |
+|---|---|
+| `1-9` | presets |
+| click | presets 10, 11: in the palette |
+| `C` | clear the board |
+| `E` | eraser |
+| `V` | show every value |
+| `M` | schematic |
+| `Z` | schematic, full window |
+| `Q` | plot the selected part |
+| `R` | turn the part |
+| `#` | grid mode |
+| `Del` | remove the selection |
+| `T` | guided tour |
+| `␣` | next step |
+| `␣` | pan on the left button while held |
+| `f` | jump to a part |
+| `jk` | walk the card's controls |
+| `hl` | adjust the focused control |
+| `⏎` | operate the part |
+| `H` | take the next instrument |
+| `P` | keep this reading |
+| `⌫` | undo the last point · Esc clears |
+| `←↑↓→ / WASD` | move across the scene |
+| `⇧←↑↓→` | turn the view |
+| `+-` | zoom |
+| `⇧F` | frame selection |
+| `0` | reset view |
+| `⌃O ⌃I` | view back · forward |
+| `⌃+ ⌃− ⌃0` | text size |
+| `⇧R` | record a run |
+| `⇥` | hide the panels |
+| `Esc` | cancel |
+| `?` | this list |
+
+`EN`/`DE` in the top right switch the language.
 
 Take a part from the palette by clicking it: a semi-transparent **ghost** of
 that part then follows the cursor at the cell it would snap to, a click puts
 it there, and `Esc` or a right-click puts it back down. The ghost is drawn
 in the refusal colour where the cell is already taken, so a placement that
 will not work says so before the click rather than after it. Click two gold
-terminals to wire, click a switch to flip it, click a resistor to cycle its
-ohms, drag a part to move it, and click a wire anywhere along its length to
+terminals to wire, click a switch to flip it, select a resistor and drag the
+slider on its card to set its ohms, drag a part to move it, and click a wire anywhere along its length to
 branch off it (the eraser removes wires, junctions and parts alike). Every
 preset starts with the switch **open** — flipping it is the invitation.
 
@@ -780,9 +963,9 @@ from a lump on a pegboard to a squiggle in a textbook is made once, in the
 place you are already looking, and never has to be taught.*
 
 Values are set where the part is, not in a global panel. Selecting a
-resistor puts a slider on its card that walks the **E12 series** — the
-values a shop actually sells — and selecting a battery gives it its own
-volts, so a board can hold a 1.5 V cell next to a 9 V one. There is
+resistor puts a slider on its card that walks the **E12 series** from 1 Ω to
+1 MΩ — the values a shop actually sells — and selecting a battery gives it
+its own volts, so a board can hold a 1.5 V cell next to a 9 V one. There is
 deliberately no global voltage parameter any more: one slider per cell is
 both simpler to explain and strictly more capable.
 
@@ -818,8 +1001,8 @@ two are the same kind of number.
 
 ![the XOR board as a full-window lettered schematic](figures/plan-max.png)
 
-*The XOR preset with the diagram given the window: twenty parts, every one of
-them named and rated. Nothing here is drawn that the postage-stamp version does
+*The XOR preset with the diagram given the window: eighteen parts, every one
+of them named and rated. Nothing here is drawn that the postage-stamp version does
 not also draw — the lettering is the whole difference, and the lettering is
 what a small panel has no room for.*
 
@@ -920,7 +1103,7 @@ shadows are now a question only for the parts, where they work.
 
 A wire used to be the straight line between two pads. On the one-loop boards
 that is invisible, because the pads are already in line; on the XOR it is
-thirty-eight parts joined by a fan of diagonals, and a diagonal has no
+eighteen parts and twenty junctions joined by a fan of diagonals, and a diagonal has no
 relationship to the grid the parts stand on. Every board people solder and
 every diagram people draw runs its wires along two axes.
 
@@ -956,8 +1139,8 @@ the XOR's 47 wires, paid once per board change.
 
 ![the XOR board straight down, every wire orthogonal](figures/routing.png)
 
-*The XOR from as far overhead as the camera goes. Thirty-eight parts,
-forty-seven wires, and every one of them runs along one of two board
+*The XOR from as far overhead as the camera goes. Eighteen parts, twenty
+junctions, forty-seven wires, and every one of them runs along one of two board
 directions — two families of parallel lines and no third. (The board still
 shears slightly: 84° is the rig's limit, not 90°.) No wire is laid over a part
 it is not wired to.*
@@ -985,7 +1168,7 @@ simply does not animate, which is the honest answer.
 The view is an orbit cam on a leash, and it never takes the left button (see
 *The left button is the lab's* below). A right drag circles the setup, a
 middle drag slides it, the wheel zooms at the cursor, `WASD` and the arrows
-pan, `Shift` with the arrows turns, `F` frames the selected part and `0`
+pan, `Shift` with the arrows turns, `⇧F` frames the selected part and `0`
 reframes the whole setup — which is also what happens when a preset is
 applied, so each scenario arrives properly framed. Holding `Space` lends the
 left button to panning for exactly as long as it is held, for anyone who
@@ -1073,35 +1256,44 @@ lends the left button to panning for exactly as long as it is held down.
 
 ## Source map
 
-- Lab scene, palette, wiring and interaction: `labs/electronics-101/Sandbox.qml:1`
-- DC nodal solver (`solve`): `labs/kits/circuit/circuit.js:107`
-- Nets via union-find (`buildNets`): `labs/kits/circuit/circuit.js:41`
-- Gaussian elimination (`solveLinear`): `labs/kits/circuit/circuit.js:68`
-- Element conductances / Norton stamps: `labs/kits/circuit/circuit.js:92`, `labs/kits/circuit/circuit.js:135`
-- LED piecewise model and flip-lock iteration: `labs/kits/circuit/circuit.js:124`, `labs/kits/circuit/circuit.js:146`
-- Part visuals (LED glow, bulb glow): `labs/kits/circuit/CircuitElement3D.qml:1`, `labs/kits/circuit/CircuitElement3D.qml:136`, `labs/kits/circuit/CircuitElement3D.qml:171`
-- Manhattan wire routing (`routeAll`, `routeOne`): `labs/kits/circuit/route.js:1`
-- Which way a lead leaves its pad (`terminalDir`): `labs/electronics-101/Sandbox.qml:217`
-- The routed paths, cached per board change (`wireRoutes`): `labs/electronics-101/Sandbox.qml:1312`
-- Scenarios (each seeds its own watch list): `labs/electronics-101/Sandbox.qml:444`
-- Fixed probes (`iBattery`, `power`, `vTerm`): `labs/electronics-101/Sandbox.qml:50`
-- Watch list and the monitor: `labs/electronics-101/Sandbox.qml:100`, `labs/electronics-101/Sandbox.qml:1828`
-- Board tags: `labs/electronics-101/Sandbox.qml:1572`
-- The belt, and the palette as a tool on it: `labs/electronics-101/Sandbox.qml:721`, `labs/electronics-101/Sandbox.qml:731`
-- The placement ghost: `labs/electronics-101/Sandbox.qml:796`
-- The guided flow (`led-basics`): `labs/electronics-101/Sandbox.qml:1266`
-- Handheld contract and belt (kernel): `plugins/clay_lab/HandheldInstrument.qml:1`, `plugins/clay_lab/InstrumentBelt.qml:1`
-- Tape measure, stopwatch (kernel): `plugins/clay_lab/TapeMeasure.qml:1`, `plugins/clay_lab/Stopwatch.qml:1`
-- The kit's handheld voltmeter: `labs/kits/circuit/Voltmeter.qml:1`
-- The camera that never takes the left button (kernel): `plugins/clay_canvas3d/OrbitInput3D.qml:1`
-- Runtime-driven plot series (kernel): `plugins/clay_lab/Plot2D.qml:50`
-- Language switch (kernel): `plugins/clay_lab/LabLang.qml:1`, `plugins/clay_lab/LangSwitch.qml:1`
-- Dictionaries: `labs/electronics-101/strings.js:1`, `labs/kits/circuit/strings.js:1`
-- viewState circuit persistence: `labs/electronics-101/Sandbox.qml:412`
+Functions and ids, not line numbers: a line number is wrong after the next
+edit above it, a name is wrong only when the thing it names is renamed.
+
+- Lab scene, palette, wiring and interaction: `labs/electronics-101/Sandbox.qml`, root `id: root`
+- DC nodal solver: `solve` in `labs/kits/circuit/circuit.js`
+- Nets via union-find: `buildNets`; Gaussian elimination: `solveLinear` (both in `circuit.js`)
+- Element conductances and Norton stamps: `conductanceOf`, `stampNetwork`
+- LED, diode, transistor and gate states, and the flip-lock iteration: `stateFrom` and the loop in `solve`; the gate package's output: `gateLevels`, `gateOutput`
+- LED burnout: `burnOut`; wire currents from Kirchhoff's current law: `attributeWireCurrents`
+- Part visuals (LED glow, bulb glow, the resistor's colour code): the `_led`, `_bulb` and `_res` sections of `labs/kits/circuit/CircuitElement3D.qml`, the code in `_res.bands`
+- Part table (pads, bodies, actuators): `labs/kits/circuit/parts.js`
+- Manhattan wire routing: `routeAll`, `routeOne` in `labs/kits/circuit/route.js`
+- Schematic label placement: `placeLabels` in `labs/kits/circuit/plan.js`
+- Which way a lead leaves its pad: `Board.terminalDir` in `plugins/clay_lab/Board.qml`, reached through `terminalDir` in the lab
+- The routed paths, cached per board change: `Board.routes`, read as `wireRoutes` in the lab
+- Scenarios (each seeds its own watch list): the `ScenarioSet` with `id: scenarioSet`; a gate input with its pull-down: `addLogicInput`
+- Resistor values, 1 Ω to 1 MΩ: `resistorSteps`, `resistorStepOf`, `setOhms`, `fmtOhms`
+- Fixed probes: the `Probe` items named `iBattery`, `power`, `vTerm` and `emf` near the top of `Sandbox.qml`
+- Watch list and the monitor: `setWatched`, `watchOnly`, the `WatchMonitor` with `id: monitor`
+- Board tags: the `BoardOverlay` with `id: overlay`
+- The selection card and what it says about a part: the `PartCard` with `id: selCard`, `cardTitle`, `adjustCardRow`, its `hintOf`
+- The belt, and the palette as a tool on it: the `InstrumentBelt` with `id: hands`, the `PartPlacer` with `id: placer`, the `BoardPalette` with `id: palette`
+- The placement ghost: `plugins/clay_lab/PartPlacer.qml`
+- The three lessons: the `Flow`s with `id: ledFlow` (`led-basics`), `id: spFlow` (`series-parallel`, with `questions`, `setAnswer`, `answeredKey`) and `id: logicFlow` (`logic-gates`); which one `T` starts: `currentFlow`
+- The key map and the `?` list: the `LabKeys` with `id: keymap` in the lab, `LabKeys.entries` in `plugins/clay_lab/LabKeys.qml`, the panel `plugins/clay_lab/LabHelp.qml`
+- Handheld contract and belt (kernel): `plugins/clay_lab/HandheldInstrument.qml`, `plugins/clay_lab/InstrumentBelt.qml`
+- Tape measure, stopwatch (kernel): `plugins/clay_lab/TapeMeasure.qml`, `plugins/clay_lab/Stopwatch.qml`
+- The kit's handheld voltmeter: `labs/kits/circuit/Voltmeter.qml`
+- The camera that never takes the left button (kernel): `plugins/clay_canvas3d/OrbitInput3D.qml`
+- Runtime-driven plot series (kernel): `plugins/clay_lab/Plot2D.qml`
+- Language switch (kernel): `plugins/clay_lab/LabLang.qml`, `plugins/clay_lab/LangSwitch.qml`
+- Dictionaries: `labs/electronics-101/strings.js`, `labs/kits/circuit/strings.js`
+- viewState circuit persistence: `viewState`, `applyViewState`
 - The study, its records and its figures: `labs/electronics-101/studies/series-vs-parallel/study.md`
 - This paper's figures, and the one script that regenerates them: `labs/electronics-101/figures/make.sh`
 
 *Verified via the clay-crew inspector on the running lab: the readings
 above are read straight from the probes and meter pills; the kit's node
-suites cover the same circuits headless — 169 assertions on the solver, 54
-on the router.*
+suites cover the same circuits headless — 205 assertions on the solver, 54
+on the router, 94 on the schematic's label placement and 62 on the part
+anatomies.*

@@ -451,8 +451,28 @@ void ClayInspector::stopWatching()
         m_watcher.removePaths(paths);
 }
 
+bool ClayInspector::deferToOwnThread(void (ClayInspector::*add)(const QString&, const QString&),
+                                     const QString& msg, const QString& category)
+{
+    // The loader's message handler calls the add* functions on whichever
+    // thread logged - the QML type loader's thread logs while the main thread
+    // is building the scene - and two threads growing one list corrupt the
+    // heap. clayrender had the same race (#179); here it showed as a crash
+    // inside malloc on the QML loader thread during a reload (#565). A call
+    // from another thread is handed to this object's thread instead, so the
+    // buffers, the log file and the auto-flag are only ever touched there.
+    if (QThread::currentThread() == thread())
+        return false;
+    QMetaObject::invokeMethod(this, [this, add, msg, category]() {
+        (this->*add)(msg, category);
+    }, Qt::QueuedConnection);
+    return true;
+}
+
 void ClayInspector::addLogMessage(const QString& msg, const QString& category)
 {
+    if (deferToOwnThread(&ClayInspector::addLogMessage, msg, category))
+        return;
     m_logBuffer.append(msg);
     while (m_logBuffer.size() > MAX_LOG_ENTRIES)
         m_logBuffer.removeFirst();
@@ -471,6 +491,8 @@ ClayInspector::Diagnostic ClayInspector::makeDiagnostic(const QString& msg) cons
 
 void ClayInspector::addWarning(const QString& msg, const QString& category)
 {
+    if (deferToOwnThread(&ClayInspector::addWarning, msg, category))
+        return;
     m_warningBuffer.append(makeDiagnostic(msg));
     while (m_warningBuffer.size() > MAX_LOG_ENTRIES)
         m_warningBuffer.removeFirst();
@@ -483,6 +505,8 @@ void ClayInspector::addWarning(const QString& msg, const QString& category)
 
 void ClayInspector::addError(const QString& msg, const QString& category)
 {
+    if (deferToOwnThread(&ClayInspector::addError, msg, category))
+        return;
     m_errorBuffer.append(makeDiagnostic(msg));
     while (m_errorBuffer.size() > MAX_LOG_ENTRIES)
         m_errorBuffer.removeFirst();

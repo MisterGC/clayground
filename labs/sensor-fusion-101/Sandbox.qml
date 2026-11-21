@@ -1084,15 +1084,28 @@ Item {
             key: "odo"
             demo: [["setParam", "gpsSigma", 3]]
         }
-        FlowStep { key: "lidar-map"; demo: [["monitor", true]] }
+        FlowStep { key: "lidar-map" }
+        FlowStep { key: "lidar-chain"; demo: [["monitor", true]] }
         FlowStep {
             key: "lidar-geometry"
             watch: ({ "until": () => lidar.usedCount <= 2 })
         }
         FlowStep { key: "fusion" }
+        // The learner acts (#542): take the lidar's landmarks away without a
+        // tunnel. Nothing on screen says how - the range was the lidar-geometry
+        // step's point - and `until` reads what the lidar matched, not the knob,
+        // so any way to blind it counts.
+        FlowStep {
+            key: "blind"
+            task: ({ "until": () => lidar.usedCount === 0 && !root.carInTunnel,
+                     "hint": "flow.fusion-basics.blind.hint",
+                     "hintAfter": 15,
+                     "solve": [["setParam", "lidarRange", 5]] })
+        }
         FlowStep {
             key: "tunnel"
-            demo: [["scenario", "tunnel"], ["simSpeed", 1.0]]
+            demo: [["setParam", "lidarRange", 22],
+                   ["scenario", "tunnel"], ["simSpeed", 1.0]]
             watch: ({ "until": () => root.carInTunnel })
             expect: () => root.carInTunnel
         }

@@ -34,7 +34,7 @@ do is reachable through `eval` via the conventions below), **teaching-first**
 | purpose | owes, on top of the common base |
 |---|---|
 | **research** — you are measuring something | `studies/<slug>/study.md` + committed records + the answerability table; no flow, no DE, no board owed |
-| **teaching** — you are explaining it to someone | at least one flow with `expect`s, EN + DE narration, a storyboard `overview.grafli` — and a lesson that passes the checklist in `references/teaching.md`, which `lab-check` cannot see |
+| **teaching** — you are explaining it to someone | at least one flow, each with a learner `task` and an `expect`; EN + DE narration, every line at most 240 characters and none a `say` literal in the QML; a storyboard `overview.grafli` — and a lesson that passes the rest of the checklist in `references/teaching.md` — its top says which rules, in which references, `lab-check` checks and which are judgement |
 | **learning** — you are working it out | a `paper.md` study path and a concept-map `overview.grafli` |
 
 Common base, every tier — exactly what `lab-check` demands of every lab:
@@ -76,8 +76,7 @@ labs/<lab>/                  one lab = one situation; records/, figures/, studie
 
 - Labs are not CMake targets. Run them: `./build/bin/claydojo --sbx
   labs/<lab>/Sandbox.qml`; headless, `QT_QPA_PLATFORM=offscreen
-  ./build/bin/clayliveloader --sbx …`. Launch either with
-  `QT_DISABLE_SHADER_DISK_CACHE=1`.
+  ./build/bin/clayliveloader --sbx …`.
 - **Kit vs lab.** The kit owns the domain (solver, part visuals, symbols,
   vocabulary); the lab owns the situation (UI, scenarios, narration, keys).
   Test: could a second lab use this kit without editing it? A kit graduates
@@ -234,7 +233,7 @@ correctly under the inspector's `time` pause/step; (c) exposes `labInfo()`.
 looks at a picture. A red line: `references/check-failures.md`.
 
 ```bash
-tools/lab-check/lab-check labs/<slug>                    # load, determinism, flows, strings, records, tables, study, triad, remarks
+tools/lab-check/lab-check labs/<slug>                    # load, determinism, flows, strings, teaching, records, tables, study, triad, remarks
 tools/lab-check/lab-check labs/<slug> --only flows       # while you work
 tools/lab-sweep/lab-table labs/<slug> --check            # are the paper's tables current?
 ctest --preset default -R lab_check                       # every lab

@@ -17,6 +17,8 @@ import struct
 import subprocess
 import sys
 import tempfile
+import urllib.parse
+import urllib.request
 import zlib
 
 CHECKS = []
@@ -732,9 +734,17 @@ Item { Parameter { id: p } }
                                  "60x40", "--lab-src", "--eval", url_of,
                                  "--eval", "typeof Lab.runFlow"])
     url = got[0]["value"] if got else ""
-    path = os.path.realpath(url[len("file://"):]) if url.startswith("file://") else url
+    # file:///D:/a/... on Windows: a URL turns into a path through url2pathname,
+    # not by cutting the scheme off, and both sides are compared normalised.
+    parsed = urllib.parse.urlparse(url)
+    path = (urllib.request.url2pathname(parsed.path)
+            if parsed.scheme == "file" else url)
+    def same_file(a, b):
+        return (os.path.normcase(os.path.realpath(a))
+                == os.path.normcase(os.path.realpath(b)))
     check("--lab-src loads Clayground.Lab from plugins/clay_lab",
-          code == 0 and path == os.path.join(kernel_src, "Parameter.qml"),
+          code == 0 and parsed.scheme == "file"
+          and same_file(path, os.path.join(kernel_src, "Parameter.qml")),
           f"exit {code}: {url or err.strip()[:160]}")
     check("--lab-src keeps the kernel's singletons",
           code == 0 and got and got[1]["value"] == "function", str(got)[:160])

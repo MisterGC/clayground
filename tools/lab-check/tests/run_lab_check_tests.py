@@ -7,7 +7,8 @@ graphics session: the config it reads and the purpose it demands, what each tier
 owes (flows, DE, a study, a board), that a typed table is red, the remark
 counter, the first-difference message a failed determinism run has to carry,
 and that the scene drivers are still complete JavaScript after being templated,
-and what the load check counts as the environment (#534). The other half - driving an
+and what the load check counts as the environment (#534), and that a loader that
+dies or never gets ready is red in seconds with its reason (#536). The other half - driving an
 actual lab - is exercised by the four lab_check_<lab> gates themselves.
 
     python3 tools/lab-check/tests/run_lab_check_tests.py
@@ -16,8 +17,11 @@ actual lab - is exercised by the four lab_check_<lab> gates themselves.
 import json
 import os
 import shutil
+import stat
+import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
@@ -42,6 +46,9 @@ class Recorder(L.Report):
 
     def note(self, text):
         pass
+
+    def not_run(self, name, why):
+        self.skipped.append((name, why))
 
     def detail(self, needle):
         for name, _ok, det in self.lines:
@@ -252,6 +259,97 @@ def test_first_difference(tmp):
           "lines" in L.first_difference(a, b), L.first_difference(a, b))
 
 
+# -- records (#535) ----------------------------------------------------------
+
+# A make.sh that stands in for clayrender: it writes the records only when the
+# renderer it was handed ($CLAYRENDER) is the one the test expects, and says
+# what a real one says when there is no display when asked to.
+FAKE_MAKE = """#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ "${CLAYRENDER:-}" = "$(cat "$here/expect-render")" ] || {
+    echo "clayrender not found at ${CLAYRENDER:-build/bin/clayrender}" >&2; exit 1; }
+if [ -f "$here/no-display" ]; then
+    echo "clayrender: needs a graphics session" >&2; exit 1
+fi
+[ "$1" = "--out-dir" ]
+printf 'a\n' > "$2/a-42.labrec"
+"""
+
+
+def fake_lab(tmp, name, committed):
+    lab = os.path.join(tmp, name)
+    rec = os.path.join(lab, "records")
+    os.makedirs(rec)
+    make = os.path.join(rec, "make.sh")
+    with open(make, "w") as f:
+        f.write(FAKE_MAKE)
+    os.chmod(make, os.stat(make).st_mode | stat.S_IEXEC)
+    render = os.path.join(tmp, name + "-clayrender")
+    open(render, "w").close()
+    with open(os.path.join(rec, "expect-render"), "w") as f:
+        f.write(render)
+    for fname, text in committed.items():
+        with open(os.path.join(rec, fname), "w") as f:
+            f.write(text)
+    return lab, render
+
+
+def test_records(tmp):
+    work = os.path.join(tmp, "records-work")
+    os.makedirs(work)
+
+    lab, render = fake_lab(tmp, "rec-given-101", {"a-42.labrec": "a\n"})
+    rep = Recorder()
+    ok = L.check_records(rep, lab, work, render)
+    check("records: make.sh runs with the clayrender lab-check was given",
+          ok and not rep.skipped and rep.lines and rep.lines[0][1],
+          str(rep.lines + rep.skipped))
+    check("records: the pass counts the records it compared",
+          rep.detail("records: make.sh") == "1 records", rep.detail("records: make.sh"))
+
+    lab, render = fake_lab(tmp, "rec-session-101",
+                           {"a-42.labrec": "a\n", "session.labrec": "scratch\n"})
+    rep = Recorder()
+    check("records: a session.labrec from Shift+R is not compared",
+          L.check_records(rep, lab, os.path.join(work, "s"), render)
+          and rep.detail("records: make.sh") == "1 records", str(rep.lines))
+
+    lab, render = fake_lab(tmp, "rec-none-101", {})
+    rep = Recorder()
+    L.check_records(rep, lab, os.path.join(work, "n"), render)
+    det = rep.detail("records: make.sh") or ""
+    check("records: with nothing committed the pass says so, not '(1 records)'",
+          "no committed records" in det, det)
+
+    lab, render = fake_lab(tmp, "rec-missing-101", {"a-42.labrec": "a\n"})
+    rep = Recorder()
+    ok = L.check_records(rep, lab, os.path.join(work, "m"), render + "-absent")
+    check("records: no clayrender is NOT RUN, counted apart from the passes",
+          ok and not rep.lines and len(rep.skipped) == 1, str(rep.skipped))
+
+    lab, render = fake_lab(tmp, "rec-display-101", {"a-42.labrec": "a\n"})
+    open(os.path.join(lab, "records", "no-display"), "w").close()
+    rep = Recorder()
+    ok = L.check_records(rep, lab, os.path.join(work, "d"), render)
+    check("records: no graphics session is NOT RUN, counted apart",
+          ok and not rep.lines and len(rep.skipped) == 1, str(rep.skipped))
+
+    # The summary and --strict, through the command line
+    with open(os.path.join(lab, "lab-check.json"), "w") as f:
+        json.dump({"purpose": "learning"}, f)
+    open(os.path.join(lab, "Sandbox.qml"), "w").close()
+    tool = os.path.join(os.path.dirname(HERE), "lab_check.py")
+    base = [sys.executable, tool, lab, "--only", "records", "--clayrender", render]
+    plain = subprocess.run(base, capture_output=True, text=True)
+    check("records: the summary line says how many checks did not run",
+          plain.returncode == 0 and "0/0 checks passed, 1 not run" in plain.stdout,
+          f"exit {plain.returncode}: {plain.stdout.strip().splitlines()[-3:]}")
+    strict = subprocess.run(base + ["--strict"], capture_output=True, text=True)
+    check("records: --strict exits 1 when a check did not run",
+          strict.returncode == 1, f"exit {strict.returncode}")
+
+
 # -- remarks ----------------------------------------------------------------
 
 
@@ -335,6 +433,93 @@ def test_strings():
 
 
 # -- the drivers ------------------------------------------------------------
+
+
+def lesson(**over):
+    """The probe of a teaching lab with one flow that keeps every rule;
+    a test changes one thing and expects exactly that thing to be red."""
+    probe = {"tasks": {"f": 1}, "expects": {"f": 1}, "literals": {"f": []},
+             "flowKeys": ["flow.f.go", "flow.f.go.hint"],
+             "narration": {"en": {"flow.f.go": "Make the lamp light.",
+                                  "flow.f.go.hint": "Which switch is open?"},
+                           "de": {"flow.f.go": "Bring die Lampe zum Leuchten.",
+                                  "flow.f.go.hint": "Welcher Schalter ist offen?"}}}
+    probe.update(over)
+    return probe
+
+
+def teaching(probe, purpose="teaching"):
+    rep = Recorder()
+    L.check_teaching(rep, probe, ["f"], purpose)
+    return rep
+
+
+def test_teaching():
+    """The teaching rules a program can test (#542): one failing example
+    per rule, each red on its own line and on nothing else."""
+    rep = teaching(lesson())
+    check("teaching: a lesson that keeps every rule passes", not rep.failed(),
+          str(rep.failed()))
+
+    rep = teaching(lesson(tasks={"f": 0}))
+    check("teaching: a flow with no task fails, naming the missing task",
+          rep.failed() == ["teaching: f has a learner task and an expect"]
+          and "no step is a task" in rep.detail("learner task"), str(rep.lines))
+
+    rep = teaching(lesson(expects={"f": 0}))
+    check("teaching: a flow with no expect fails, naming the missing expect",
+          rep.failed() == ["teaching: f has a learner task and an expect"]
+          and "no step carries an expect" in rep.detail("learner task"),
+          str(rep.lines))
+
+    long_de = lesson()
+    long_de["narration"]["de"]["flow.f.go"] = "x" * 241
+    rep = teaching(long_de)
+    check("teaching: a German line of 241 characters fails, naming key and language",
+          rep.failed() == ["teaching: every narration line fits in 240 characters"]
+          and "flow.f.go [de] 241" in rep.detail("narration line"),
+          str(rep.lines))
+
+    long_hint = lesson()
+    long_hint["narration"]["en"]["flow.f.go.hint"] = "y" * 300
+    rep = teaching(long_hint)
+    check("teaching: a hint is a narration line too",
+          "flow.f.go.hint [en] 300" in (rep.detail("narration line") or ""),
+          str(rep.lines))
+
+    exact = lesson()
+    exact["narration"]["en"]["flow.f.go"] = "z" * 240
+    rep = teaching(exact)
+    check("teaching: a line of exactly 240 characters passes", not rep.failed(),
+          str(rep.lines))
+
+    scripted = lesson()
+    scripted["narration"]["en"]["flow.f.go.script"] = \
+        "*point at the battery* " + "w" * 200 + " *face viewer* *gesticulate* " + "v" * 30
+    rep = teaching(scripted)
+    check("teaching: a script's *cues* do not count towards its length",
+          not rep.failed(), str(rep.lines))
+
+    other = lesson()
+    other["narration"]["en"]["flow.someone-else.go"] = "u" * 400
+    other["narration"]["en"]["hint.free"] = "u" * 400
+    rep = teaching(other)
+    check("teaching: only the lines of the flows it checks are measured",
+          not rep.failed(), str(rep.lines))
+
+    rep = teaching(lesson(literals={"f": ["go"]}))
+    check("teaching: a say literal in the QML fails, naming the step",
+          rep.failed() == ["teaching: no narration is written in the QML"]
+          and "f.go" in rep.detail("written in the QML"), str(rep.lines))
+
+    for purpose in ("learning", "research"):
+        rep = teaching(lesson(tasks={"f": 0}, literals={"f": ["go"]}), purpose)
+        check(f"teaching: a {purpose} lab owes none of the lesson rules",
+              not rep.failed(), str(rep.lines))
+
+    check("teaching: the probe counts tasks and say literals per flow",
+          "++nTask" in L.PROBE_JS and "literal.push(" in L.PROBE_JS
+          and "out.narration[l] = said" in L.PROBE_JS)
 
 
 def test_drivers():
@@ -515,6 +700,132 @@ def test_load_diagnostics(tmp):
               "file:///C:/x/labs/kits/k/K.qml:3: TypeError", "D:/repo"))
 
 
+# -- a loader that dies or never gets ready (#536) ----------------------------
+
+STAND_IN = os.path.join(HERE, "stand_in_loader.py")
+LAB_CHECK = os.path.join(os.path.dirname(HERE), "lab_check.py")
+LOAD_CHECK = os.path.join(os.path.dirname(HERE), "load_check.py")
+
+
+def stand_in_lab(tmp, name):
+    """A minimal learning lab for the stand-in loader to 'load'."""
+    lab = os.path.join(tmp, name)
+    os.makedirs(lab)
+    for fname, text in (("Sandbox.qml", ""), ("paper.md", "# Paper\n"),
+                        ("overview.grafli", ""),
+                        ("lab-check.json", '{"purpose": "learning"}')):
+        with open(os.path.join(lab, fname), "w") as f:
+            f.write(text)
+    return lab
+
+
+def run_timed(cmd, mode):
+    """(exit code, output, seconds it took) of cmd with STAND_IN_MODE=mode."""
+    env = dict(os.environ, STAND_IN_MODE=mode)
+    start = time.time()
+    proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, text=True, timeout=120)
+    return proc.returncode, proc.stdout, time.time() - start
+
+
+def run_with_stand_in(tmp, name, mode, ready_timeout):
+    """lab-check over a minimal learning lab, with the stand-in as its loader."""
+    lab = stand_in_lab(tmp, name)
+    return run_timed(
+        [sys.executable, LAB_CHECK, lab, "--loader", STAND_IN,
+         "--ready-timeout", str(ready_timeout),
+         "--only", "load,determinism,flows,triad,remarks"], mode)
+
+
+def quote(out):
+    """The output a failing line carries - its last lines, where the verdict is."""
+    return " | ".join(out.splitlines()[-8:])
+
+
+def test_loader_watch(tmp):
+    check("loader: the default ready timeout is two minutes at most",
+          L.DEFAULT_READY_TIMEOUT <= 120, str(L.DEFAULT_READY_TIMEOUT))
+
+    # a loader that dies at once: red in seconds, not after the timeout,
+    # with its exit code and its last line
+    code, out, took = run_with_stand_in(tmp, "crash-101", "crash", 60)
+    check("loader: a loader that dies fails the check", code == 1, f"exit {code}")
+    check("loader: a dead loader is seen within seconds, not the timeout",
+          took < 15, f"{took:.1f} s against a 60 s timeout")
+    check("loader: the FAIL line carries the loader's exit code",
+          "FAIL  load: the loader keeps running  (the loader ended with exit "
+          "code 3" in out, quote(out))
+    check("loader: the loader's last output is printed",
+          'module "Clayground.Missing" is not installed' in out, quote(out))
+    check("loader: the checks that need no loader still report after a crash",
+          "PASS  triad: paper.md exists" in out, quote(out))
+
+    # a loader that stays up and never gets ready: red after the stated timeout
+    code, out, took = run_with_stand_in(tmp, "never-101", "never-ready", 2)
+    check("loader: a lab that never gets ready fails the check", code == 1,
+          f"exit {code}")
+    check("loader: the header states the ready timeout",
+          "ready within 2 s" in out, out.splitlines()[0] if out else "")
+    check("loader: the FAIL line states the timeout it waited",
+          "FAIL  load: the lab reaches phase ready  (the lab never reached "
+          "phase ready within 2 s (phase=loading))" in out, quote(out))
+    check("loader: a never-ready lab ends near its timeout",
+          took < 15, f"{took:.1f} s against a 2 s timeout")
+    check("loader: the checks that need no loader still report after a timeout",
+          "PASS  triad: paper.md exists" in out, quote(out))
+
+    # the first process serves, every run after it stalls: one run waits the
+    # timeout, the others are NOT RUN instead of each waiting it again
+    code, out, took = run_with_stand_in(tmp, "stall-101", "stall-after-first", 2)
+    check("loader: the first run that never gets ready fails",
+          "FAIL  determinism: one  (the lab never reached phase ready within 2 s"
+          in out, quote(out))
+    check("loader: the runs after a stalled one are NOT RUN",
+          "NOT RUN  determinism: two  (an earlier run's loader did not get the "
+          "lab ready within 2 s)" in out, quote(out))
+    check("loader: a stall costs one timeout, not one per run",
+          took < 15, f"{took:.1f} s")
+
+    # the first process serves, every run after it dies: each run is red with
+    # the exit code, and the next run is still tried
+    code, out, took = run_with_stand_in(tmp, "crash-run-101", "crash-after-first", 60)
+    check("loader: a run whose loader dies fails with the exit code",
+          "FAIL  determinism: one  (the loader ended with exit code 3" in out
+          and "FAIL  determinism: two  (the loader ended with exit code 3" in out,
+          quote(out))
+    check("loader: crashing runs are seen within seconds", took < 15,
+          f"{took:.1f} s against a 60 s timeout")
+    check("loader: the checks that need no loader still report after a crashed run",
+          "PASS  triad: paper.md exists" in out, quote(out))
+
+    # the first process serves, the next one is up and never answers: one
+    # protocol FAIL, and the checks that need no loader still report - a
+    # timeout used to cost them their lines (#536)
+    code, out, took = run_with_stand_in(tmp, "mute-101", "mute-after-first", 2)
+    check("loader: a loader that stops answering fails one protocol line",
+          code == 1 and "FAIL  protocol: no response for " in out,
+          f"exit {code}: {quote(out)}")
+    check("loader: the checks that need no loader still report after a protocol timeout",
+          "PASS  triad: paper.md exists" in out, quote(out))
+    check("loader: a protocol timeout ends within its ready timeout",
+          took < 15, f"{took:.1f} s against a 2 s timeout")
+
+    # load_check.py, the load stage for pages that are not labs, reports a
+    # dead loader the same way
+    lab = stand_in_lab(tmp, "load-crash-101")
+    code, out, took = run_timed(
+        [sys.executable, LOAD_CHECK, os.path.join(lab, "Sandbox.qml"),
+         "--loader", STAND_IN], "crash")
+    check("load_check: a loader that dies fails the page", code == 1,
+          f"exit {code}")
+    check("load_check: the FAIL line carries the loader's exit code",
+          "the loader ended with exit code 3" in out, quote(out))
+    check("load_check: the loader's last output is printed",
+          'module "Clayground.Missing" is not installed' in out, quote(out))
+    check("load_check: a dead loader is seen well within the 90 s timeout",
+          took < 15, f"{took:.1f} s")
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
@@ -526,11 +837,18 @@ def main():
         test_triad(tmp)
         test_tables(tmp)
         test_first_difference(tmp)
+        if os.name != "nt":
+            # the stand-in make.sh is a bash script
+            test_records(tmp)
         test_remarks(tmp)
         test_strings()
+        test_teaching()
         test_drivers()
         test_step_of()
         test_load_diagnostics(tmp)
+        if os.name != "nt":
+            # the stand-in loader is started as an executable script
+            test_loader_watch(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

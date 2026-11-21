@@ -7,7 +7,15 @@ is how this lab works") and *experiment* ("here is a thing worth
 understanding"). A flow that cannot be interrupted is a video, and a
 video is cheaper to make — interruptibility is the point.
 
+Every rule in this file is marked: *checked* names the `lab-check` line
+that fails when it is broken (`check-failures.md`), *judgement* means no
+program tests it.
+
 ## The action layer: one mutation API, three drivers
+
+*Checked in part — a demo verb `flowActions()` does not return fails
+`flows: <id>` (`unresolved verb`). That no UI path mutates state behind
+the verbs' back is judgement.*
 
 Every state change the lab supports is a named verb in `flowActions()`.
 The lab's own UI calls those verbs, a flow calls the same verbs, and an
@@ -30,7 +38,7 @@ function flowActions() {
 }
 ```
 
-Steps are **data**, not closures — that is what makes a flow diffable,
+Steps are **data**, not closures *(judgement)* — that is what makes a flow diffable,
 translatable, validatable and replayable. Demo entries:
 
 - `["verb", arg1, arg2]` — invoke a verb.
@@ -82,7 +90,9 @@ PartCard   { flow: ledFlow }
 Three step kinds, by who acts:
 
 - **demo** — the lab acts through its verbs; the learner watches.
-- **task** — the learner acts; `until` is a predicate on *lab state*
+- **task** — the learner acts *(a teaching flow without one fails
+  `teaching: <id> has a learner task and an expect`; that `until` reads
+  state and not a click is judgement)*; `until` is a predicate on *lab state*
   ("the LED is lit"), never on a specific click, so there is always more
   than one way to satisfy it. `allow` names what the task lends out —
   the parts that answer while it runs, written the way `until` and
@@ -98,7 +108,7 @@ A step with none of the three just narrates.
 
 ## Rules that make a flow teach
 
-- **A lesson owns the board while it teaches** (#221). `Flow.control` is
+- **A lesson owns the board while it teaches** (#221) *(judgement)*. `Flow.control` is
   `"learner"` (nothing running — everything works), `"flow"` (a demo or a
   narrated step — the board is inert) or `"task"` (only what `allow`
   named). The instant a task's `until` holds the board is the flow's
@@ -111,28 +121,39 @@ A step with none of the three just narrates.
   by leaving (`flow.stop()`, the narrator's ✕), never by touching
   something mid-lesson. A task with no `allow` keeps the whole board
   live, which is what a flow written before this gets.
+  Pads and wires stay locked even in a task, unless the task asks for a
+  changed circuit: `"wiring": true` lends them as well
+  (`Flow.lendsWiring()`), so the learner can draw and erase wires, and
+  its `until` reads the circuit that results.
   The camera is never gated: looking around is not touching.
-- **The headless run is not affected.** `Lab.runFlow()` performs each
+- **The headless run is not affected** *(checked: a task whose `solve`
+  does not satisfy its `until` fails `flows: <id>`, `task never
+  satisfied`)*. `Lab.runFlow()` performs each
   task through `solve()`, i.e. through the lab's verbs, and never through
   the input layer — so a locked board cannot lock `lab_check_<lab>` out.
-- **Pacing ripens, never forces.** `pacing: "ready"` (default): a
+- **Pacing ripens, never forces** *(judgement)*. `pacing: "ready"` (default): a
   reading-time estimate ripens the Next control — dimmed but **always
   clickable**, never disabled. `"auto"` advances on elapse (kiosk,
   recordings, headless verification). `"manual"` shows no estimate.
   Dwell is measured in **sim seconds**, so `timeScale` scales a flow and
   headless runs traverse identical states.
-- **One idea per step**; keep narration under ~240 characters.
-- **Timing, as measured.** A demo may apply a scenario in any step, not only
+- **One idea per step** *(judgement)*; keep narration at 240 characters
+  or fewer, in every language *(checked: `teaching: every narration line
+  fits in 240 characters`)*.
+- **Timing, as measured** *(checked: an `expect` measured at the wrong
+  instant fails `flows: <id>`, `expect failed`)*. A demo may apply a scenario in any step, not only
   the first; the step's dwell survives the clock rewind. `expect` is
   asserted on the first sample tick after the dwell elapses, so `dwell: 6`
   asserts at t = 6.05 s with the default sample interval — measure the
   expected value at that tick, not at 6.0.
-- **Checkpoints make scrubbing cheap**: before each step the runner
+- **Checkpoints make scrubbing cheap** *(judgement)*: before each step the runner
   stores `viewState()` + the name table; `goTo(k)` restores checkpoint k
   and replays only step k's demo. Progress dots are clickable. In Box2D
   labs a backward jump resumes from the scenario boundary, not the exact
   frame (see pitfalls).
-- **Every flow is also a test.** One command walks it:
+- **Every flow is also a test** *(checked: `flows: <id>` runs every
+  published flow; a teaching flow with no `expect` fails `teaching: <id>
+  has a learner task and an expect`)*. One command walks it:
 
   ```bash
   clayrender labs/<lab>/Sandbox.qml --out /tmp/x.png \
@@ -147,7 +168,7 @@ A step with none of the three just narrates.
   teaching a wrong number. `lab_check_<lab>` (#208) runs the same call for
   every id in `flows()`, so a lesson that drifts is red in a build; the
   command above is for one flow while you are working on it.
-- **End with a handoff**: explain the number the learner just produced
+- **End with a handoff** *(judgement)*: explain the number the learner just produced
   ("2.4 V over 470 Ω is 5.1 mA"), then "now try it yourself" — and
   ideally a final *task* that verifies transfer ("build two bulbs in
   parallel; I'll tell you when the currents split").
@@ -155,19 +176,22 @@ A step with none of the three just narrates.
 ## Narration and i18n
 
 Narration lives in the lab's `strings.js` under
-`flow.<flowId>.<stepKey>` (plus `.hint` suffixes), EN + DE from day one;
+`flow.<flowId>.<stepKey>` (plus `.hint` suffixes), EN + DE from day one
+*(checked: `strings: every key a FlowStep needs exists in EN and DE`)*;
 `titleKey` names the flow in the picker/narrator. `FlowStep.say` is an
 inline fallback for prototyping only — a shipped flow has no bare `say`
-literals. Switching language mid-flow re-narrates the current step for
+literals *(checked: `teaching: no narration is written in the QML`)*. Switching language mid-flow re-narrates the current step for
 free because narration is an ordinary `LabLang` binding.
 
-Audience tiers: materially different paths are **separate flows** (own
+Audience tiers *(judgement)*: materially different paths are **separate flows** (own
 `flowId`, own steps); same path with simpler words is a narration-key
 suffix resolved with fallback. Don't fork physics for vocabulary.
 
 ## Discoverability — the part everyone forgets
 
-A flow nobody finds teaches nobody. Ship all three:
+A flow nobody finds teaches nobody. Ship all three *(judgement, except
+`flows()`: a teaching lab whose `flows()` is empty fails `flows: the lab
+has at least one`)*:
 
 - `T` starts/stops the (first) flow; `Space`/`→` next, `←` back, `Esc`
   leaves. `LabKeys` owns all of these, and `LabHelp` (`?`) lists them, so
