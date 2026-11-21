@@ -763,7 +763,7 @@ Item {
             key: "turning"
             demo: [["watch", "wheel", true]]
             // 40 kPa across 2 + 0.02 + 8 + 24 kPa·s/L: 1.176 L/s, measured
-            expect: (n) => Math.abs(root.simOf(n("wheel")).q - 1.1758) < 5e-4
+            expect: (n, saw) => Math.abs(saw("wheel.q", root.simOf(n("wheel")).q) - 1.1758) < 5e-4
         }
         FlowStep { key: "why" }
         FlowStep { key: "values"; demo: [["showValues", true]] }

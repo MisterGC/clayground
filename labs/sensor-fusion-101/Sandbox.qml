@@ -1107,7 +1107,7 @@ Item {
             demo: [["setParam", "lidarRange", 22],
                    ["scenario", "tunnel"], ["simSpeed", 1.0]]
             watch: ({ "until": () => root.carInTunnel })
-            expect: () => root.carInTunnel
+            expect: (n, saw) => saw("inTunnel", root.carInTunnel)
         }
         FlowStep {
             key: "recover"
@@ -1117,7 +1117,8 @@ Item {
             // wide - records/tunnel-42.labrec climbs to 2.7 m inside, while
             // open-sky-42 never exceeds 0.34 m once settled. A filter whose
             // uncertainty did not grow without fixes would be lying.
-            expect: () => !root.carInTunnel && Math.hypot(kf.sigmaX, kf.sigmaY) > 1.0
+            expect: (n, saw) => !saw("inTunnel", root.carInTunnel)
+                                    && saw("sigma", Math.hypot(kf.sigmaX, kf.sigmaY)) > 1.0
         }
     }
     Narrator {
