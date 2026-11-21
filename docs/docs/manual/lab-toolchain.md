@@ -110,7 +110,11 @@ what to do about each failure line is in the skill's
 A study is one question asked of the lab: an objective, what is held fixed,
 what is varied, how many seeds, and a cap on the number of runs. It is a
 `study.md` under the lab's `studies/`, prose first, with one JSON block (the
-manifest) inside it. A research lab must have one; any lab may. The worked
+manifest) inside it. Any lab may have one. A research lab must, and for it
+`lab-check`'s `study` check requires at least one study whose manifest
+parses, with committed records (`records/*.labrec`) and an `## Answerability`
+section: the argument that the lab's model holds for the question. For a
+learning or teaching lab the `study` check asks for nothing. The worked
 example is
 [labs/street-network-101/studies/topology-four-houses/](https://github.com/MisterGC/clayground/tree/main/labs/street-network-101/studies/topology-four-houses);
 the manifest's keys are in
@@ -151,11 +155,13 @@ tools/lab-sweep/lab-table labs/heat-101 --check    # exit 1 if one is stale
 tools/lab-check/lab-check labs/heat-101
 ```
 
-With a study and a paper in place, the `records`, `tables` and `study` checks
-now have something to compare: the committed records must regenerate to the
-same bytes, and every table in `paper.md` and `study.md` must render to what
-is committed. Commit the records and the rendered tables together with the
-change that produced them.
+With a study and a paper in place, the `records` and `tables` checks now have
+something to compare: the committed records must regenerate to the same
+bytes, and every table in `paper.md` and `study.md` must render to what is
+committed. For a research lab the `study` check also runs on each study: its
+manifest parses, its records are committed and it has an `## Answerability`
+section (step 4). Commit the records and the rendered tables together with
+the change that produced them.
 
 ## Labs to read
 
