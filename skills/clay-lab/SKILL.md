@@ -238,6 +238,8 @@ tools/lab-sweep/lab-table labs/<slug> --check            # are the paper's table
 ctest --preset default -R lab_check                       # every lab
 ```
 
+Every FAIL line, and what to do about it: `references/check-failures.md`.
+
 Then, in order (clay-crew skill has the inspector protocol):
 
 1. `$CMAKE_PREFIX_PATH/bin/qmllint -I build/bin/qml <file>` (it ships with
