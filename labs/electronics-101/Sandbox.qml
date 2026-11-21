@@ -1813,6 +1813,11 @@ Item {
             gridMode: grid
             workExtent: Qt.vector2d(root.cols * root.cell, root.rows * root.cell)
             shadowMapFar: 250             // measured: covers the board at maxDistance 170
+            // One shadow map instead of three: the whole board fits in 250,
+            // the pictures before and after differ in a few hundred pixels,
+            // and the cascades were 78 of the opening scene's 105 draw calls
+            // (#576)
+            shadowSplits: 0
         }
         CameraAnchorMark { pointer: nav }
 
