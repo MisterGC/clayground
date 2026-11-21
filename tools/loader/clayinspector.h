@@ -237,6 +237,9 @@ private:
     // (camera, params, sim time) across agent fixes. A failed capture keeps
     // the previous one alive - a fix after a load error still restores.
     QJsonValue m_capturedViewState;
+    // Set for the length of a reload request that asked for a fresh root:
+    // markReloading() then captures nothing.
+    bool m_freshReload = false;
 
     Phase m_phase = Phase::Starting;
     QDateTime m_startedAt;

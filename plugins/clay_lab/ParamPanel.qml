@@ -122,6 +122,7 @@ Rectangle {
 
                 Item {
                     id: _slider
+                    objectName: _row.par ? "paramSlider." + _row.par.name : ""
                     width: parent.width; height: LabTheme.px(16)
                     property real ratio: !_row.par || _row.par.to === _row.par.from
                                          ? 0
@@ -144,7 +145,15 @@ Rectangle {
                         if (!_row.par) return
                         const p = _row.par
                         const unit = p.stepSize > 0 ? p.stepSize : (p.to - p.from) / 100
-                        Lab.set(p.name, p.value + steps * unit)
+                        setWithin(p, p.value + steps * unit)
+                    }
+                    // A slider has ends, so it stops there: Lab.set() refuses
+                    // a value outside the range (#566), and an arrow press at
+                    // the end - or a stepped drag whose last step lands a
+                    // rounding error past `to` - would be refused instead.
+                    function setWithin(p, v) {
+                        if (p.to > p.from) v = Math.max(p.from, Math.min(p.to, v))
+                        Lab.set(p.name, v)
                     }
                     Keys.onPressed: (ev) => {
                         if (!_row.par) return
@@ -196,7 +205,7 @@ Rectangle {
                             const p = _row.par
                             let v = p.from + (p.to - p.from) * Math.max(0, Math.min(1, mx / width))
                             if (p.stepSize > 0) v = p.from + Math.round((v - p.from) / p.stepSize) * p.stepSize
-                            Lab.set(p.name, v)
+                            _slider.setWithin(p, v)
                         }
                         // grabbing the handle also takes focus, so the arrows
                         // continue where the drag left off

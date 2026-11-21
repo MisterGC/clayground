@@ -379,10 +379,12 @@ class Loader:
 
         It used to take a pause request, a clock reset and a reload: pausing
         by request leaves the frames that ran before it, so a fresh root had
-        to be reloaded into, and the loader hands the outgoing root's
-        viewState() - sim time included - to the incoming one, which the reset
-        was there to defuse. A root that is the process's first has nothing
-        to inherit (#572).
+        to be reloaded into, and a plain reload hands the outgoing root's
+        viewState() - sim time, scenario and parameters - to the incoming one,
+        which the reset was there to defuse. A loader that is already running
+        gets a clean root with `{"action": "reload", "fresh": true}` (#566);
+        a run here needs neither, because its root is the process's first and
+        has nothing to inherit (#572).
         """
         if timeout is None:
             timeout = self.ready_timeout
@@ -794,9 +796,10 @@ def one_run(session, lab_dir, lab_id, scenario, steps, dest):
     """One stepped run of one scenario, in a process of its own.
 
     A process of its own is the whole point. Two runs sharing a loader share
-    everything a QML engine does not throw away with the root - and the loader
-    is worse than neutral here, because it hands the outgoing root's
-    viewState() to the incoming one. Under one process electronics-101's parts
+    everything a QML engine does not throw away with the root - and before
+    the fresh reload (#566) the loader was worse than neutral here, because
+    it handed the outgoing root's viewState() to the incoming one. Under one
+    process electronics-101's parts
     come back numbered part12 in the first run and part20 in the second, which
     is a difference between two records with identical numbers in them: a
     determinism failure that says nothing about determinism. `make.sh` runs
