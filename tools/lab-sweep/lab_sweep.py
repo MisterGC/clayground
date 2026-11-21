@@ -93,6 +93,18 @@ def js_lines(v):
     return [v] if isinstance(v, str) else list(v)
 
 
+def js_path(path, start):
+    """path as clayrender is handed it inside the setup script: relative to
+    `start` where it can be, absolute where it cannot - on Windows lab-check's
+    --records-dir is in the temp dir on C: while a CI checkout is on D:, and
+    relpath raised (#535) - and with forward slashes either way."""
+    try:
+        p = os.path.relpath(path, start)
+    except ValueError:
+        p = os.path.abspath(path)
+    return p.replace(os.sep, "/")
+
+
 def build_script(m, run, record_path, command, root):
     """The JS clayrender runs for one cell.
 
@@ -139,7 +151,7 @@ def build_script(m, run, record_path, command, root):
     steps = m["run"]["steps"]
     L += [
         f"recorder.lab = {json.dumps(m['lab'])}",
-        f"recorder.destination = {json.dumps(os.path.relpath(record_path, root))}",
+        f"recorder.destination = {json.dumps(js_path(record_path, root))}",
         f"recorder.recordId = {json.dumps(run.id)}",
         f"recorder.command = {json.dumps(command)}",
         f"recorder.probes = {json.dumps(M.recorded_probes(m))}",
@@ -417,7 +429,10 @@ def main():
         m = M.parse(text)
     except M.ManifestError as e:
         die(str(e))
-    m["studyPath"] = os.path.relpath(study_dir, root)
+    # Forward slashes: the path is spelled into every record's "command"
+    # field, and a Windows run wrote labs\\<slug>\\studies\\... - bytes that
+    # differ from the committed records (#535)
+    m["studyPath"] = os.path.relpath(study_dir, root).replace(os.sep, "/")
     outside = lab_outside_checkout(m, study_dir, root)
     if outside:
         root, m["studyPath"], sandbox = outside
