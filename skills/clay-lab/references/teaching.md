@@ -1,8 +1,9 @@
 # Teaching with a lab — what makes a lesson explain
 
 `lab-check` proves that a teaching lab is built: a flow that finishes,
-`expect`s that hold, EN and DE keys in parity, a storyboard. It cannot
-tell whether the flow explains anything. A lab can pass every rule and
+`expect`s that hold, a step the learner acts on, EN and DE keys in
+parity, narration lines within 240 characters and none typed into the
+QML, a storyboard. It cannot tell whether the flow explains anything. A lab can pass every rule and
 still only narrate: parts appear, a voice names them, a number is read
 out, the learner clicks once. This file is what an author reads before
 writing a lesson, and goes through again before handing one over.
@@ -11,13 +12,19 @@ The mechanics are elsewhere: step kinds, `task`/`watch`/`expect`,
 pacing and narration keys in `flows.md`; the teaching paper and the
 storyboard in `triad.md`. Here: what to put into those mechanisms.
 
-Each rule below has **Do**, **Avoid** and an **Example** from a lab in
+Each rule below says first whether a program tests it. **Checked**
+names the `lab-check` line that fails when the rule is broken
+(`check-failures.md` says what to do about it); **judgement** means no
+program does, and the checklist at the end is where you hold yourself
+to it. Then **Do**, **Avoid** and an **Example** from a lab in
 this repository. Most examples are the shipped text as it stands, quoted
 by file and line, because the labs were written before these rules;
 where a shipped line breaks a rule, the example says so and gives the
 rewrite.
 
 ## 1. A term is defined before it is used
+
+*Judgement — no program checks this.*
 
 The learner's vocabulary is what the lesson has said so far, plus
 everyday words. A technical word that has not been introduced is noise;
@@ -42,12 +49,17 @@ a learner who misses one word stops following the sentence.
 
 ## 2. One idea per step
 
+*Checked in part — `teaching: every narration line fits in 240
+characters` fails a line over 240 characters, in any language, a
+script's `*cues*` not counted. Whether a shorter line holds one idea is
+judgement.*
+
 A step is one beat: one thing shown, one sentence that says what it
 means. The learner can hold one new idea while looking at the scene;
 the second one in the same step overwrites the first.
 
 - **Do:** split a step when its narration has two claims a learner could
-  get wrong separately. Keep a step under ~240 characters
+  get wrong separately. Keep a step at 240 characters or fewer
   (`flows.md`); a longer one usually holds two ideas.
 - **Avoid:** a step that names a part, gives its value, states a rule
   and draws a conclusion in one breath; "and one more thing" at the end
@@ -55,14 +67,17 @@ the second one in the same step overwrites the first.
 - **Example (do):** the LED lesson's `battery`, `led` and `resistor`
   steps (`electronics-101/Sandbox.qml:1986`–`2001`) put one part on the
   board each, with one sentence about what that part does.
-- **Example (avoid):** `electronics-101/strings.js:131`, the `gain`
-  step: the base current against the lamp current, the ratio, the
+- **Example (avoid):** the `gain` step of `logic-gates` as it first
+  shipped (it has been split since, and `lab-check` now fails a line
+  that long): the base current against the lamp current, the ratio, the
   transistor's hundredfold limit, the green ring meaning saturation, and
   the lamp becoming the limit — five ideas, about 345 characters. Rewrite as
   three steps: the two readings and their ratio; "it could pass a hundred
   times — the lamp asks for only twelve"; the green ring.
 
 ## 3. Predict, then observe, then explain
+
+*Judgement — no program checks this.*
 
 A number the learner did not expect is the only number they remember.
 Ask for the expectation before the scene answers, let the scene answer,
@@ -89,6 +104,11 @@ turns the observation into a confirmation nobody needed.
 
 ## 4. A learner task that needs more than a click
 
+*Checked in part — `teaching: <flow> has a learner task and an expect`
+fails a flow with no `task` step at all (a question the lab takes an
+answer to and a `"wiring": true` task count). Whether the task needs more
+than a click is judgement.*
+
 A task teaches when doing it takes the idea the lesson just gave. A
 task that is one click on the part the narration pointed at tests
 whether the learner can click.
@@ -112,6 +132,10 @@ whether the learner can click.
 
 ## 5. A check for understanding
 
+*Judgement — except its `expect`: a flow with none fails `teaching:
+<flow> has a learner task and an expect`, and one that no longer holds
+fails `flows: <flow>`.*
+
 Somewhere before the end the lesson asks for the idea, not the
 procedure: the learner has to apply what was said to a case the lesson
 did not show, and the lab can tell whether they did.
@@ -134,6 +158,8 @@ did not show, and the lab can tell whether they did.
 
 ## 6. A closing task that transfers the idea
 
+*Judgement — no program checks this.*
+
 The lesson ends with the learner using the idea on something it did not
 build for them — and a lab that says when they got there.
 
@@ -154,6 +180,8 @@ build for them — and a lab that says when they got there.
 
 ## 7. Scenarios chosen as a progression
 
+*Judgement — no program checks this.*
+
 The scenario set is the lesson's spine. Each preset adds one thing to
 the one before it, in an order a learner can climb; the `1..9` keys
 read as a syllabus.
@@ -171,6 +199,8 @@ read as a syllabus.
   logic" (`:135`).
 
 ## 8. One word per thing across narration, paper and board
+
+*Judgement — no program checks this.*
 
 A learner who hears "cell", reads "Battery" on the palette and sees
 "battery" on the board has three things to reconcile and no way to know
@@ -196,6 +226,10 @@ UI copy, `paper.md`, `overview.grafli` and the voice clips.
 German is a second lesson, not a second column. A translation that
 follows the English word for word reads as a translation and teaches
 worse.
+
+*Judgement, all four — `lab-check` checks only that German exists, with
+the same keys as English (`strings: …`), and that its lines fit in 240
+characters.*
 
 - **A word list per kit.** The kit's `README.md` carries a *Words*
   table — EN term, DE term, and the words not to use for it — beside the
@@ -223,6 +257,11 @@ worse.
 Narration is text first; a clip is a recording of a line, never the
 source of it. How the electronics clips are made is
 `labs/electronics-101/voice/README.md`; this is the general rule.
+
+*Judgement, every rule here — a clip is not loaded by `lab-check`, and a
+missing one is never an error. That the text comes first is checked:
+`teaching: no narration is written in the QML` fails a step whose line is
+a `say` literal instead of a `strings.js` key.*
 
 - **How a clip is made.** Offline, on the author's machine, with the
   local text-to-speech tool at `~/dev/eval/local_tts` (one line per
@@ -256,17 +295,22 @@ source of it. How the electronics clips are made is
 ## Before handing a lab over
 
 Go through this with the lab running and the flow played once in each
-language, start to end, as a learner would.
+language, start to end, as a learner would. A box marked *(checked)* is
+one `lab-check` fails on its own; tick it from the green run. Every other
+box is judgement.
 
 - [ ] Every technical word is introduced on screen before it is used,
       and the lesson never relies on the paper for a definition.
-- [ ] No step carries two ideas; no narration runs past ~240 characters.
+- [ ] No step carries two ideas; no narration runs past 240 characters
+      *(the 240: checked)*.
 - [ ] At least one result is predicted by the learner before the lab
       shows it, and explained after.
-- [ ] Every `task` needs the lesson's idea to complete, and at least one
-      needs more than a single click; hints point, they do not answer.
+- [ ] Every flow has a `task` *(checked)*; every `task` needs the
+      lesson's idea to complete, and at least one needs more than a
+      single click; hints point, they do not answer.
 - [ ] One task checks understanding: phrased as an outcome, with a
-      reachable wrong answer that the lab answers.
+      reachable wrong answer that the lab answers, backed by an `expect`
+      *(an expect in every flow: checked)*.
 - [ ] The flow ends on a transfer task, then hands the board over.
 - [ ] The scenarios climb: each adds one thing, and the flow walks them
       in order.
@@ -274,7 +318,10 @@ language, start to end, as a learner would.
       in each language, matching the kit's word list.
 - [ ] The German was read through on its own, in the lab, and nothing in
       it reads as translated.
-- [ ] Every clip matches its line's spoken form in `voice/README.md`;
-      changed lines have new clips or none; the PR lists them.
-- [ ] `lab-check labs/<slug>` is green — last, because it checks the
-      structure, not this list.
+- [ ] Every line is a `strings.js` key, none a `say` literal
+      *(checked)*; every clip matches its line's spoken form in
+      `voice/README.md`; changed lines have new clips or none; the PR
+      lists them.
+- [ ] `lab-check labs/<slug>` is green *(checked)* — last, because it
+      checks the structure and the boxes marked checked, not the rest of
+      this list.

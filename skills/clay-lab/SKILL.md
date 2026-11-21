@@ -34,7 +34,7 @@ do is reachable through `eval` via the conventions below), **teaching-first**
 | purpose | owes, on top of the common base |
 |---|---|
 | **research** — you are measuring something | `studies/<slug>/study.md` + committed records + the answerability table; no flow, no DE, no board owed |
-| **teaching** — you are explaining it to someone | at least one flow with `expect`s, EN + DE narration, a storyboard `overview.grafli` — and a lesson that passes the checklist in `references/teaching.md`, which `lab-check` cannot see |
+| **teaching** — you are explaining it to someone | at least one flow, each with a learner `task` and an `expect`; EN + DE narration, every line at most 240 characters and none a `say` literal in the QML; a storyboard `overview.grafli` — and a lesson that passes the rest of the checklist in `references/teaching.md`, which `lab-check` cannot see |
 | **learning** — you are working it out | a `paper.md` study path and a concept-map `overview.grafli` |
 
 Common base, every tier — exactly what `lab-check` demands of every lab:
@@ -231,7 +231,7 @@ correctly under the inspector's `time` pause/step; (c) exposes `labInfo()`.
 looks at a picture. A red line: `references/check-failures.md`.
 
 ```bash
-tools/lab-check/lab-check labs/<slug>                    # load, determinism, flows, strings, records, tables, study, triad, remarks
+tools/lab-check/lab-check labs/<slug>                    # load, determinism, flows, strings, teaching, records, tables, study, triad, remarks
 tools/lab-check/lab-check labs/<slug> --only flows       # while you work
 tools/lab-sweep/lab-table labs/<slug> --check            # are the paper's tables current?
 ctest --preset default -R lab_check                       # every lab
@@ -292,6 +292,11 @@ Its options: `docs/docs/manual/clayrender.md`.
 - `references/`: `catalog.md` (every block; regenerate with `python3
   docs/scripts/lab_catalog.py`, ctest `lab_catalog`), `pitfalls.md`,
   `flows.md`, `teaching.md`, `triad.md`, `check-failures.md`, `kits.md`.
+  The rules are in `teaching.md`, `flows.md` and `triad.md`, each marked
+  *checked* — with the `lab-check` line that fails when it is broken — or
+  *judgement*, which no program tests. The other four hold no rules:
+  `pitfalls.md` is traps, `kits.md` a procedure, `catalog.md` a generated
+  list and `check-failures.md` the lookup for a red line.
 - `plugins/clay_lab/README.md` — the kernel and why; `plugins/clay_lab/demo/`
   — every instrument on one page, at two scales in two themes.
 - `tools/lab-new/`, `tools/lab-check/`, `tools/lab-sweep/` READMEs — the
