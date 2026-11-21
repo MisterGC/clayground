@@ -217,7 +217,11 @@ def generate(slug, kind, purpose, target, templates=TEMPLATES, force=False,
         if dry_run:
             continue
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        with open(dest, "w", encoding="utf-8") as f:
+        # newline="": LF as read, on every platform. Python writes "\n" as
+        # CRLF on Windows by default, so a generated lab's committed records
+        # never matched the LF ones its own make.sh and lab-sweep regenerate
+        # (#535), and a CRLF make.sh is not a script bash can run.
+        with open(dest, "w", encoding="utf-8", newline="") as f:
             f.write(body)
         # An executable template stays executable: records/make.sh and
         # figures/make.sh are drivers, and a driver you have to chmod is a

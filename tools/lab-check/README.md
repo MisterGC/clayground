@@ -14,6 +14,7 @@ opens.
 tools/lab-check/lab-check labs/electronics-101
 tools/lab-check/lab-check labs/electronics-101 --only flows
 tools/lab-check/lab-check labs/electronics-101 --only determinism --keep
+tools/lab-check/lab-check labs/electronics-101 --clayrender build-debug/bin/clayrender --strict
 ```
 
 One `lab_check_<lab>` CTest gate per lab is registered from `labs/CMakeLists.txt`,
@@ -27,7 +28,11 @@ ctest --preset default -R lab_check_electronics     # one of them
 
 ## What one run checks
 
-Each check prints a named `PASS`/`FAIL` line; any FAIL is a non-zero exit.
+Each check prints a named `PASS`/`FAIL` line; any FAIL is a non-zero exit. A
+check this machine cannot run prints `NOT RUN` instead — today only `records`,
+when there is no `clayrender` or it finds no graphics session. It is never
+counted as a pass: the summary reads `17/17 checks passed, 2 not run`, and with
+`--strict` a NOT RUN exits `1` too (#535).
 
 | Check | What it asserts |
 |---|---|
@@ -35,15 +40,21 @@ Each check prints a named `PASS`/`FAIL` line; any FAIL is a non-zero exit.
 | `determinism` | for every name in `scenarios()`, two stepped runs of N steps produce byte-identical run records |
 | `flows` | every id in `flows()` runs to `finished` through `Lab.runFlow()`, with no unresolved verb, no unsatisfied task and no failed `expect` |
 | `strings` | EN and DE carry the same key set, and every `flow.<flowId>.<key>` a `FlowStep` needs exists in both |
-| `records` | `records/make.sh` and every `studies/*/records/` regenerate to the committed bytes |
+| `records` | `records/make.sh` and every `studies/*/records/` regenerate to the committed bytes, with the `clayrender` given as `--clayrender` (default `build/bin/clayrender` beside the lab's checkout); `records/session.labrec`, the scratch run `Shift+R` writes, is not compared |
 | `tables` | every `<!-- table: … -->` block in `paper.md` and `studies/*/study.md` renders to the committed bytes (`tools/lab-sweep/lab-table --check`); pure, never NOT RUN |
 | `study` | a research lab has at least one `studies/<slug>/study.md` whose manifest parses, with committed `records/` and an `## Answerability` section |
 | `triad` | `paper.md` exists; `overview.grafli` exists where the purpose owes a board |
 | `remarks` | open CriticMarkup marks in `paper.md` and `studies/*/study.md` — counted, reported, never failed |
 
-Exit codes: `0` everything passed, `1` something failed, `77` (CTest's
+Exit codes: `0` everything passed (with no `--strict`: or did not run), `1`
+something failed, or with `--strict` did not run, `77` (CTest's
 `SKIP_RETURN_CODE`) the machine cannot run the check at all — `clayliveloader`
 is not built.
+
+The `lab_check_<lab>` gates run without `--strict`, because CI's Linux runners
+render offscreen, where `clayrender` does not start: there the records check is
+NOT RUN, and only the Windows runners regenerate records. The CI log says per
+runner which records were regenerated (the step after `Test`).
 
 ## What counts as the environment
 
@@ -135,7 +146,7 @@ footnote this tool exists to remove. The loader runs offscreen and its `eval`
 returns values, so the same questions get the same answers. The `records` check
 is the one part that still shells out to `clayrender`, because that is what a
 record's own `command` field says regenerates it; with no display it reports
-itself as not-run rather than inventing a verdict.
+itself as NOT RUN rather than inventing a verdict.
 
 **The flow check is `Lab.runFlow()`, not a second implementation of it.** The
 kernel decides what "this task was solved" and "this expect held" mean — a flow
@@ -176,6 +187,13 @@ afterwards; nothing else in the tree is written. Records regenerate into a
 temporary directory (`records/make.sh --out-dir`, `lab-sweep --records-dir`) and
 are compared from there; tables render in memory (`lab-table --check`) and are
 compared against the committed prose.
+
+Both regenerators run with the `clayrender` lab-check was given — `make.sh`
+reads it from `$CLAYRENDER`, `lab-sweep` from `--clayrender` — and both find the
+lab from their own path, not as `labs/<slug>` under a checkout. So a lab made
+with `tools/lab-new/lab-new <slug> --dir <elsewhere>` regenerates its records
+there, and its records keep the `labs/<slug>/…` spelling in their `command`
+field wherever the lab sits (#535).
 
 ## Pages that are not labs
 

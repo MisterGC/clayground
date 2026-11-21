@@ -1,8 +1,9 @@
 # When lab-check is red
 
-`tools/lab-check/lab-check labs/<slug>` prints one `PASS` or `FAIL` line per
-check, then `n/m checks passed` and a `FAILED` line for each red one. Exit 0
-is green, 1 is any FAIL, 2 is a usage error (no `Sandbox.qml` in that
+`tools/lab-check/lab-check labs/<slug>` prints one `PASS`, `FAIL` or `NOT RUN`
+line per check, then `n/m checks passed, k not run` and a `FAILED` or `NOT RUN`
+line for each that is not a pass. Exit 0 is green, 1 is any FAIL - or, with
+`--strict`, any NOT RUN - 2 is a usage error (no `Sandbox.qml` in that
 directory, or an unknown name after `--only`), 77 is a skip: the machine has
 no `build/bin/clayliveloader`. The text in brackets after a FAIL line is the
 detail; it names what to look at. The checks and the purpose table:
@@ -80,7 +81,7 @@ One flow by hand: `clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png
 |---|---|
 | `records: <driver> regenerates` with `exit <n>` | the driver itself failed. Run it: `labs/<slug>/records/make.sh`, or `tools/lab-sweep/lab-sweep labs/<slug>/studies/<study>` |
 | `records: <driver> regenerates to the committed bytes` | the model, a sensor or the RNG use changed. Rerun the driver, commit the new records, and re-read every number the paper quotes from them in the same commit. A note after the line gives the first difference |
-| `records: … NOT RUN` (a note, not a FAIL) | `clayrender` is missing or there is no graphics session; the records were not compared. Run the check again on a machine with a display before you call them current |
+| `NOT RUN  records: <driver> regenerates` | `clayrender` is missing or there is no graphics session; the records were not compared. Pass the one you built with `--clayrender <path>`, and run with `--strict` on a machine with a display before you call them current |
 | `tables: <file> <study>/<name>` with `differs from the records` | run `tools/lab-sweep/lab-table labs/<slug>` and commit what it writes; the lines between the markers are never typed |
 | `study: a research lab has at least one study` | add `studies/<slug>/study.md` (`tools/lab-sweep/README.md`) |
 | `study: <name>` | the detail says which part is missing: a manifest that does not parse, no committed `records/*.labrec`, or no `## Answerability` section |

@@ -191,9 +191,16 @@ jobs:
         grep -q 'Total Tests: 1' registered.txt
 
     # The Linux runners have no display: a test that opens a window of its
-    # own (clayrender, the inspector's, the labs' records) aborted on xcb
-    # and renders offscreen there. A test that sets its own platform (the
-    # QML suites: minimal) keeps it. Windows runners have a desktop.
+    # own (the inspector's) aborted on xcb and renders offscreen there. A test
+    # that sets its own platform (the QML suites: minimal) keeps it. Windows
+    # runners have a desktop.
+    #
+    # What that means for the labs' records: clayrender does not start under
+    # offscreen, so on Linux lab_check_<lab> and lab_new_check_* regenerate NO
+    # record - their records check is NOT RUN and the test still passes. Only
+    # the Windows runners regenerate records and compare them byte for byte
+    # (#535). The step after this one prints which, per runner.
+    #
     # A failed test labeled network runs up to two more times and the job
     # passes when a repeat does: a signaling timeout (#421) turned PRs red
     # that never touched the network. Each repeated test is named in the
@@ -206,6 +213,29 @@ jobs:
         "$PY" ../tools/ci/ctest_retry.py --label network --retries 2 -- --output-on-failure ${{ matrix.shard.ctest }}
       env:
         QT_QPA_PLATFORM: ${{ runner.os == 'Linux' && 'offscreen' || '' }}
+
+    # A passing test prints nothing above, so whether a lab's records were
+    # regenerated or NOT RUN was nowhere in the log; ctest keeps every test's
+    # output in LastTest.log, and this lists the records lines from it (#535).
+    # ctest_retry.py keeps the first run's copy as FirstRunTest.log: a network
+    # repeat rewrites LastTest.log with the repeated tests alone.
+    - name: Report Which Lab Records Were Regenerated
+      if: always() && startsWith(matrix.shard.name, 'suite')
+      working-directory: build
+      shell: bash
+      run: |
+        log=Testing/Temporary/FirstRunTest.log
+        [ -f "$log" ] || log=Testing/Temporary/LastTest.log
+        [ -f "$log" ] || { echo "no ctest log - the suite did not run"; exit 0; }
+        echo "records on ${{ runner.os }}, ${{ matrix.shard.name }}:"
+        awk '/^[0-9]+\/[0-9]+ Test: / { t = ($3 ~ /^lab_(new_)?check_/) ? $3 : ""; next }
+             t != "" && /^(PASS|FAIL|NOT RUN) +records: / {
+                 print "  " t ": " $0
+                 if ($1 == "NOT") nr++
+                 else if ($1 == "FAIL" && $0 ~ / regenerates +\(exit /) df++
+                 else if ($0 ~ /no committed records|nothing committed/) nc++
+                 else rg++ }
+             END { printf "regenerated and compared: %d, driver failed: %d, NOT RUN: %d, nothing committed to compare: %d\n", rg, df, nr, nc }' "$log"
 
     # A red net gym keeps its loader logs and inspector state under
     # build/net-gym-logs (CLAY_NET_GYM_LOG_ROOT); without them a failed run
