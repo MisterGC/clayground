@@ -7,6 +7,10 @@ described on their [GitHub release pages](https://github.com/MisterGC/clayground
 
 ## [2026.14] - 2026-11-21
 
+### Fixed
+
+- **The electronics-101 professor says what the board shows.** The transistor's legs are named where the preset puts them: collector at the back toward the LED, emitter at the front, base on the left. The XOR lesson no longer says the learner wired a board the lesson loaded, counts nine resistors as the board has, and calls the LED an LED, not a lamp. English and German say the same in every line; the German is corrected and calls the board "Brett" throughout. The LED lesson's directed lines moved from the lab's QML into its strings, so the check that both languages carry the same keys covers them, and German gets the same pointing and gestures as English. Eight English clips were rendered again for the changed lines. ([#529](https://github.com/MisterGC/clayground/issues/529))
+
 ## [2026.13] - 2026-11-14
 
 A world can run a slow motion on simulated time, so a bench that steps it by
