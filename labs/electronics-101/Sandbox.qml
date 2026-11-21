@@ -176,7 +176,10 @@ Item {
     readonly property alias elements: board.parts
     readonly property alias wires: board.wires
     readonly property alias nextId: board.nextId
-    readonly property alias elemRev: board.rev     // bumped on moves so positions rebind
+    readonly property alias elemRev: board.rev     // bumped by every change, a field's too
+    // bumped when a part moves, turns, comes or goes, or the wiring changes -
+    // not when a switch flips: a position reads this, a reading reads elemRev
+    readonly property alias layoutRev: board.layoutRev
     property alias selectedId: board.selectedId   // -1 = nothing selected
     property alias hoverHit: board.hoverHit       // last hit under the cursor
     property alias wiringFrom: board.wiringFrom   // {el, ti} while a wire is dangling
@@ -1955,19 +1958,20 @@ Item {
             CircuitElement3D {
                 // modelData is a COPY of the plain JS object - mutable state
                 // (cell, switch, ohms) must be read live from root.elements,
-                // and each binding needs its own elemRev dependency: routing
+                // and each binding needs its own elemRev (or, for where the
+                // part is, layoutRev) dependency: routing
                 // them through a shared var would re-yield the same object
                 // reference, which QML treats as "unchanged" (no notify).
                 // parts sit slightly sunk into the board, so they read as
                 // pressed in and their shadow hugs them instead of floating
                 position: {
-                    root.elemRev
+                    root.layoutRev
                     const e = root.elemAt(modelData.id)
                     return e ? Qt.vector3d(root.cellX(e.col), -0.45, root.cellZ(e.row))
                              : Qt.vector3d(0, 0, 0)
                 }
                 eulerRotation.y: {
-                    root.elemRev
+                    root.layoutRev
                     const e = root.elemAt(modelData.id)
                     return e ? (e.rot || 0) : 0
                 }
@@ -2743,7 +2747,7 @@ Item {
                                             || modelData.type === "voltmeter"
             readonly property var screenAt: {
                 // re-project whenever the part moves OR the camera does
-                root.elemRev; rig.camera.scenePosition; rig.camera.sceneRotation
+                root.layoutRev; rig.camera.scenePosition; rig.camera.sceneRotation
                 const e = root.elemAt(modelData.id)
                 if (!e) return Qt.vector3d(0, 0, 0)
                 return view3d.mapFrom3DScene(Qt.vector3d(

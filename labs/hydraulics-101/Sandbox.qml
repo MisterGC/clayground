@@ -394,18 +394,20 @@ Item {
         }
 
         // The parts. modelData is a COPY of the plain JS object: mutable state
-        // is read live from the board, and each binding lists board.rev.
+        // is read live from the board, and each binding lists board.rev -
+        // board.layoutRev for where the part is, which a valve turned does not
+        // change.
         Repeater3D {
             model: board.parts
             HydroElement3D {
                 required property var modelData
                 position: {
-                    board.rev
+                    board.layoutRev
                     const e = board.partAt(modelData.id)
                     return e ? Qt.vector3d(board.cellX(e.col), -0.45, board.cellZ(e.row))
                              : Qt.vector3d(0, 0, 0)
                 }
-                eulerRotation.y: { board.rev; const e = board.partAt(modelData.id); return e ? (e.rot || 0) : 0 }
+                eulerRotation.y: { board.layoutRev; const e = board.partAt(modelData.id); return e ? (e.rot || 0) : 0 }
                 type: modelData.type
                 value: { board.rev; const e = board.partAt(modelData.id); return e ? e.value : modelData.value }
                 switchOn: { board.rev; const e = board.partAt(modelData.id); return e ? e.on : false }
