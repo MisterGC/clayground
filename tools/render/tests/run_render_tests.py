@@ -99,6 +99,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--clayrender", required=True)
     args = ap.parse_args()
+    # Absolute, so a check may start it from another folder (cwd=).
+    args.clayrender = os.path.abspath(args.clayrender)
 
     tmp = tempfile.mkdtemp(prefix="clayrender_test_")
 
@@ -742,6 +744,100 @@ Item { Parameter { id: p } }
     check("without --lab-src the kernel is the compiled copy",
           code == 0 and got and got[0]["value"].startswith("qrc:"),
           str(got)[:160] if got else err.strip()[:160])
+
+    # --stats (#571): what a frame costs, and whether one is drawn at all.
+    write(os.path.join(tmp, "Spin3D.qml"), """
+import QtQuick
+import QtQuick3D
+Item {
+    property bool spin: true
+    View3D {
+        anchors.fill: parent
+        PerspectiveCamera { z: 300 }
+        DirectionalLight {}
+        Model {
+            source: "#Cube"
+            materials: PrincipledMaterial {}
+            NumberAnimation on eulerRotation.y {
+                running: spin; from: 0; to: 360; duration: 2000
+                loops: Animation.Infinite
+            }
+        }
+    }
+}
+""")
+
+    def stats_of(argv, cwd=None):
+        code, out, err = run(args.clayrender, argv, cwd=cwd)
+        for line in out.splitlines():
+            if line.startswith("{") and '"rendered"' in line:
+                return code, json.loads(line), out, err
+        return code, None, out, err
+
+    spin = os.path.join(tmp, "Spin3D.qml")
+    runs = [stats_of([spin, "--size", "160x100", "--stats", "60"])
+            for _ in range(2)]
+    code, moving, _, err = runs[0]
+    check("--stats draws every slot of a scene that moves",
+          code == 0 and moving and moving["frames"] == 60
+          and moving["rendered"] == 60,
+          f"exit {code}: {moving or err.strip()[:160]}")
+    check("--stats counts the View3D's draw calls and vertices",
+          moving and moving["views3d"] == 1
+          and moving["drawCalls"]["median"] >= 1
+          and moving["vertices"]["median"] > 0
+          and moving["cpuMs"]["median"] > 0
+          and moving["renderMs"]["median"] > 0, str(moving)[:200])
+    other = runs[1][1]
+    keys = ("rendered", "drawCalls", "vertices")
+    check("two --stats runs of one scene draw the same",
+          runs[1][0] == 0 and other
+          and all(moving[k] == other[k] for k in keys),
+          f"{[moving and moving[k] for k in keys]} vs "
+          f"{[other and other[k] for k in keys]}")
+    code, still, _, err = stats_of([spin, "--size", "160x100", "--set",
+                                    "spin=false", "--stats", "60"])
+    check("--stats reports 0 frames for a scene that asks for none",
+          code == 0 and still and still["rendered"] == 0
+          and still["drawCalls"] is None and still["renderMs"] is None,
+          f"exit {code}: {still or err.strip()[:160]}")
+    code, flat, _, err = stats_of([os.path.join(tmp, "Flat.qml"), "--size",
+                                   "60x40", "--stats", "30"])
+    check("without a View3D draw calls are null, not 0",
+          code == 0 and flat and flat["views3d"] == 0
+          and flat["drawCalls"] is None, str(flat or err.strip()[:160]))
+    code, _, err = run(args.clayrender, [spin, "--stats", "none"])
+    check("--stats without a frame count is a usage error",
+          code == 1 and "--stats" in err, f"exit {code}")
+
+    # A question needs no picture, and no picture lands in the current
+    # folder unless asked for (#571).
+    here = tempfile.mkdtemp(prefix="clayrender_cwd_", dir=tmp)
+    code, asked, out, err = stats_of([spin, "--size", "60x40", "--stats", "5"],
+                                     cwd=here)
+    check("a run that only asks writes no picture",
+          code == 0 and asked and os.listdir(here) == []
+          and ".png" not in out, f"exit {code}, {os.listdir(here)}")
+    code, out, err = run(args.clayrender, [os.path.join(tmp, "Flat.qml"),
+                                           "--size", "60x40"], cwd=here)
+    shot = out.strip().split(" (")[0]
+    check("without --out the picture goes to the temp directory, not here",
+          code == 0 and os.listdir(here) == [] and os.path.isfile(shot)
+          and png_size(shot) == (60, 40),
+          f"exit {code}, {os.listdir(here)}, {out.strip()}")
+    if os.path.isfile(shot):
+        os.remove(shot)
+    code, out, err = run(args.clayrender, [os.path.join(tmp, "Flat.qml"),
+                                           "--size", "60x40", "--stats", "2",
+                                           "--width", "30"], cwd=here)
+    shaped = [l.split(" (")[0] for l in out.splitlines() if l.endswith(")")
+              and not l.startswith("{")]
+    check("a picture option still writes a picture next to a question",
+          code == 0 and shaped and png_size(shaped[0]) == (30, 20),
+          f"exit {code}, {out.strip()[:160]}")
+    for path in shaped:
+        if os.path.isfile(path):
+            os.remove(path)
 
     # Statelessness is the point: several renders at once must not interfere.
     procs = [subprocess.Popen(
