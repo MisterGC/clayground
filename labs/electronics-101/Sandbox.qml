@@ -1980,7 +1980,10 @@ Item {
 
         FlowStep {
             key: "empty"
-            demo: [["clear"], ["showValues", false], ["frame", "setup"]]
+            // the plot back on current: `power` leaves it on watts, and a
+            // second run would otherwise plot power while `current` says
+            // "the plot draws it"
+            demo: [["clear"], ["showValues", false], ["plot", "I"], ["frame", "setup"]]
         }
         FlowStep {
             key: "battery"
@@ -2032,7 +2035,11 @@ Item {
             demo: [["watch", "led", true]]
             expect: (n) => Math.abs(root.simOf(n("led")).i - 0.00515) < 5e-5
         }
-        FlowStep { key: "current" }
+        FlowStep {
+            key: "current"
+            // "and the plot draws it" - the LED's current, not its power
+            expect: (n) => monitor.quantity === "I" && monitor.isWatched(n("led"))
+        }
         FlowStep {
             key: "values"
             demo: [["showValues", true]]
