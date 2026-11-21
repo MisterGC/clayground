@@ -165,7 +165,10 @@ A step with none of the three just narrates.
   `failedTasks` and `failedExpects` (each with its step key) plus
   `finished`. Give the key steps `expect` predicates with the *measured*
   value — a drifted lab then breaks its own lesson loudly instead of
-  teaching a wrong number. `lab_check_<lab>` (#208) runs the same call for
+  teaching a wrong number. Name what the expect reads through its second
+  argument, `expect: (n, saw) => Math.abs(saw("led.i", simOf(n("led")).i)
+  - 0.00515) < 5e-5`: a failing one then reports `saw: {"led.i": …}`, and
+  lab-check prints it after the step key. `lab_check_<lab>` (#208) runs the same call for
   every id in `flows()`, so a lesson that drifts is red in a build; the
   command above is for one flow while you are working on it.
 - **End with a handoff** *(judgement)*: explain the number the learner just produced

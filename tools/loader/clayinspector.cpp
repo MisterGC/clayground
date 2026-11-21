@@ -183,10 +183,14 @@ void ClayInspector::markReloading()
     // The outgoing root is still alive here (hotReload comes after) - the
     // last chance to ask it where the user is. Null captures (load-error
     // page, no viewState() on root) keep the previous capture alive.
-    QJsonValue vs = ClayScene::callJsonFunction(sceneRoot(), "viewState");
-    if (!vs.isNull()) {
-        m_capturedViewState = vs;
-        appendEvent("view_state_captured");
+    // A fresh reload asked for none of it: the next root starts where its
+    // sandbox says, not where this one stood (#566).
+    if (!m_freshReload) {
+        QJsonValue vs = ClayScene::callJsonFunction(sceneRoot(), "viewState");
+        if (!vs.isNull()) {
+            m_capturedViewState = vs;
+            appendEvent("view_state_captured");
+        }
     }
 
     m_phase = Phase::Reloading;
@@ -1556,7 +1560,26 @@ QJsonObject ClayInspector::handleReload(const QJsonObject& request)
         response["rearm"] = false;
     }
 
+    // fresh: the new root gets no view state. A lab's viewState carries its
+    // scenario, sim time and parameters, and it is applied AFTER the requested
+    // scenario - so without this a reload into "tunnel" from "open-sky" came
+    // up in "open-sky" at the old time, with the old parameters (#566). The
+    // capture already held goes too: one kept from before a load error would
+    // otherwise come back on this reload.
+    const bool fresh = request.value("fresh").toBool(false);
+    if (fresh) {
+        if (!m_capturedViewState.isNull())
+            appendEvent("view_state_dropped");
+        m_capturedViewState = QJsonValue::Null;
+        response["fresh"] = true;
+    }
+
+    // reloadRequested reaches markReloading() synchronously (a direct
+    // connection in MainWindow), so the flag covers exactly this reload and
+    // not a file-watch reload that comes after it.
+    m_freshReload = fresh;
     emit reloadRequested();
+    m_freshReload = false;
     response["reloadStatus"] = "requested";
     response["phase"] = phaseName(m_phase);
     return response;

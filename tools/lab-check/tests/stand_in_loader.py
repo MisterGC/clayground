@@ -26,13 +26,14 @@ Serving the lab means phase "ready" and an answer to every inspector request:
 a snapshot with a live root, to `time` whether it was started with --paused,
 and to any eval the probe JSON of a lab with two scenarios and no flows,
 in the languages STAND_IN_LANGS names (comma-separated, "en" by default).
-Each process appends the CLAY_STORAGE_DIR it was given to
-<lab>/stand-in-storage, so a test sees which settings store it used (#573).
 Started with --instance <name> it serves under .clay/inspect/i/<name>/, as
 the loader does. That is all lab-check's first session asks before it
-starts a process per run. Which process is the first is decided by who
-creates <lab>/stand-in-first, outside the .clay that lab-check removes per
-process.
+starts a process per run. The first process is the one that creates
+<lab>/stand-in-first, outside the .clay that lab-check removes: an exclusive
+create, because the runs start side by side and a counter in a file was read
+half-written, so a later process took itself for the first (#572). Every
+process appends its CLAY_STORAGE_DIR, "-" when it has none, to
+<lab>/stand-in-stores.
 """
 
 import json
@@ -104,10 +105,6 @@ def main():
     if "--instance" in sys.argv:
         inspect = os.path.join(inspect, "i", sys.argv[sys.argv.index("--instance") + 1])
     os.makedirs(inspect, exist_ok=True)
-    # The first process is the one whose exclusive create succeeds. A count
-    # read and rewritten in one file raced once the runs went side by side
-    # (#572): a process that read it while another had just truncated it
-    # took itself for the first, and served where it should have crashed.
     try:
         os.close(os.open(os.path.join(lab, "stand-in-first"),
                          os.O_CREAT | os.O_EXCL | os.O_WRONLY))
@@ -115,8 +112,9 @@ def main():
     except FileExistsError:
         first = False
 
-    with open(os.path.join(lab, "stand-in-storage"), "a") as f:
-        f.write(os.environ.get("CLAY_STORAGE_DIR", "") + "\n")
+    with open(os.path.join(lab, "stand-in-stores"), "a") as f:
+        f.write(("paused " if "--paused" in sys.argv else "ticking ")
+                + os.environ.get("CLAY_STORAGE_DIR", "-") + "\n")
 
     mode = os.environ.get("STAND_IN_MODE", "crash")
     if mode.endswith("-after-first"):

@@ -234,48 +234,6 @@ class LoaderStalled(Exception):
     """A loader that is still running never got its lab to phase ready."""
 
 
-def open_shared(path):
-    """A binary file object reading `path`, which the loader may replace
-    while it is open.
-
-    The inspector replaces state.json and response.json by renaming a new
-    file over them (QSaveFile). On Windows that rename fails while a reader
-    holds the file without FILE_SHARE_DELETE - which Python's open() never
-    grants - and the inspector retries and logs "replacing ... took 2
-    attempts", a warning the load check fails on. With runs side by side and
-    a 10 ms poll lab-check held the files open often enough to hit that
-    (#572). Opened with every share mode, the rename goes through whatever
-    this read is doing, and a read that caught a half-written file is simply
-    retried by the next poll.
-    """
-    if os.name != "nt":
-        return open(path, "rb")
-    import ctypes
-    import msvcrt
-    from ctypes import wintypes
-    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    k32.CreateFileW.restype = wintypes.HANDLE
-    k32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
-                                wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD,
-                                wintypes.HANDLE]
-    generic_read = 0x80000000
-    share_all = 0x1 | 0x2 | 0x4          # read, write, delete
-    open_existing, normal = 3, 0x80
-    handle = k32.CreateFileW(path, generic_read, share_all, None, open_existing,
-                             normal, None)
-    if handle is None or handle == wintypes.HANDLE(-1).value:
-        err = ctypes.get_last_error()
-        raise OSError(err, ctypes.FormatError(err), path)
-    fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
-    return os.fdopen(fd, "rb")
-
-
-def read_json(path):
-    """The JSON in `path`, read in one go through open_shared()."""
-    with open_shared(path) as f:
-        return json.loads(f.read().decode("utf-8"))
-
-
 class Inspect:
     def __init__(self, inspect_dir, alive=None):
         self.dir = inspect_dir
@@ -287,8 +245,9 @@ class Inspect:
 
     def state(self):
         try:
-            return read_json(os.path.join(self.dir, "state.json"))
-        except (OSError, ValueError):
+            with open(os.path.join(self.dir, "state.json")) as f:
+                return json.load(f)
+        except (OSError, json.JSONDecodeError):
             return {}
 
     def wait_phase(self, phase, timeout=60.0):
@@ -309,10 +268,11 @@ class Inspect:
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
-                resp = read_json(self.response_path)
+                with open(self.response_path) as f:
+                    resp = json.load(f)
                 if resp.get("requestId") == rid:
                     return resp
-            except (OSError, ValueError):
+            except (OSError, json.JSONDecodeError):
                 pass
             self.alive(f"an answer to {payload.get('action')}")
             time.sleep(POLL)
@@ -348,11 +308,14 @@ class Loader:
     `instance` starts it with `--instance <name>`, so it serves its protocol
     under .clay/inspect/i/<name>/ and leaves the rest of .clay alone - which
     is what lets several loaders of one lab run at the same time.
+    `storage_dir` sets CLAY_STORAGE_DIR, the QML LocalStorage it uses: loaders
+    of one lab that open the same database at the same time race on its
+    version, and the loser logs "SQL: database version mismatch" (#572).
     """
 
     def __init__(self, loader, sandbox, quiet=True,
                  ready_timeout=DEFAULT_READY_TIMEOUT, paused=False,
-                 instance=None, storage=None):
+                 instance=None, storage_dir=None):
         self.loader = loader
         self.sandbox = sandbox
         self.lab_dir = os.path.dirname(sandbox)
@@ -360,7 +323,7 @@ class Loader:
         self.ready_timeout = ready_timeout
         self.paused = paused
         self.instance = instance
-        self.storage = storage
+        self.storage_dir = storage_dir
         self.proc = None
         self.insp = None
         self.tail = collections.deque(maxlen=LOADER_TAIL)
@@ -383,12 +346,12 @@ class Loader:
         env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
         bindir = os.path.dirname(os.path.abspath(self.loader))
         env.setdefault("QML2_IMPORT_PATH", os.path.join(bindir, "qml"))
-        if self.storage:
-            # A settings store of its own: a flow run in German sets
-            # LabLang.lang, which LabPrefs keeps - in the reader's real
-            # settings, and for the runs beside it, without this (#573)
-            os.makedirs(self.storage, exist_ok=True)
-            env["CLAY_STORAGE_DIR"] = self.storage
+        if self.storage_dir:
+            # A flow run in German also sets LabLang.lang, which LabPrefs
+            # keeps: in a store of its own it cannot reach the runs beside
+            # it or the reader's own settings (#573)
+            os.makedirs(self.storage_dir, exist_ok=True)
+            env["CLAY_STORAGE_DIR"] = self.storage_dir
         # The loader resolves Clayground plugins via a cwd-relative "qml"
         # import path, so it runs from the binary's directory. Its output is
         # always read - shown with --verbose, kept as a tail without - because
@@ -451,10 +414,12 @@ class Loader:
 
         It used to take a pause request, a clock reset and a reload: pausing
         by request leaves the frames that ran before it, so a fresh root had
-        to be reloaded into, and the loader hands the outgoing root's
-        viewState() - sim time included - to the incoming one, which the reset
-        was there to defuse. A root that is the process's first has nothing
-        to inherit (#572).
+        to be reloaded into, and a plain reload hands the outgoing root's
+        viewState() - sim time, scenario and parameters - to the incoming one,
+        which the reset was there to defuse. A loader that is already running
+        gets a clean root with `{"action": "reload", "fresh": true}` (#566);
+        a run here needs neither, because its root is the process's first and
+        has nothing to inherit (#572).
         """
         if timeout is None:
             timeout = self.ready_timeout
@@ -525,6 +490,15 @@ ENVIRONMENT = [
     # Two lines: the second says "Note that Qt no longer ships fonts. ...".
     ("offscreen-no-font-directory",
      re.compile(r"^QFontDatabase: Cannot find font directory "), None),
+    # The inspector replaces its state.json and response.json by renaming a
+    # new file over them, and on Windows that fails while a reader has the
+    # file open - which lab-check, polling every 10 ms with runs side by side,
+    # does now and then (#572). The inspector retries and says it did; one
+    # that SUCCEEDED is the check reading its own protocol, not the lab. A
+    # replace that never succeeded logs "failed to write" and still fails.
+    ("inspector-replace-retry",
+     re.compile(r'^ClayInspector: replacing "[^"]*/\.clay/inspect/[^"]*" '
+                r"took \d+ attempts$"), None),
 ]
 
 # A QML or JS location as Qt prints it at the start of a diagnostic:
@@ -870,9 +844,10 @@ def one_run(session, lab_dir, lab_id, scenario, steps, dest):
     """One stepped run of one scenario, in a process of its own.
 
     A process of its own is the whole point. Two runs sharing a loader share
-    everything a QML engine does not throw away with the root - and the loader
-    is worse than neutral here, because it hands the outgoing root's
-    viewState() to the incoming one. Under one process electronics-101's parts
+    everything a QML engine does not throw away with the root - and before
+    the fresh reload (#566) the loader was worse than neutral here, because
+    it handed the outgoing root's viewState() to the incoming one. Under one
+    process electronics-101's parts
     come back numbered part12 in the first run and part20 in the second, which
     is a difference between two records with identical numbers in them: a
     determinism failure that says nothing about determinism. `make.sh` runs
@@ -1032,14 +1007,20 @@ def check_flows(rep, spawn, flows, require, expects, runs):
 def step_of(entry):
     """Name a runFlow failure by its step key, with the index as a fallback.
 
-    runFlow reports {index, step} (plus `error` when an expect threw). The
-    key is what the author reads; the index is what is left when a step has
-    no key, which is legal.
+    runFlow reports {index, step} (plus `error` when an expect threw, and
+    `saw` with what an expect looked at, #567). The key is what the author
+    reads; the index is what is left when a step has no key, which is legal.
     """
     if not isinstance(entry, dict):
         return str(entry)
     name = entry.get("step") or f"step {entry.get('index')}"
-    return f"{name} ({entry['error']})" if entry.get("error") else name
+    if entry.get("error"):
+        name = f"{name} ({entry['error']})"
+    if entry.get("saw"):
+        name += " - saw " + ", ".join(
+            f"{k}={json.dumps(v, ensure_ascii=False)}"
+            for k, v in entry["saw"].items())
+    return name
 
 
 def check_strings(rep, probe, require_de=True):
@@ -1650,16 +1631,20 @@ def check_lab(rep, info):
             lock = threading.Lock()
 
             def spawn(stepped=True):
-                # A stepped run gets a paused clock; the first session, which
-                # asks whether the lab loads, runs the lab as a person sees
-                # it, ticking. Every one serves under an instance of its own,
-                # the first session too: flows can be running beside it.
+                # A stepped run gets a paused clock and an empty settings
+                # store of its own; the first session, which asks whether the
+                # lab loads, runs the lab as a person sees it, ticking, on the
+                # store it was given - where it is now the only loader. Every
+                # one serves under an instance of its own, the first session
+                # too: flows can be running beside it.
                 with lock:
                     n = next(runs)
+                name = f"lab-check-{n}"
                 return Loader(loader, sandbox, quiet=not args.verbose,
                               ready_timeout=args.ready_timeout, paused=stepped,
-                              instance=f"lab-check-{n}",
-                              storage=os.path.join(workdir, "storage", str(n)))
+                              instance=name,
+                              storage_dir=os.path.join(workdir, "storage", name)
+                              if stepped else None)
             spawn.stalled = None
             spawn.stall_reported = False
         # A flow is usually the longest run of a check, so flows that

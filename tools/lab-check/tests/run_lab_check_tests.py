@@ -599,6 +599,9 @@ def test_step_of():
     check("runFlow: an expect that threw carries what it threw",
           L.step_of({"index": 3, "step": "lit", "error": "TypeError"})
           == "lit (TypeError)")
+    check("runFlow: a failed expect says what it saw (#567)",
+          L.step_of({"index": 3, "step": "lit", "saw": {"I": 0.0049, "on": False}})
+          == "lit - saw I=0.0049, on=false")
 
 
 # -- what a load may log (#534) ----------------------------------------------
@@ -667,6 +670,10 @@ ENV_LINES = [
      "D:/a/clayground/Qt/6.10.1/msvc2022_64/lib/fonts.\nNote that Qt no longer "
      "ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for "
      "example) or switch to fontconfig."},
+    # ... and on Windows, while lab-check reads the inspector's files (#572)
+    {"level": "warning", "text": "ClayInspector: replacing \"D:/a/clayground/"
+     "clayground/labs/character-101/.clay/inspect/i/lab-check-2/state.json\" "
+     "took 2 attempts"},
     {"level": "log", "text": "qml: a log line is never a diagnostic"},
 ]
 
@@ -677,9 +684,13 @@ def test_load_diagnostics(tmp):
           came_up and clean is True, det)
     check("load: every message the five labs log offscreen, macOS, Linux and Windows, is on the list",
           all(L.environment_name(e["text"], e.get("category", "default"))
-              for e in ENV_LINES[:9]),
+              for e in ENV_LINES if e["level"] != "log"),
           str([L.environment_name(e["text"], e.get("category", "default"))
-               for e in ENV_LINES[:9]]))
+               for e in ENV_LINES if e["level"] != "log"]))
+    check("load: an inspector replace that never succeeded is not the environment",
+          L.environment_name("ClayInspector: failed to write state.json") is None
+          and L.environment_name('ClayInspector: replacing "/x/labs/a/B.qml" '
+                                 "took 2 attempts") is None)
     check("load: the README holds the environment list, entry by entry",
           all(f"`{name}`" in open(os.path.join(os.path.dirname(HERE),
                                                "README.md")).read()
@@ -896,6 +907,18 @@ def test_loader_watch(tmp):
     check("jobs: a named flow runs beside the first session, not after it",
           peak == 2, f"{peak} at once: {quote(out)}")
 
+    # ...so the two must not share a settings store: two loaders opening one
+    # LocalStorage database at once race on its version (#572)
+    lines = [l.split(" ", 1) for l in
+             open(os.path.join(lab, "stand-in-stores")).read().splitlines()]
+    session = [store for kind, store in lines if kind == "ticking"]
+    stepped = [store for kind, store in lines if kind == "paused"]
+    check("jobs: the first session keeps the settings store it was given",
+          session == [os.environ.get("CLAY_STORAGE_DIR", "-")], str(lines))
+    check("jobs: a stepped run gets a settings store of its own",
+          stepped and all(s != "-" and s not in session for s in stepped)
+          and len(set(stepped)) == len(stepped), str(lines))
+
     # load_check.py, the load stage for pages that are not labs, reports a
     # dead loader the same way
     lab = stand_in_lab(tmp, "load-crash-101")
@@ -971,10 +994,13 @@ def test_every_language(tmp):
     check("langs: every flow runs in every language, flow by flow",
           names == ["flows: f1 [en]", "flows: f1 [de]",
                     "flows: f2 [en]", "flows: f2 [de]"], str(names))
-    stores = [l for l in open(os.path.join(lab, "stand-in-storage")).read()
-              .splitlines()]
-    check("langs: every loader gets a settings store of its own",
-          len(stores) == 5 and all(stores) and len(set(stores)) == 5,
+    # "paused <dir>" per flow run, "ticking -" for the first session, which
+    # keeps the store it was given (#572)
+    stores = [l.split(" ", 1)[1] for l in
+              open(os.path.join(lab, "stand-in-stores")).read().splitlines()
+              if l.startswith("paused ")]
+    check("langs: every flow run gets a settings store of its own",
+          len(stores) == 4 and "-" not in stores and len(set(stores)) == 4,
           str(stores))
 
 
@@ -1051,43 +1077,6 @@ def test_json(tmp):
           and "does not exist" in (doc["error"] or ""), raw[:300])
 
 
-def test_open_shared(tmp):
-    """The loader replaces state.json by renaming over it; a read that holds
-    the file open must not make that fail - on Windows it did (#572)."""
-    path = os.path.join(tmp, "state.json")
-    with open(path, "w") as f:
-        f.write('{"phase": "loading"}')
-    fresh = path + ".new"
-    with open(fresh, "w") as f:
-        f.write('{"phase": "ready"}')
-    try:
-        with L.open_shared(path) as held:
-            os.replace(fresh, path)
-            old = held.read()
-        replaced = True
-    except OSError as e:
-        replaced, old = False, str(e)
-    check("open_shared: the file can be replaced while it is being read",
-          replaced, str(old))
-    check("open_shared: the read gets the file it opened",
-          replaced and json.loads(old) == {"phase": "loading"}, str(old))
-    check("open_shared: read_json reads the replacement",
-          L.read_json(path) == {"phase": "ready"}, str(L.read_json(path)))
-    if os.name == "nt":
-        # the control: what Python's own open() does to the same replace,
-        # which is why open_shared exists
-        with open(fresh, "w") as f:
-            f.write('{"phase": "loading"}')
-        try:
-            with open(path, "rb"):
-                os.replace(fresh, path)
-            blocked = False
-        except PermissionError:
-            blocked = True
-        check("open_shared: a plain open() blocks the replace on Windows",
-              blocked)
-
-
 def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
@@ -1110,7 +1099,6 @@ def main():
         test_load_diagnostics(tmp)
         test_default_binary(tmp)
         test_flow_langs()
-        test_open_shared(tmp)
         if os.name != "nt":
             # the stand-in loader is started as an executable script
             test_loader_watch(tmp)
