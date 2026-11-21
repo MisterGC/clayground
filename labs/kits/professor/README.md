@@ -61,6 +61,12 @@ prof.thinking = true          // eyes leave the target while working it out
 prof.vanish()                 // leaves the puff behind
 ```
 
+Away - before `appear()` and after `vanish()` has shrunk it - the professor
+has no body: the character is loaded on `appear()` and dropped at the end of
+the exit, so `character` is null, no part model is in the scene and no gaze or
+blink timer runs. `standHeight` and `faceY` then fall back to an estimate from
+`height3d`. Read `character` only while `present` (#575).
+
 The face runs itself. It blinks, and its eyes move inside the head rather
 than pointing wherever the head points: `faceViewer()` and `pointAt()` aim
 them along with the body, and because the eyes arrive before the slow body
