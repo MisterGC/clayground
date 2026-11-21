@@ -109,6 +109,9 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     // now current. Context properties were already installed above.
     connect(m_container, &HotReloadContainer::engineCreated, [this]() {
         QTimer::singleShot(200, this, [this]() {
+            // Another timer already built them on this engine (createOverlays)
+            if (m_logOverlay)
+                return;
             const bool restoreSurface = m_annotationVisible;
             m_annotationVisible = false;
             createOverlays();
@@ -419,7 +422,17 @@ void MainWindow::createOverlays()
         qWarning() << "Cannot create overlays - engine not ready";
         return;
     }
-    
+
+    // One set of overlays, on the current engine, and only engineAboutToBeDestroyed
+    // takes it down. Two timers ask for it - the first load's and every promoted
+    // reload's - and a reload inside the first load's 500 ms, or two reloads
+    // inside 200 ms, had both fire on one engine. The second set overwrote the
+    // pointers to the first, which was then never deleted: at the next reload it
+    // outlived its engine, a Behavior still animating in it wrote into an object
+    // of the dead engine, and the loader died with SIGSEGV (#565).
+    if (m_logOverlay)
+        return;
+
     // Ensure all required imports are available
     engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     engine->addImportPath("qml");
