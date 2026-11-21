@@ -47,6 +47,30 @@ if(BUILD_TESTING AND TARGET clayliveloader)
     find_package(Python3 COMPONENTS Interpreter)
     if(Python3_FOUND)
         file(GLOB _lab_sandboxes ${CMAKE_CURRENT_SOURCE_DIR}/*/Sandbox.qml)
+        # Two pages that are not labs and that nothing else loads: the
+        # kernel's demo page, which puts every instrument on one page, and
+        # the professor kit's sandbox. A warning either logs on load is a
+        # kernel or kit defect, so they get lab-check's load stage alone
+        # (#532). Registered here rather than beside the kernel because this
+        # is where clayliveloader is known to exist; the labels are what make
+        # verify.sh run them when the kernel or the script changes.
+        add_test(NAME lab_kernel_demo_load
+            COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/tools/lab-check/load_check.py
+                    ${CMAKE_SOURCE_DIR}/plugins/clay_lab/demo/Sandbox.qml
+                    --loader $<TARGET_FILE:clayliveloader>)
+        add_test(NAME kit_professor_load
+            COMMAND ${Python3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/tools/lab-check/load_check.py
+                    ${CMAKE_CURRENT_SOURCE_DIR}/kits/professor/Sandbox.qml
+                    --loader $<TARGET_FILE:clayliveloader>)
+        set_tests_properties(lab_kernel_demo_load PROPERTIES
+            LABELS "labs;integration;plugins/clay_lab;tools/lab-check"
+            SKIP_RETURN_CODE 77 TIMEOUT 180)
+        set_tests_properties(kit_professor_load PROPERTIES
+            LABELS "labs;integration;tools/lab-check"
+            SKIP_RETURN_CODE 77 TIMEOUT 180)
+
         foreach(_sbx IN LISTS _lab_sandboxes)
             get_filename_component(_dir ${_sbx} DIRECTORY)
             get_filename_component(_lab ${_dir} NAME)

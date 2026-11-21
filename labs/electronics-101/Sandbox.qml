@@ -337,12 +337,32 @@ Item {
             on: (switchStates && switchStates[el.id] !== undefined)
                 ? switchStates[el.id] : el.on,
             func: el.func,
+            // an LED that has burnt out is open for good - the solver has to
+            // be told, it cannot remember
+            blown: !!el.blown,
             // a battery carries its own volts; the panel slider is a master
             // that moves them all at once
             value: el.type === "battery" ? (el.value || defaultVolts) : el.value
         }))
     }
-    function resolve() { sim = Circuit.solve(solverElements(null), wires) }
+    // Solve, and let an LED past its maximum burn out. The kit decides which
+    // LEDs burn (burnOut); the board is where it sticks, so a burnt LED stays
+    // dark after the current comes back down - until its card replaces it or
+    // the scenario is loaded again (#539). Marking it re-enters resolve once,
+    // which then finds nothing left to burn.
+    function resolve() {
+        const r = Circuit.burnOut(solverElements(null), wires)
+        sim = r.result
+        if (r.burnt.length === 0) return
+        board.beginBatch()
+        for (const id of r.burnt) board.setField(id, "blown", true)
+        board.endBatch()
+    }
+    // a new LED in the old one's place: same pads, same wires, intact
+    function replaceLed(id) {
+        const el = elemAt(id)
+        if (el && el.type === "led") board.setField(id, "blown", false)
+    }
     function setBatteryVolts(id, v) {
         const el = elemAt(id)
         if (!el || el.type !== "battery") return
@@ -1142,11 +1162,15 @@ Item {
             "flipSwitch": (id) => toggleSwitch(id),
             "setVolts":   (id, v) => setBatteryVolts(id, v),
             "setOhms":    (id, ohms) => setResistanceStep(id, resistorStepOf(ohms)),
+            "replaceLed": (id) => replaceLed(id),
             "watch":      (id, on) => setWatched(id, on),
+            // which quantity the plot draws: "I", "V" or "P"
+            "plot":       (q) => { monitor.quantity = q },
             // a named probe on the k-th part of a type: "probe", "bulb1I", "bulb", 0, "I"
             "probe":      (name, type, index, attr) => probeOrdinal(name, type, index, attr),
             "select":     (id) => { selectedId = id },
-            "showValues": (on) => { valueAttr = on ? "I" : "" },
+            // true labels the currents; "V" or "P" names what to label
+            "showValues": (on) => { valueAttr = on === true ? "I" : (on || "") },
             "clear":      () => clearBoard(),
             "scenario":   (n) => applyScenario(n),
             "frame":      (what) => what === "selection" ? frameSelection() : frameSetup(),
@@ -1308,14 +1332,22 @@ Item {
     function ledSubject(f, key) {
         const n = (s) => f.nameOf(s)
         if (key === "battery")  return [n("bat")]
+        if (key === "voltage")  return [n("bat")]
         if (key === "led")      return [n("led")]
         if (key === "resistor") return [n("res")]
+        if (key === "resistance") return [n("res")]
+        if (key === "switch")   return [n("sw")]
         if (key === "wire")     return [n("bat"), n("sw"), n("led"), n("res")]
         if (key === "flip")     return [n("sw")]
         if (key === "lit")      return [n("led")]
-        if (key === "why")      return [n("res"), n("led")]
+        if (key === "current")  return [n("led")]
         if (key === "values")   return root.elements.map(e => e.id)
+        if (key === "volts")    return [n("led"), n("res")]
+        if (key === "why")      return [n("res"), n("led")]
+        if (key === "ohm")      return [n("res")]
+        if (key === "power")    return [n("led")]
         if (key === "try")      return [n("res")]
+        if (key === "burnt")    return [n("led")]
         return []               // "empty": there is nothing on the board yet
     }
 
@@ -1329,12 +1361,16 @@ Item {
         const leds = root.idsOfType("led")
         const ins = root.logicInputs || []
         if (key === "meet")      return q.slice(0, 1)
+        if (key === "legs")      return q.slice(0, 1)
         if (key === "switch")    return ins.slice(0, 1)
         if (key === "gain")      return leds.concat(root.idsOfType("ammeter"))
+        if (key === "limit")     return q.slice(0, 1)
         if (key === "and")       return q
         if (key === "andtask")   return ins
         if (key === "or")        return q
         if (key === "xor")       return q
+        if (key === "nand")      return q
+        if (key === "xorbuild")  return q
         if (key === "xortask")   return ins
         if (key === "both")      return q.slice(-1).concat(leds)
         if (key === "cost")      return q
@@ -1371,10 +1407,13 @@ Item {
     // side is unaffected. The LED flow's directed steps (battery, led,
     // resistor, lit, why) do not appear here - they speak per LINE through
     // flowScriptVoice below, not per step.
-    readonly property var voicedLedSteps: ["empty", "wire", "flip", "values", "try"]
-    readonly property var voicedLogicSteps: ["meet", "switch", "gain", "and", "andtask",
-                                             "or", "xor", "xortask", "both", "cost",
-                                             "chip", "chiptask", "switchit", "adder"]
+    readonly property var voicedLedSteps: ["empty", "voltage", "resistance", "switch", "wire",
+                                           "flip", "current", "values", "volts", "ohm", "power", "try",
+                                           "burnt"]
+    readonly property var voicedLogicSteps: ["meet", "legs", "switch", "gain", "limit", "and",
+                                             "andtask", "or", "xor", "nand", "xorbuild",
+                                             "xortask", "both", "cost", "chip", "chiptask",
+                                             "switchit", "adder"]
     function flowVoice(i) {
         const f = root.currentFlow
         if (!f || LabLang.lang !== "en")
@@ -1505,7 +1544,10 @@ Item {
         for (const el of elements) byType[el.type] = (byType[el.type] || 0) + 1
         info.circuit = { elements: byType, wires: wires.length,
                          nets: sim.netCount || 0, shorted: sim.shorted,
-                         overloaded: sim.overloaded, iterations: sim.iterations }
+                         overloaded: sim.overloaded, iterations: sim.iterations,
+                         // the LEDs that have burnt out and not been replaced
+                         blown: elements.filter(e => e.type === "led" && e.blown)
+                                        .map(e => e.id) }
         // the gate's answer, measured, so an agent can check what the lab
         // teaches without reading a single pixel
         if (hasLogic)
@@ -1824,6 +1866,11 @@ Item {
                 simV: root.simOf(modelData.id).v
                 simPower: root.simOf(modelData.id).power
                 lit: root.simOf(modelData.id).on
+                blown: {
+                    root.elemRev
+                    const e = root.elemAt(modelData.id)
+                    return e ? !!e.blown : false
+                }
                 // which region a transistor is working in, so five identical
                 // black blobs stop looking identical
                 mode: {
@@ -1951,7 +1998,10 @@ Item {
 
     // --- flow --------------------------------------------------------------
     // "Why does the LED light?" - a demo that builds the circuit, hands the
-    // switch to the learner, then explains the number it produced.
+    // switch to the learner, then explains the number it produced. Each of
+    // voltage, resistance and current gets a step of its own, on the part
+    // that shows it, before anything is computed from them; the board's
+    // readings come before the reasoning that explains them (#537).
     Flow {
         id: ledFlow
         lab: root
@@ -1961,13 +2011,17 @@ Item {
 
         FlowStep {
             key: "empty"
-            demo: [["clear"], ["showValues", false], ["frame", "setup"]]
+            // the plot back on current: `power` leaves it on watts, and a
+            // second run would otherwise plot power while `current` says
+            // "the plot draws it"
+            demo: [["clear"], ["showValues", false], ["plot", "I"], ["frame", "setup"]]
         }
         FlowStep {
             key: "battery"
             demo: [["let", "bat", "addPart", "battery", 6, 2],
                    ["select", "bat"], ["frame", "selection"]]
         }
+        FlowStep { key: "voltage" }
         FlowStep {
             key: "led"
             demo: [["let", "led", "addPart", "led", 12, 8],
@@ -1979,14 +2033,21 @@ Item {
                    ["setOhms", "res", 470],
                    ["select", "res"], ["frame", "selection"]]
         }
+        FlowStep { key: "resistance" }
+        // The switch is placed and named before the learner is asked to flip
+        // it, not slipped in with the wiring.
+        FlowStep {
+            key: "switch"
+            demo: [["let", "sw", "addPart", "switch", 12, 2],
+                   ["select", "sw"], ["frame", "selection"]]
+        }
         FlowStep {
             key: "wire"
             // "cell to switch, switch to LED, LED through the resistor and
             // back to the cell" - four parts named in one breath, and until
             // now four things to find by ear.
             mark: ["battery", "switch", "led", "resistor"]
-            demo: [["let", "sw", "addPart", "switch", 12, 2],
-                   ["select", -1], ["frame", "setup"],
+            demo: [["select", -1], ["frame", "setup"],
                    ["wire", "bat", 1, "sw", 0],
                    ["wire", "sw", 1, "led", 1],
                    ["wire", "led", 0, "res", 1],
@@ -2005,24 +2066,59 @@ Item {
             demo: [["watch", "led", true]]
             expect: (n) => Math.abs(root.simOf(n("led")).i - 0.00515) < 5e-5
         }
-        FlowStep { key: "why" }
+        FlowStep {
+            key: "current"
+            // "and the plot draws it" - the LED's current, not its power
+            expect: (n) => monitor.quantity === "I" && monitor.isWatched(n("led"))
+        }
         FlowStep {
             key: "values"
             demo: [["showValues", true]]
         }
-        // The handoff, and a task rather than a closing line: the lesson ends
-        // by lending the learner the one control it has been talking about,
-        // and ends FOR GOOD the moment they use it - after which the whole
-        // board is theirs.
+        // the voltages the explanation is about, on the board before it
+        FlowStep {
+            key: "volts"
+            demo: [["showValues", "V"]]
+        }
+        FlowStep { key: "why" }
+        FlowStep {
+            key: "ohm"
+            // the law the line names, on the numbers it quotes
+            expect: (n) => Math.abs(root.simOf(n("res")).v / 470 - root.simOf(n("res")).i) < 1e-6
+        }
+        FlowStep {
+            key: "power"
+            demo: [["plot", "P"]]
+            // "2.1 V times 5.1 mA, about 11 mW"
+            expect: (n) => Math.abs(root.simOf(n("led")).power - 0.011) < 0.0006
+        }
+        // The handoff: the lesson lends the learner the one control it has
+        // been talking about and asks them to find the limit the resistor
+        // line warned of. The task holds only once the LED has burnt out -
+        // any change of the value used to pass it, so the warning never had
+        // a consequence (#539). The plot goes back to current and the board
+        // labels it, so the climb towards 30 mA is in sight while they drag.
+        // The solve is 56 ohm: the first E12 step past the limit (68 ohm
+        // is 29.9 mA and survives, 56 ohm is 35 mA and does not).
         FlowStep {
             key: "try"
-            demo: [["select", "res"], ["frame", "selection"]]
-            task: ({ "until": (n) => { const e = root.elemAt(n("res"))
-                                       return e && e.value !== 470 },
+            demo: [["plot", "I"], ["showValues", true],
+                   ["select", "res"], ["frame", "selection"]]
+            task: ({ "until": (n) => { const e = root.elemAt(n("led"))
+                                       return e && !!e.blown },
                      "hint": "flow.led-basics.try.hint",
                      "hintAfter": 9,
                      "allow": ["res"],
-                     "solve": [["setOhms", "res", 220]] })
+                     "solve": [["setOhms", "res", 56]] })
+        }
+        // What happened and why, on the LED and its card - after which the
+        // whole board is the learner's.
+        FlowStep {
+            key: "burnt"
+            demo: [["select", "led"], ["frame", "selection"]]
+            expect: (n) => { const e = root.elemAt(n("led"))
+                             return e && !!e.blown && !root.simOf(n("led")).on
+                                 && Math.abs(root.simOf(n("led")).i) < 1e-6 }
         }
     }
     // --- flow: from one transistor to XOR ----------------------------------
@@ -2039,14 +2135,17 @@ Item {
 
         FlowStep {
             key: "meet"
+            demo: [["scenario", "transistor"], ["showValues", false],
+                   ["setInputs", 0], ["frame", "setup"]]
+        }
+        FlowStep {
+            key: "legs"
             // "the collector at the back, the emitter at the front, the base
             // on the left" - as the preset places the part, turned a quarter
             // so the collector faces the LED: three sub-parts of one part,
             // each ringed and captioned in the reader's language while the
             // line names them.
             mark: ["collector", "base", "emitter"]
-            demo: [["scenario", "transistor"], ["showValues", false],
-                   ["setInputs", 0], ["frame", "setup"]]
         }
         FlowStep {
             key: "switch"
@@ -2062,6 +2161,7 @@ Item {
             key: "gain"
             demo: [["showValues", true]]
         }
+        FlowStep { key: "limit" }
         FlowStep {
             key: "and"
             demo: [["scenario", "logic-and"], ["setInputs", 0],
@@ -2092,6 +2192,10 @@ Item {
             key: "xor"
             demo: [["scenario", "logic-xor"], ["setInputs", 0], ["frame", "setup"]]
         }
+        // NOT and NAND said in plain words before the line that builds XOR
+        // out of them (#537)
+        FlowStep { key: "nand" }
+        FlowStep { key: "xorbuild" }
         FlowStep {
             key: "xortask"
             task: ({ "until": () => { const r = root.logicRowIndex()
@@ -2799,11 +2903,14 @@ Item {
         }
         if (e.type === "gate")
             return LabLang.t("gate." + (e.func || "and")).toUpperCase()
+        if (e.type === "led")
+            return name + "  " + LabLang.t(e.blown ? "led.burnt" : "led.intact")
         return name
     }
     // h/l on the card's rows: a switch's state, a gate's function, a value.
     function adjustCardRow(el, row, d) {
         if (row === "state") { setSwitch(el.id, !el.on); return true }
+        if (row === "replace") { replaceLed(el.id); return true }
         if (row === "func") {
             const i = gateFuncs.indexOf(el.func || "and")
             const n = gateFuncs.length
@@ -2963,6 +3070,39 @@ Item {
                                        root.setSwitch(selCard.part.id, parent.modelData)
                     }
                 }
+            }
+        }
+
+        // An LED's limit, and the way back once it is past it. Intact, the
+        // row says what the part takes at most - the number the lesson
+        // asks the learner to find; burnt out, it is the one thing on the
+        // card worth doing: put a new LED in (#539).
+        Rectangle {
+            id: ledState
+            visible: selCard.part !== null && selCard.part.type === "led"
+            readonly property bool blown: {
+                root.elemRev
+                return selCard.part !== null && !!selCard.part.blown
+            }
+            width: selCard.width - 20
+            height: visible ? LabTheme.px(20) : 0
+            radius: LabTheme.px(4)
+            color: blown ? LabTheme.alarm : LabTheme.paper
+            border.color: blown ? LabTheme.alarm : LabTheme.panelEdge
+            border.width: LabTheme.borderWidth
+            CardFocusRing { on: selCard.focusedRow === "replace" }
+            Text {
+                anchors.centerIn: parent
+                text: ledState.blown ? LabLang.t("led.replace")
+                                     : LabLang.tf("led.rated", LabLang.num(Circuit.I_MAX_LED * 1000, 0) + " mA")
+                color: LabTheme.inkOn(parent.color)
+                font.pixelSize: LabTheme.fontSmall; font.bold: ledState.blown
+                font.family: LabTheme.monoFont
+            }
+            MouseArea {
+                anchors.fill: parent
+                enabled: ledState.blown
+                onClicked: if (selCard.part) root.replaceLed(selCard.part.id)
             }
         }
 
