@@ -591,7 +591,11 @@ Series stacks the resistances ($0.5 + 6 + 6$) so the shared current is small
 barely glow at 0.78 W; parallel halves them ($0.5 + 3$) so the cell delivers
 1282 mA, 641 mA per rung, and each bulb blazes at 2.47 W — roughly
 $3.5\times$ the current and $3.2\times$ the light. That contrast, produced by
-rewiring alone, is the core physical lesson of the lab.
+rewiring alone, is the core physical lesson of the lab. `T` on the series, the
+parallel or the metering preset walks it as a guided lesson
+(`series-parallel`): the learner predicts what a second bulb in series
+does, wires one in parallel by hand, watches a deliberate short and reads
+the meters.
 
 ![two bulbs in series](figures/series.png)
 
@@ -1090,6 +1094,7 @@ lends the left button to panning for exactly as long as it is held down.
 - The belt, and the palette as a tool on it: `labs/electronics-101/Sandbox.qml:721`, `labs/electronics-101/Sandbox.qml:731`
 - The placement ghost: `labs/electronics-101/Sandbox.qml:796`
 - The guided flow (`led-basics`): `labs/electronics-101/Sandbox.qml:1266`
+- The series-and-parallel lesson (`series-parallel`) and the questions it asks: `labs/electronics-101/Sandbox.qml`, `spFlow` and `questions`
 - Handheld contract and belt (kernel): `plugins/clay_lab/HandheldInstrument.qml:1`, `plugins/clay_lab/InstrumentBelt.qml:1`
 - Tape measure, stopwatch (kernel): `plugins/clay_lab/TapeMeasure.qml:1`, `plugins/clay_lab/Stopwatch.qml:1`
 - The kit's handheld voltmeter: `labs/kits/circuit/Voltmeter.qml:1`

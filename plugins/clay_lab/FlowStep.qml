@@ -55,6 +55,11 @@ QtObject {
         instead (\c {"allow": (n) => root.logicInputs}). Leaving it out keeps
         the whole board live, which is what a flow written before
         \l {Flow::control} existed still gets.
+
+        \c {"wiring": true} lends the circuit itself as well: the pads and the
+        wires answer while the task runs, so the learner can draw a wire or
+        erase one (\l {Flow::lendsWiring()}). For a task whose outcome is a
+        changed circuit; its \c until then reads the circuit, never a click.
     */
     property var task: null
 

@@ -31,6 +31,11 @@ rendered yet, so DE narrates in text only.
   that step's performance script from 0.
 - `en/logic-<key>.m4a` - one clip per step of the logic flow ("From one
   transistor to XOR"), all eighteen steps.
+- `en/sp-<key>.m4a` - one clip per step of the series-and-parallel flow
+  ("Two bulbs: series and parallel"), all twenty-one steps. A step that
+  answers a question has one clip per answer: `sp-second` (no answer),
+  `sp-second-brighter`, `sp-second-same`, `sp-second-dimmer`, and `sp-told`,
+  `sp-told-less`, `sp-told-same`, `sp-told-none`.
 
 ## Spoken forms
 
@@ -38,7 +43,9 @@ The on-screen line is not the line to speak: units are read out (`mA` ->
 "milliamps", `V` -> "volts", `Ω` -> "ohms"), a decimal is written out in
 words where a render garbled the digits ("2.4" -> "two point four"; checked
 by transcribing the clip back), an "LED" a transcription heard as "lead"
-is spelled out ("L-E-D"), em-dashes become commas, and
+is spelled out ("L-E-D"), a unit a transcription misheard is
+hyphenated ("milli-amps", "am-meter" - heard as "milliums" and "amateur"
+otherwise), em-dashes become commas, and
 anything that only works for the eye is rewritten for the ear. The exact
 texts rendered:
 
@@ -89,3 +96,30 @@ The on-screen lines live in `../strings.js`: `flow.led-basics.<key>` and
 `flow.led-basics.<key>.script` for the per-line ones. A changed English line
 there wants its clip rendered again and its text here updated; a clip that
 cannot be rendered is removed, so the line shows as text only.
+- `sp-one`: A closed loop: a cell, the palette calls it a battery, a switch and one bulb. The board shows the current, the charge passing each second: six hundred and ninety milliamps, thousandths of an amp. The bulb glows brightly.
+- `sp-guess`: Now I put a second, identical bulb into the same loop, right after the first. What will the first bulb do? Decide, then pick your answer.
+- `sp-second`: Here is the second bulb, in the same loop. Both glow, but far less than one did alone: each carries three hundred and sixty milli-amps instead of six hundred and ninety.
+- `sp-second-brighter`: You said brighter. It is the other way round: both bulbs glow far less than one did alone. Each carries three hundred and sixty milli-amps instead of six hundred and ninety.
+- `sp-second-same`: You said the same, as most people do. But look: both bulbs glow far less than one did alone. Each carries three hundred and sixty milliamps instead of six hundred and ninety.
+- `sp-second-dimmer`: You said dimmer, and you were right: both bulbs glow far less than one did alone. Each carries three hundred and sixty milli-amps instead of six hundred and ninety.
+- `sp-same`: Read the board: the cell, the switch and both bulbs carry the same three hundred and sixty milliamps. One loop has one current, wherever you look. That is a series circuit.
+- `sp-why`: Why less? Each bulb resists the current with 6 ohms. In series the charge has to get through both, so the loop resists with 12 ohms, and the same cell pushes less current round it.
+- `sp-split`: And the push, the voltage, is shared: each bulb has two point two volts across it, where one alone had four point one volts. Half the push and half the current, so each bulb gets about a quarter of the light.
+- `sp-pair`: Back to one bulb, with a second one lying beside it, not wired yet. This time you connect it.
+- `sp-wireup`: Your turn: wire the second bulb in so that both glow almost as brightly as one alone. Click a gold pad, then another, to draw a wire. E is the eraser.
+- `sp-parallel`: That is a parallel circuit: each bulb has its own path from one side of the cell to the other. Drawn the way books draw it, it is a ladder: two rails, and one rung per bulb.
+- `sp-add`: Read the currents: each bulb takes six hundred and forty milli-amps, and the cell delivers one point two eight amps, both together. In parallel the currents add: what leaves the cell splits up, and joins again.
+- `sp-push`: Each bulb has three point eight volts across it, nearly the whole push, so each stays bright. A little less than one bulb alone: the cell loses some voltage inside itself when it delivers more.
+- `sp-short`: Now a mistake, on purpose: a bare wire from one pad of the upper bulb to the other. Its pads sit on the two rails, so the wire is a third rung with almost no resistance.
+- `sp-banner`: The banner says short circuit. Nearly nine amps take the bare wire, the bulbs get nothing and go dark, and the cell heats up inside. On a real bench: open the switch at once.
+- `sp-fix`: Take the wire away, and both bulbs are back.
+- `sp-meters`: Last, measuring. An ammeter reads current, so it sits in the loop, in series: the current has to pass through it. This one reads what goes through the L-E-D.
+- `sp-voltmeter`: A voltmeter reads the voltage between its two wires, so it sits across a part, in parallel. This one reads what the L-E-D keeps for itself.
+- `sp-ask`: Read the am-meter. Then: how much current goes through the resistor, the striped part on the far side of the L-E-D? Pick your answer.
+- `sp-told`: The resistor carries the same five point one milli-amps as the am-meter: it is all one loop, so the current is the same everywhere in it.
+- `sp-told-same`: Right: the same five point one milliamps. It is all one loop, so the L-E-D cannot use current up. What it uses up is push, voltage, as the next board shows.
+- `sp-told-less`: Not less: the resistor carries the same five point one milliamps. Current is not used up on its way round the loop. What the L-E-D uses up is push, voltage, as the next board shows.
+- `sp-told-none`: It gets the same five point one milli-amps. If no current passed the resistor, none could pass the L-E-D either: it is one loop. The L-E-D uses up push, voltage, not current.
+- `sp-move`: Last task, on your own: make the voltmeter read the resistor instead of the L-E-D. Remember where a voltmeter goes.
+- `sp-moved`: Two point four volts across the resistor, two point one volts across the L-E-D: in series the cell's four point five volts is shared out between the parts. The voltmeter goes across a part, the ammeter into the loop.
+- `sp-yours`: That is series and parallel. The board is yours now: take parts from the palette, three bulbs in parallel, say, and watch what the cell has to deliver.
