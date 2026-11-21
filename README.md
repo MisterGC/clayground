@@ -161,7 +161,9 @@ fills them, about 100 s (7.3 min before: one file compiled at a time, both depen
 Two things stay out of the committed presets, on purpose:
 
 - **Qt** comes from `CMAKE_PREFIX_PATH` in your environment (or a Qt already on
-  the default search path). No machine path is committed.
+  the default search path). No machine path is committed. `./verify.sh` run
+  without the variable takes the newest Qt from 6.10 on under `~/Qt` for a
+  first configure and prints which one; a build folder that exists keeps its Qt.
 - **OpenSSL**, if the libdatachannel dependencies cannot find one. On macOS use
   `cmake --preset macos`, which adds `OPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl`,
   a stable Homebrew symlink rather than a versioned directory, so it survives
