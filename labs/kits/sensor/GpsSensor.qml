@@ -97,4 +97,16 @@ QtObject {
             _gps.fix(sol.x, sol.z, t)
         }
     }
+
+    // --- snapshot (#568) -----------------------------------------------------
+    // What the sensor builds up while time runs, for Lab.snapshot(): its next
+    // due time, its last solve and what it last saw. Everything else is set
+    // by the lab or read off the clock. Two of these in one lab need two names.
+    property string stateName: "gps"
+    property ModelState _state: ModelState {
+        name: _gps.stateName
+        target: _gps
+        properties: ["_due", "_guess", "lastFix", "fixes", "sky", "visibleCount",
+                     "hdop", "posSigma"]
+    }
 }

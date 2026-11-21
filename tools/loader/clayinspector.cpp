@@ -72,6 +72,24 @@ static bool replaceFile(const QString& path, const QByteArray& data)
     return false;
 }
 
+// The view state as a reader sees it: a lab's carries a whole Lab.snapshot()
+// for the reload (#568) - every probe sample and the model's state, hundreds
+// of KB for a lab that has run a minute. It is for applyViewState, not for an
+// agent reading a snapshot response or a flag, so those leave it out.
+static QJsonValue viewStateToShow(QJsonValue vs)
+{
+    if (!vs.isObject())
+        return vs;
+    QJsonObject o = vs.toObject();
+    o.remove(QStringLiteral("snapshot"));
+    if (o.value(QStringLiteral("lab")).isObject()) {
+        QJsonObject lab = o.value(QStringLiteral("lab")).toObject();
+        lab.remove(QStringLiteral("snapshot"));
+        o[QStringLiteral("lab")] = lab;
+    }
+    return o;
+}
+
 static void parseDiagnosticLocation(const QString& msg, QString& file, int& line)
 {
     static const QRegularExpression re(
@@ -1218,7 +1236,7 @@ QJsonObject ClayInspector::handleSnapshot(const QJsonObject& request)
     // viewState() if the sandbox supports place-keeping across reloads
     QJsonValue viewState = ClayScene::callJsonFunction(rootItem, "viewState");
     if (!viewState.isNull())
-        response["viewState"] = viewState;
+        response["viewState"] = viewStateToShow(viewState);
 
     // scenarios() if the sandbox offers checkpoints
     QJsonValue scenarios = ClayScene::callJsonFunction(rootItem, "scenarios");
@@ -2188,7 +2206,7 @@ void ClayInspector::completeFlag(const QString& annotation)
             flag["flagInfo"] = fi;
         QJsonValue vs = ClayScene::callJsonFunction(root, "viewState");
         if (!vs.isNull())
-            flag["viewState"] = vs;
+            flag["viewState"] = viewStateToShow(vs);
         flag["tree"] = ClayScene::buildItemTree(root, 4, false);
     }
 
@@ -2261,7 +2279,7 @@ void ClayInspector::writeAutoFlag(const QString& errorMsg)
             flag["flagInfo"] = fi;
         QJsonValue vs = ClayScene::callJsonFunction(root, "viewState");
         if (!vs.isNull())
-            flag["viewState"] = vs;
+            flag["viewState"] = viewStateToShow(vs);
         flag["tree"] = ClayScene::buildItemTree(root, 4, false);
     }
     attachDiagnostics(flag);
