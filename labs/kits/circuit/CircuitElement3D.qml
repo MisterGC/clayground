@@ -294,7 +294,14 @@ Node {
         readonly property var bands: {
             // normalized by division, not by log10: log10(1000) lands just
             // under 3 in floating point and would mis-colour the decade
-            let sig = Math.round(Math.max(10, root.value || 470))
+            const v = root.value || 470
+            // under 10 ohm the code's multiplier is gold, x0.1: 4.7 ohm is
+            // yellow, violet, gold
+            if (v < 10) {
+                const s = Math.round(Math.max(10, v * 10))
+                return [codeColors[Math.floor(s / 10)], codeColors[s % 10], "#c9a227"]
+            }
+            let sig = Math.round(v)
             let exp = 0
             while (sig >= 100) { sig = Math.round(sig / 10); ++exp }
             return [codeColors[Math.floor(sig / 10)],
