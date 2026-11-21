@@ -617,11 +617,11 @@ def test_load_diagnostics(tmp):
 
 STAND_IN = os.path.join(HERE, "stand_in_loader.py")
 LAB_CHECK = os.path.join(os.path.dirname(HERE), "lab_check.py")
+LOAD_CHECK = os.path.join(os.path.dirname(HERE), "load_check.py")
 
 
-def run_with_stand_in(tmp, name, mode, ready_timeout):
-    """lab-check over a minimal learning lab, with the stand-in as its loader;
-    (exit code, output, seconds it took)."""
+def stand_in_lab(tmp, name):
+    """A minimal learning lab for the stand-in loader to 'load'."""
     lab = os.path.join(tmp, name)
     os.makedirs(lab)
     for fname, text in (("Sandbox.qml", ""), ("paper.md", "# Paper\n"),
@@ -629,15 +629,25 @@ def run_with_stand_in(tmp, name, mode, ready_timeout):
                         ("lab-check.json", '{"purpose": "learning"}')):
         with open(os.path.join(lab, fname), "w") as f:
             f.write(text)
+    return lab
+
+
+def run_timed(cmd, mode):
+    """(exit code, output, seconds it took) of cmd with STAND_IN_MODE=mode."""
     env = dict(os.environ, STAND_IN_MODE=mode)
     start = time.time()
-    proc = subprocess.run(
+    proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, text=True, timeout=120)
+    return proc.returncode, proc.stdout, time.time() - start
+
+
+def run_with_stand_in(tmp, name, mode, ready_timeout):
+    """lab-check over a minimal learning lab, with the stand-in as its loader."""
+    lab = stand_in_lab(tmp, name)
+    return run_timed(
         [sys.executable, LAB_CHECK, lab, "--loader", STAND_IN,
          "--ready-timeout", str(ready_timeout),
-         "--only", "load,determinism,flows,triad,remarks"],
-        env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        text=True, timeout=120)
-    return proc.returncode, proc.stdout, time.time() - start
+         "--only", "load,determinism,flows,triad,remarks"], mode)
 
 
 def quote(out):
@@ -700,6 +710,33 @@ def test_loader_watch(tmp):
           f"{took:.1f} s against a 60 s timeout")
     check("loader: the checks that need no loader still report after a crashed run",
           "PASS  triad: paper.md exists" in out, quote(out))
+
+    # the first process serves, the next one is up and never answers: one
+    # protocol FAIL, and the checks that need no loader still report - a
+    # timeout used to cost them their lines (#536)
+    code, out, took = run_with_stand_in(tmp, "mute-101", "mute-after-first", 2)
+    check("loader: a loader that stops answering fails one protocol line",
+          code == 1 and "FAIL  protocol: no response for " in out,
+          f"exit {code}: {quote(out)}")
+    check("loader: the checks that need no loader still report after a protocol timeout",
+          "PASS  triad: paper.md exists" in out, quote(out))
+    check("loader: a protocol timeout ends within its ready timeout",
+          took < 15, f"{took:.1f} s against a 2 s timeout")
+
+    # load_check.py, the load stage for pages that are not labs, reports a
+    # dead loader the same way
+    lab = stand_in_lab(tmp, "load-crash-101")
+    code, out, took = run_timed(
+        [sys.executable, LOAD_CHECK, os.path.join(lab, "Sandbox.qml"),
+         "--loader", STAND_IN], "crash")
+    check("load_check: a loader that dies fails the page", code == 1,
+          f"exit {code}")
+    check("load_check: the FAIL line carries the loader's exit code",
+          "the loader ended with exit code 3" in out, quote(out))
+    check("load_check: the loader's last output is printed",
+          'module "Clayground.Missing" is not installed' in out, quote(out))
+    check("load_check: a dead loader is seen well within the 90 s timeout",
+          took < 15, f"{took:.1f} s")
 
 
 def main():

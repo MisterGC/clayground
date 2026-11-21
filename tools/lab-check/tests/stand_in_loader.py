@@ -9,10 +9,13 @@ with the rest of its environment:
 
   crash              print two lines and exit 3 at once
   never-ready        report phase "loading" and stay up until terminated
+  mute               report phase "ready" and never answer a request
   stall-after-first  the first process serves the lab; every later one is
                      never-ready
   crash-after-first  the first process serves the lab; every later one is
                      crash
+  mute-after-first   the first process serves the lab; every later one is
+                     mute
 
 Serving the lab means phase "ready" and an answer to every inspector request:
 a snapshot with a live root, and to any eval the probe JSON of a lab with two
@@ -46,6 +49,12 @@ def crash():
 
 def never_ready(inspect):
     write_json(os.path.join(inspect, "state.json"), {"phase": "loading"})
+    while True:
+        time.sleep(0.1)
+
+
+def mute(inspect):
+    write_json(os.path.join(inspect, "state.json"), {"phase": "ready"})
     while True:
         time.sleep(0.1)
 
@@ -92,6 +101,8 @@ def main():
         crash()
     elif mode == "never-ready":
         never_ready(inspect)
+    elif mode == "mute":
+        mute(inspect)
     else:
         serve(inspect)
 
