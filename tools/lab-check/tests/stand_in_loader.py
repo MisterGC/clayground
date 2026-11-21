@@ -16,10 +16,11 @@ with the rest of its environment:
                      crash
   mute-after-first   the first process serves the lab; every later one is
                      mute
-  slow-after-first   the first process serves the lab; every later one
-                     serves it too, holding each eval for 0.5 s and noting
+  slow               serve the lab, holding each eval for 0.5 s and noting
                      when it held it in <lab>/stand-in-evals - which is how
                      a test sees how many runs went at the same time (#572)
+  slow-after-first   the first process serves the lab; every later one is
+                     slow
 
 Serving the lab means phase "ready" and an answer to every inspector request:
 a snapshot with a live root, to `time` whether it was started with --paused,

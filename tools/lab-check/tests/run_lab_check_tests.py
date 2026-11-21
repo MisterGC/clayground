@@ -880,6 +880,18 @@ def test_loader_watch(tmp):
         check(f"jobs: the header names --jobs {jobs}", f"jobs={jobs}," in out,
               out.splitlines()[0] if out else "")
 
+    # A flow lab-check.json names does not wait for the first session, which
+    # asks whether the lab loads: it needs nothing that session answers, so
+    # the session's question and the flow's run are held at the same time
+    lab = stand_in_lab(tmp, "flow-first-101")
+    with open(os.path.join(lab, "lab-check.json"), "w") as f:
+        json.dump({"purpose": "learning", "flows": ["f1"]}, f)
+    _code, out, _took = run_timed([sys.executable, LAB_CHECK, lab, "--loader",
+                                   STAND_IN, "--only", "load,flows"], "slow")
+    peak = most_at_once(os.path.join(lab, "stand-in-evals"))
+    check("jobs: a named flow runs beside the first session, not after it",
+          peak == 2, f"{peak} at once: {quote(out)}")
+
     # load_check.py, the load stage for pages that are not labs, reports a
     # dead loader the same way
     lab = stand_in_lab(tmp, "load-crash-101")
