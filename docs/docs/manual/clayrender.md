@@ -170,17 +170,19 @@ a usage error.
 
 ## What a frame costs
 
-`--stats n` measures n frame slots of 1/60 s and prints one JSON line:
+`--stats n` measures n frame slots of 1/60 s, after one second of slots that
+are not counted, and prints one JSON line:
 
 ```bash
 clayrender labs/electronics-101/Sandbox.qml --stats 300
 ```
 
 ```json
-{"cpuMs":{"max":2.327,"mean":1.166,"median":1.1,"min":0.842},
+{"cpuInstructions":{"max":11259348,"mean":7843981.767,"median":7149151,"min":6959024},
+ "cpuMs":{"max":3.607,"mean":1.426,"median":1.304,"min":0.947},
  "drawCalls":{"max":105,"median":105,"min":105},"frames":300,
- "renderMs":{"max":2.856,"mean":2.089,"median":2.035,"min":1.833},
- "rendered":300,"seconds":5.005,
+ "renderMs":{"max":7.579,"mean":2.872,"median":2.818,"min":1.189},
+ "rendered":300,"seconds":5.002,
  "vertices":{"max":549654,"median":549654,"min":549654},"views3d":1}
 ```
 
@@ -190,6 +192,7 @@ clayrender labs/electronics-101/Sandbox.qml --stats 300
 | `rendered` | frames the window really drew in them, counted on its `afterRendering` signal |
 | `seconds` | wall time of the measurement |
 | `cpuMs` | CPU time of the whole process per slot — everything the frame cost, from timers and bindings to the graphics driver's threads |
+| `cpuInstructions` | instructions the whole process retired per slot; macOS only, `null` elsewhere |
 | `renderMs` | wall time to draw one frame, over the drawn frames; includes waiting for the GPU |
 | `drawCalls`, `vertices` | per drawn frame, summed over every `View3D` (`renderStats` with extended data) |
 | `views3d` | the `View3D`s counted |
@@ -209,14 +212,23 @@ and `--trace` still wait 16 ms before every frame they draw; their `t` is wall
 time with that padding.)
 
 The measurement starts after the setup — `--set`/`--eval`/`--script`,
-`--frames`, `--wait-for`, `--settle` — so it measures the state they reached,
-and a frame that state still had pending is drawn before the first slot. The
+`--frames`, `--wait-for`, `--settle` — so it measures the state they reached.
+One second of slots runs first and is not counted. Right after the setup a
+lab is still finishing what loading started (a fade, a camera glide, the first
+shader pipelines), and how much of that would fall into the window depends on
+how fast the setup ran: street-network-101 drew 2, 3 or 4 frames of 300
+without it, and none with it. The
 picture, `--dump` and the other queries come after it and show the last
 measured frame. A `--trace` keeps sampling through the measurement, one sample
 per drawn frame.
 
-Frames, draw calls and vertices are the same from run to run. CPU and render
-times are not: on a loaded machine take three runs and compare medians.
+Frames, draw calls and vertices are the same from run to run, and so, nearly,
+is `cpuInstructions`: three runs per lab at a load average of 22 to 54 agreed
+within 2 %. CPU time is what the work costs on this machine at this moment,
+so it moves with what else the machine runs — up to a quarter between runs
+at that load. Compare `cpuInstructions` to see whether a change made a frame
+cheaper; read `cpuMs` and `renderMs` to see what it costs here, and on a loaded
+machine take three runs and compare medians.
 
 ## Starting paused
 
