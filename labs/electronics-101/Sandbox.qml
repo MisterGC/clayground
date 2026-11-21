@@ -418,14 +418,25 @@ Item {
     }
     // Resistance runs over the real E12 series, the values a shop actually
     // sells - which is also what makes the colour bands honest, since a band
-    // code encodes two significant digits and a decade.
+    // code encodes two significant digits and a decade. 1 ohm to 1 Mohm: the
+    // bottom decade is where an LED burns out, the top one is where a base
+    // is starved into the active region (#541). The first decade divides
+    // rather than multiplying by 0.1, so 1.2 is 1.2 and not 1.2000000000000002.
     readonly property var resistorSteps: {
         const e12 = [10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82]
         const out = []
-        for (let dec = 1; dec <= 100; dec *= 10)
+        for (const v of e12) out.push(v / 10)
+        for (let dec = 1; dec <= 10000; dec *= 10)
             for (const v of e12) out.push(v * dec)
-        out.push(10000)
+        out.push(1000000)
         return out
+    }
+    // A resistance as a shop labels it: 4.7 kΩ, 1 MΩ, 2.2 Ω.
+    function fmtOhms(v) {
+        const one = (x) => LabLang.num(x, Math.abs(x - Math.round(x)) > 1e-9 ? 1 : 0)
+        if (v >= 1e6) return one(v / 1e6) + " MΩ"
+        if (v >= 1000) return one(v / 1000) + " kΩ"
+        return one(v) + " Ω"
     }
     function resistorStepOf(ohms) {
         let best = 0, bd = Infinity
@@ -3299,9 +3310,7 @@ Item {
     function cardTitle(e) {
         const name = LabLang.t("part." + e.type).toUpperCase()
         if (e.type === "resistor")
-            return name + "  " + (e.value >= 1000
-                ? LabLang.num(e.value / 1000, e.value % 1000 ? 1 : 0) + " kΩ"
-                : e.value + " Ω")
+            return name + "  " + root.fmtOhms(e.value)
         if (e.type === "battery")
             return name + "  " + LabLang.num(e.value || root.defaultVolts, 1) + " V"
         if (e.type === "switch")
@@ -3353,8 +3362,11 @@ Item {
         overlay: overlay
         titleOf: (e) => root.cardTitle(e)
         readingOf: (e) => { const s = root.simOf(e.id); return root.fmtV(s.v) + "   " + root.fmtA(s.i) }
+        // The bulb's and the cell's cards also say what the model leaves out
+        // of them, where a learner is looking at the part (#541).
         hintOf: (e) => LabLang.t(e.type === "resistor" ? "card.hint.resistor"
-                                : e.type === "battery" ? "card.hint.battery" : "card.hint.part")
+                                : e.type === "battery" ? "card.hint.battery"
+                                : e.type === "bulb" ? "card.hint.bulb" : "card.hint.part")
         minWidthOf: (e) => (e.type === "resistor" || e.type === "battery") ? LabTheme.px(196)
                           : e.type === "gate" ? LabTheme.px(228) : 0
         adjust: (e, row, d) => root.adjustCardRow(e, row, d)
@@ -3720,7 +3732,11 @@ Item {
         jump: hintJump
         hints: hintBar
         selection: selCard.keys
-        keys: board.keys(grid, overlay).concat([
+        // The digits stop at 9 and this lab has eleven presets: the help says
+        // where the last two are. The row is documentation only - its key is
+        // a word, which never matches a key press (#541).
+        keys: [{ key: LabLang.t("key.morepresets.how"), label: "key.morepresets",
+                 action: () => {} }].concat(board.keys(grid, overlay)).concat([
             { key: "M", label: "key.plan", action: () => {
                 root.showPlan = !root.showPlan
                 if (!root.showPlan) root.planMax = false } },

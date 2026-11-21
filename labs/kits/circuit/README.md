@@ -189,8 +189,8 @@ implementation goes wrong:
   which is exactly what buying a chip gets you.
 - **Per-cell voltage**, 1.5–12.0 V in 0.5 V steps.
 - **Per-resistor resistance**, walking the real **E12 series**
-  (10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82 × 1/10/100, plus 10 kΩ) —
-  the actual convention, not a slider.
+  from 1 Ω to 1 MΩ (10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82 × 0.1 to
+  × 10 k, plus 1 MΩ) — the actual convention, not a slider.
 - **Switch state**, part placement and rotation, junction insertion, erase.
 
 Note there is deliberately **no global battery parameter**: every cell

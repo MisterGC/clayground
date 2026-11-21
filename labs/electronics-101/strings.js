@@ -36,6 +36,8 @@ var dict = {
         "scenario.note.half-adder": "two gates reading the same two inputs: SUM is A xor B, CARRY is A and B — which is binary addition, and the first thing gates were ever built for",
 
         // key map (LabHelp renders these next to the keys that trigger them)
+        "key.morepresets.how": "click",
+        "key.morepresets": "presets 10, 11: in the palette",
         "key.clear": "clear the board",
         "key.eraser": "eraser",
         "key.values": "show every value",
@@ -74,7 +76,9 @@ var dict = {
         "card.watch.full": "plot is full",
         "card.tag": "tag:",
         "card.hint.resistor": "drag to set Ω · R turn · Del remove",
-        "card.hint.battery": "drag to set volts · R turn · Del remove",
+        // what the model leaves out, on the card of the part it is about
+        "card.hint.battery": "direct current only: this cell pushes one way, steadily\ndrag to set volts · R turn · Del remove",
+        "card.hint.bulb": "a fixed 6 Ω: a real bulb's resistance climbs as it heats\nR turn · Del remove · drag to move",
         "card.hint.part": "R turn · Del remove · drag to move",
 
         "cell.reaches": "reaches your parts",
@@ -237,6 +241,8 @@ var dict = {
         "scenario.note.gates": "ein Baustein, sechs Funktionen: auswählen und umschalten — Gehäuse, Symbol und Tabelle folgen. VCC abklemmen und er antwortet nicht mehr",
         "scenario.note.half-adder": "zwei Gatter an denselben beiden Eingängen: SUMME ist A xor B, ÜBERTRAG ist A und B — das ist binäres Addieren, und das Erste, wofür Gatter je gebaut wurden",
 
+        "key.morepresets.how": "Klick",
+        "key.morepresets": "Vorlagen 10, 11: in der Palette",
         "key.clear": "Brett leeren",
         "key.eraser": "Radierer",
         "key.values": "alle Werte zeigen",
@@ -276,7 +282,8 @@ var dict = {
         "card.watched": "im Diagramm ✓",
         "card.watch.full": "Diagramm ist voll",
         "card.hint.resistor": "ziehen für Ω · R drehen · Entf löschen",
-        "card.hint.battery": "ziehen für Volt · R drehen · Entf löschen",
+        "card.hint.battery": "nur Gleichstrom: diese Zelle schiebt in eine Richtung, gleichmäßig\nziehen für Volt · R drehen · Entf löschen",
+        "card.hint.bulb": "fest 6 Ω: bei einer echten Lampe steigt der Widerstand, wenn sie heiß wird\nR drehen · Entf löschen · ziehen verschiebt",
         "card.hint.part": "R drehen · Entf löschen · ziehen verschiebt",
 
         "cell.reaches": "kommt bei den Bauteilen an",
