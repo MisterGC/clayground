@@ -491,7 +491,8 @@ at its first load, if it was saved for the same sandbox file (`source:
 `--restore-view` to every child after its first, so a plugin rebuild, a
 crash or a respawn comes back to the same place; given to the dojo itself,
 its first child comes back too. Without the flag a loader starts where the
-sandbox says — what a test or a lab check needs.
+sandbox says — what a test or a lab check needs. With `--paused` beside it the
+restored lab stays at the restored sim time until a `time` request moves it.
 
 A lab's view state also carries a `snapshot` — `Lab.snapshot()`, every probe
 sample and the model's state — which is how its reload restores the run
