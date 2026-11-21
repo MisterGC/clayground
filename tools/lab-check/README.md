@@ -15,6 +15,7 @@ tools/lab-check/lab-check labs/electronics-101
 tools/lab-check/lab-check labs/electronics-101 --only flows
 tools/lab-check/lab-check labs/electronics-101 --only determinism --keep
 tools/lab-check/lab-check labs/electronics-101 --ready-timeout 30 --verbose
+tools/lab-check/lab-check labs/electronics-101 --jobs 8
 tools/lab-check/lab-check labs/electronics-101 --clayrender build-debug/bin/clayrender --strict
 ```
 
@@ -195,7 +196,14 @@ Two things the runs do that are easy to get wrong, and each cost a session:
   process electronics-101's parts come back numbered `part12` in the first run
   and `part20` in the second: two records with identical numbers in them and
   different bytes, a determinism failure that says nothing about determinism.
-  That is also why one gate takes minutes rather than seconds.
+  The processes are independent, so they run side by side: `--jobs` of them
+  at a time (4 by default, as `lab-sweep`'s), each under `--instance` so it
+  serves its protocol in a directory of its own. The flows, the determinism
+  pairs and the records regeneration share that one limit; `records/make.sh`
+  runs once per committed record when each record's `command` names its
+  scenario, and `lab-sweep` gets `--jobs` for a study. The output keeps its
+  order whichever run ends first, so a check takes about as long as its
+  longest run (#572).
 
 ## What it needs from a lab
 

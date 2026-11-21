@@ -53,10 +53,12 @@ endif()
 # machine with no build tells you nothing about the contract.
 #
 # The gate drives clayliveloader offscreen through the inspector protocol, one
-# process per stepped run, so it is minutes rather than seconds: electronics-101
-# runs eleven scenarios twice plus two flows. Run one by hand while working on a
-# lab - `tools/lab-check/lab-check labs/<slug> --only flows` - and let ctest run
-# the whole thing.
+# process per stepped run: electronics-101 runs eleven scenarios twice plus two
+# flows. The runs go four at a time (lab-check's default --jobs, #572), which
+# PROCESSORS tells ctest so it does not start eight gates of four at once. Run
+# one by hand while working on a lab -
+# `tools/lab-check/lab-check labs/<slug> --only flows` - and let ctest run the
+# whole thing.
 if(BUILD_TESTING AND TARGET clayliveloader)
     find_package(Python3 COMPONENTS Interpreter)
     if(Python3_FOUND)
@@ -97,6 +99,7 @@ if(BUILD_TESTING AND TARGET clayliveloader)
             set_tests_properties(lab_check_${_lab} PROPERTIES
                 LABELS "labs;integration"
                 SKIP_RETURN_CODE 77
+                PROCESSORS 4
                 TIMEOUT 1800)
         endforeach()
     endif()
