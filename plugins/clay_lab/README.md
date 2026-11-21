@@ -391,6 +391,12 @@ reload restores it instead: about 0.1 s at 60 sim seconds of
 sensor-fusion-101, where the replay took 3 to 5 s and grew with every
 second the lab ran.
 
+A running lesson rides in `Lab.viewState()` too: `flows` holds each running
+`Flow`'s `state()` - its step, the names its steps bound, its checkpoints and
+the time spent in the step - and `Lab.applyViewState()` loads it back after
+the run, without running that step's demo again. A step's checkpoint is the
+lab without the lessons, so checkpoints never nest.
+
 ## Minimal lab skeleton
 
 Do not write one — generate it:

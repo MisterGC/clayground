@@ -14,7 +14,8 @@ The inspector lives inside the Dojo process. It watches a request file, and when
 <sandbox-dir>/.clay/inspect/
 ├── request.json      ← you (or your tool) write this
 ├── response.json     ← the inspector writes this (atomically)
-├── state.json        ← lifecycle: phase, pid, protocolVersion, generation, reloadCount, openAnnotations
+├── state.json        ← lifecycle: phase, pid, protocolVersion, generation, reloadCount, viewRestore, openAnnotations
+├── view-state.json   ← the root's view state, saved for a restart (see View State Preservation)
 ├── events.jsonl      ← append-only event stream (5 MB one-level rotation)
 ├── log.jsonl         ← every console/Qt message: ts, level, category, text
 ├── dojo.json         ← dojo supervisor state (generation, crash info)
@@ -52,6 +53,7 @@ Every response carries a `status` object, whatever the action was (protocol v3):
 | `rootLoaded` | A root object exists. |
 | `generation` | Successful loads. Does not advance on a reload that failed, which is exactly what makes "am I measuring the scene I edited?" answerable. `reloadCount` counts attempts. |
 | `phase`, `runId`, `sandbox`, `instanceId` | The same facts as `state.json`, so one response answers them. |
+| `viewRestore`, `viewRestoredGeneration` | Present once a load had a view state to restore: `restoring`, then `restored` or `failed`, for the generation named. See [View State Preservation](#view-state-preservation). |
 | `renderedAt` | Present **only** when this response carries a capture, and set to the moment the image was grabbed. A `snapshot` with `"screenshot": true` that returns no `renderedAt` produced no image (see `screenshotError`); any PNG on disk is then from an earlier request. |
 | `supervised`, `restarts` | Read from the dojo's `dojo.json`. `restarts` counts respawns, i.e. every child after the first. |
 | `lastError`, `lastErrorAt` | The newer of the most recent QML error and how the supervisor's last child died — so a crash loop is visible even from a loader that logged nothing. |
@@ -338,7 +340,9 @@ two fresh runs of the same steps reproduce each other byte for byte.
 Blocks (default 3000 ms) until the pending load succeeds or fails; returns
 immediately when the phase is already terminal. The response carries `phase`,
 `ready`, `waited`, and diagnostics. Use this instead of sleep/poll loops
-after any reload.
+after any reload. Its answer comes after the view state is back too: the
+loader restores it before it reads the next request, and the status
+envelope's `viewRestore` says how that went.
 
 ### time — pause, single-step, timescale
 
@@ -458,17 +462,44 @@ it to the new root once it is ready, after any rearmed scenario (so a sandbox
 that encodes scenario + sim time in its view state gets the last word). A null
 or failed capture keeps the previous one, so a fix applied after a load error
 still restores the user's place. Each step is recorded in `events.jsonl` as a
-`view_state_captured` and a `view_state_restored` (`{"ok": bool}`) event.
-A `reload` with `fresh: true` skips both and drops a capture still held.
+`view_state_captured` and a `view_state_restored` event
+(`{"ok", "generation", "source", "ms"}`, `source` being `reload` or `restart`).
+A `reload` with `fresh: true` skips both and drops a capture still held, and
+the saved file with it.
+
+**When the view is back.** `ready` is written the moment the new root exists,
+before its view state is applied. When there is one to apply, that same
+`state.json` already says `"viewRestore": "restoring"`; once
+`applyViewState()` has returned it says `"restored"` (or `"failed"`: no
+`applyViewState()` on the root, or it threw) with `viewRestoredGeneration`
+naming the generation. A tool that waits for the user's place waits for
+`viewRestore` to be `restored` for the generation it saw become ready. A
+request is only read after the restore, so its answer already sees the
+restored view; the status envelope carries the same two fields.
+
+**Across a restart.** While a root is up the loader saves its view state to
+`.clay/inspect/view-state.json` every 2 s when it changed, and at every
+capture before a reload — so a reload that crashes the loader leaves the
+place on disk too. A loader started with `--restore-view` restores that file
+at its first load, if it was saved for the same sandbox file (`source:
+"restart"`, after a `view_state_loaded` event). The dojo passes
+`--restore-view` to every child after its first, so a plugin rebuild, a
+crash or a respawn comes back to the same place; given to the dojo itself,
+its first child comes back too. Without the flag a loader starts where the
+sandbox says — what a test or a lab check needs.
 
 A lab's view state also carries a `snapshot` — `Lab.snapshot()`, every probe
 sample and the model's state — which is how its reload restores the run
-instead of replaying it.
+instead of replaying it, and while a lesson runs, `flows`: each running
+flow's step, the names its steps bound and its checkpoints
+(`Flow.state()`), so the reload comes back in the same lesson at the same
+step without running that step's demo again. A lab with a board puts the
+selected part in it too.
 
 `snapshot` responses carry a `viewState` key when the root implements it, and
 flag bundles (`Ctrl+F` flags and auto-flags) include the same key — without
-a lab's `snapshot` in it: hundreds of KB that are for the reload, not for
-reading. Ask the lab for one with `eval` `JSON.stringify(Lab.snapshot())`. The effect:
+a lab's `snapshot` in it, and without the `checkpoints` of its flows:
+hundreds of KB that are for the reload, not for reading. Ask the lab for one with `eval` `JSON.stringify(Lab.snapshot())`. The effect:
 the user keeps their camera, zoom, and place while an agent edits and reloads
 files underneath them.
 
