@@ -24,9 +24,14 @@ block APIs the checkout actually provides.
 **Claude Code (per project):**
 
 ```bash
-./skills/clay-lab/install.sh            # installs into .claude/skills/ of the current repo
-./skills/clay-lab/install.sh --user     # installs into ~/.claude/skills/ for all projects
+./skills/clay-lab/install.sh            # .claude/skills/ at the root of the repo you are in
+./skills/clay-lab/install.sh --user     # ~/.claude/skills/ for all projects
 ```
+
+Both link clay-crew beside clay-lab, which hands every verification step
+to it. Run from any folder of a repository, the project install lands at
+its root; outside one, at the root of this checkout. Any other argument
+is refused (exit 2).
 
 **Codex / other agents (AGENTS.md-based):** add one line to your
 `AGENTS.md`:
