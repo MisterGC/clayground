@@ -88,6 +88,12 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     // SyntheticGamepad can bridge them without any hard dependency.
     m_timeCtrl = new ClayTimeControl(this);
     m_inputCtrl = new ClayInputControl(this);
+    // Paused here, before the first engine is configured, so the root is
+    // created with Clayground.paused already true and no frame ticker of its
+    // runs before a driver's first request. Pausing by request afterwards
+    // leaves a gap of wall-clock frames, which a stepped run had to throw
+    // away with a reload (#572).
+    m_timeCtrl->setPaused(loader->startPaused());
 
     // The annotation store (issue #182). Constructed before the first engine
     // is configured - it goes into every engine's root context.
