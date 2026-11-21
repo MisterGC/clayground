@@ -110,7 +110,10 @@ Work in this order; each step has a verification before the next.
 
 1. **World + clock.** `SimClock { seed; sampleInterval }` is the only source
    of time and randomness. Step per frame (`fixedStep` + `onStepped`), never
-   in lumps.
+   in lumps. A lab with nothing moving draws nothing: bind `resting` to "no
+   current/flow, no lesson, no recording", call `wake()` when the solve
+   changes at rest, and read `clock.time` in a binding only while the thing
+   it animates moves - every such binding is a frame (#575).
 2. **Domain model** in the kit as pure JS; its node suite now, not later.
 3. **Kernel wiring.** `Parameter` only for owner-less globals (noise sigma,
    sim speed); anything an object owns gets a control on its selection card.
