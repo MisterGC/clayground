@@ -7,6 +7,10 @@ described on their [GitHub release pages](https://github.com/MisterGC/clayground
 
 ## [2026.14] - 2026-11-21
 
+### Added
+
+- **The clay-lab skill says how to teach with a lab.** `skills/clay-lab/references/teaching.md` is what an agent reads before it writes a lesson: a term defined before it is used, one idea per step, predict before observing, a task that needs more than a click, a check for understanding, a closing task that transfers the idea, scenarios as a progression and one word per thing, each with what to do, what to avoid and an example from electronics-101 or hydraulics-101. It also says how to write the German (a word list per kit, no word-for-word translation, a read-through as a German reader) and how narration clips are made and kept in step with their text, and it ends with a checklist to go through before handing a lab over. The skill's definition of done for a teaching lab now points to it. Why: a lab could pass every rule of the skill and still only narrate, and electronics-101 did. ([#530](https://github.com/MisterGC/clayground/issues/530))
+
 ## [2026.13] - 2026-11-14
 
 A world can run a slow motion on simulated time, so a bench that steps it by
