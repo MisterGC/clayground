@@ -115,12 +115,15 @@ MouseArea {
         Everything, with no flow running. With one: only a part the current
         task named, and only \e as a part - a pad or a wire is the circuit
         the lesson is teaching, and rewiring it mid-sentence is the thing
-        this exists to stop.
+        this exists to stop. Unless the task asks for exactly that: one
+        that lends the wiring (\l {Flow::lendsWiring()}) opens every pad and
+        wire, so the learner can draw and erase the change it asks for.
     */
     function granted(hit) {
         if (!gated) return true
         if (!hit) return false
-        if (hit.kind === "wire" || hit.kind === "terminal") return false
+        if (hit.kind === "wire" || hit.kind === "terminal")
+            return !!flow.lendsWiring && flow.lendsWiring()
         return flow.grants(hit.el)
     }
 

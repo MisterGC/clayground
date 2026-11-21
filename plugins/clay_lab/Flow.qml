@@ -347,6 +347,22 @@ Item {
     }
 
     /*!
+        \qmlmethod bool Flow::lendsWiring()
+        \brief May the learner draw and erase wires right now?
+
+        True whenever no flow runs. While one does, only during a task step
+        whose task says \c {"wiring": true}: a task that asks the learner to
+        change the circuit itself - put a bulb in parallel, move a meter -
+        has to lend the pads and the wires, which every other step keeps
+        locked because rewiring a circuit mid-sentence breaks the lesson
+        being told about it. The parts stay as \c allow says.
+    */
+    function lendsWiring() {
+        if (!running) return true
+        return !!(step && step.task && step.task.wiring === true)
+    }
+
+    /*!
         \qmlmethod void Flow::refuse()
         \brief Says why the touch just refused did nothing, for a moment.
     */

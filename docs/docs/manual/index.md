@@ -14,6 +14,7 @@ The Clayground manual covers the development tools and workflows in detail.
 - **[Logging Overlay]({{ site.baseurl }}/docs/manual/logging/)** - Real-time debugging and property watching
 - **[Multiplayer Games]({{ site.baseurl }}/docs/manual/multiplayer/)** - Smooth state sync with Clayground.Network
 - **[Plugin Development]({{ site.baseurl }}/docs/manual/plugin-development/)** - Creating your own Clayground plugins
+- **[Building a lab]({{ site.baseurl }}/docs/manual/building-a-lab/)** - From `lab-new` over `lab-check` to a study, with the `clay-lab` skill
 
 ## Core Concepts
 

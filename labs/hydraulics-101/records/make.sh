@@ -28,8 +28,22 @@ set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "$here/../../.." && pwd)"
+# The lab itself, found from this script rather than as labs/$lab under the
+# checkout: a lab made with `lab-new --dir` elsewhere has no checkout around
+# it, and lab-check runs it from there (#535). The run works IN it, so every
+# path clayrender sees stays relative - an absolute Git-bash path (/c/...)
+# inside the --eval string means nothing to clayrender on Windows.
+labdir="$(cd "$here/.." && pwd)"
 lab="hydraulics-101"
-render="$root/build/bin/clayrender"
+# $CLAYRENDER when it is set - lab-check passes the one it was given, so a
+# build folder of another name is the one that renders (#535)
+render="${CLAYRENDER:-$root/build/bin/clayrender}"
+# Absolute before the cd into the lab below: a relative $CLAYRENDER was checked
+# from the caller's directory and then run from the lab's (#535)
+case "$render" in
+    /*|[A-Za-z]:*) ;;
+    *) render="$PWD/$render" ;;
+esac
 # how this script is spelled inside a record - repo-relative, so it reads the
 # same on any machine
 self="labs/$lab/records/make.sh"
@@ -38,17 +52,22 @@ SEED=42
 STEPS=600           # 10 simulated seconds at 1/60 s, sampled every 0.1 s
 SCENARIOS=(wheel-basic series parallel metering)
 
+# Every scratch file of one run in a directory of its own: under fixed names
+# two runs of one lab at once wrote into each other's --verify files (#535)
+scratch="$(mktemp -d "${TMPDIR:-/tmp}/${lab}-records.XXXXXX")"
+trap 'rm -rf "$scratch"' EXIT
+
 [ -x "$render" ] || {
     echo "clayrender not found at $render - build it first" >&2
     echo "  cmake --build build --target clayrender" >&2
     exit 1
 }
 
-# $1 scenario, $2 destination (repo-relative), $3 record id
+# $1 scenario, $2 destination (relative to the lab), $3 record id
 run_one() {
     local scenario="$1" out="$2" id="$3"
-    "$render" "labs/$lab/Sandbox.qml" \
-        --out "${TMPDIR:-/tmp}/${lab}-${scenario}.png" --size 800x500 --frames 1 \
+    "$render" Sandbox.qml \
+        --out "$scratch/${scenario}.png" --size 800x500 --frames 1 \
         --eval "clock._frameTicker.running = false;
                 clock.seed = $SEED;
                 applyScenario('$scenario');
@@ -64,14 +83,15 @@ run_one() {
                 recorder.recording = false"
 }
 
-cd "$root"
+cd "$labdir"
 
 # Where the records go. Committed location by default; --out-dir sends them
 # somewhere else, which is how `tools/lab-check/lab-check` regenerates them and
 # compares without ever writing into the tree it is checking. The record's
 # `command` field stays the committed spelling either way - it says how to
-# reproduce the record, not where this particular copy landed.
-outdir="labs/$lab/records"
+# reproduce the record, not where this particular copy landed. A relative DIR
+# is relative to the lab.
+outdir="records"
 if [ "${1:-}" = "--out-dir" ]; then
     [ -n "${2:-}" ] || { echo "--out-dir needs a directory" >&2; exit 1; }
     outdir="$2"
@@ -84,8 +104,8 @@ if [ "${1:-}" = "--verify" ]; then
     # and seed twice, into two files, byte-compared.
     status=0
     for scenario in "${SCENARIOS[@]}"; do
-        a="${TMPDIR:-/tmp}/${lab}-${scenario}-a.labrec"
-        b="${TMPDIR:-/tmp}/${lab}-${scenario}-b.labrec"
+        a="$scratch/${scenario}-a.labrec"
+        b="$scratch/${scenario}-b.labrec"
         run_one "$scenario" "$a" "$scenario-$SEED" > /dev/null
         run_one "$scenario" "$b" "$scenario-$SEED" > /dev/null
         if cmp -s "$a" "$b"; then

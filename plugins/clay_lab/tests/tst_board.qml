@@ -53,6 +53,20 @@ Item {
 
     GridMode { id: grid; step: board.cell }
 
+    // A running lesson, as far as the board can tell: it lends what its
+    // task named, and the wiring only when the task says so.
+    QtObject {
+        id: fakeFlow
+        property bool running: true
+        property int index: 0
+        property bool wiring: false
+        property int refused: 0
+        function grants(id) { return false }
+        function lendsWiring() { return wiring }
+        function refuse() { refused++ }
+        function check() { return false }
+    }
+
     BoardInput {
         id: input
         board: board; nav: fakeNav; stage: fakeStage; view: null; grid: grid
@@ -200,6 +214,25 @@ Item {
             input.clickAt(pb.x, pb.z)
             compare(board.wiringFrom, null)
             compare(board.wires.length, 1)
+        }
+
+        // A lesson keeps its circuit locked: a pad answers only while the
+        // running task lends the wiring.
+        function test_aLessonLendsThePadsOnlyForAWiringTask() {
+            const a = board.addPart("block", 4, 4)
+            const b = board.addPart("block", 12, 4)
+            const pa = board.terminalPos(a, 1), pb = board.terminalPos(b, 0)
+            input.flow = fakeFlow
+            fakeFlow.refused = 0
+            fakeFlow.wiring = false
+            input.clickAt(pa.x, pa.z)
+            compare(board.wiringFrom, null, "a locked pad starts no wire")
+            compare(fakeFlow.refused, 1, "and the refusal is said")
+            fakeFlow.wiring = true
+            input.clickAt(pa.x, pa.z)
+            input.clickAt(pb.x, pb.z)
+            compare(board.wires.length, 1, "a task that lends the wiring gets its wire")
+            input.flow = null
         }
 
         function test_clickSelectsAndDragMoves() {
