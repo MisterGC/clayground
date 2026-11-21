@@ -10,11 +10,15 @@ Creates `labs/<slug>/` with everything the definition of done asks for: a
 `Sandbox.qml` that boots in the dojo and answers the whole conventions
 contract, a bilingual `strings.js` covering every key it shows, a `qmldir`,
 a records driver, a figures driver, a `lab-check.json`, and the `paper.md` +
-`overview.grafli` skeletons for the purpose you picked. The generated lab is
-green under `tools/lab-check/lab-check` from its first commit, which is what
-`lab-check.json` is for: it says how long a determinism run is, which flows to
-run, and - for a research lab, whose scaffold tour is meant to be deleted - why
-it has none yet.
+`overview.grafli` skeletons for the purpose you picked — and, for a research
+lab, a skeleton study (`studies/first-look/`) with its manifest, its committed
+records and a table rendered from them, because a research lab owes a study.
+The generated lab is green under `tools/lab-check/lab-check` from its first
+commit, and a test says so for every kind and purpose
+(`lab_new_check_<kind>_<purpose>`, below). `lab-check.json` declares the
+purpose and how long a determinism run is; it names no flow (`"flows":
+"all"`), so a flow you add to `flows()` later is checked without the file
+changing.
 
 The point is not that typing is saved. It is that the *starting* state of a
 new lab is already a lab: it has scenarios, a flow, probes, a key map, a
@@ -27,7 +31,7 @@ than the scaffolding — and there is no moment where the lab does not run.
 |---|---|
 | `<slug>` | lowercase kebab-case, e.g. `heat-101`. It becomes the directory name, the QML id after one substitution, and the URL segment in `/labs/run/?lab=<slug>`. |
 | `--kind` | which template family. Discovered from `templates/` (see below). Default `continuous`. |
-| `--purpose` | `learning`, `teaching` or `research`. Decides `paper.md`, `overview.grafli` and `lab-check.json`. Default `learning`. |
+| `--purpose` | `learning`, `teaching` or `research`. Decides `paper.md`, `overview.grafli`, `lab-check.json` and, for `research`, the skeleton study. Default `learning`. |
 | `--dir` | parent directory for the lab. Relative paths resolve against the repo root. Default `labs`. |
 | `--force` | overwrite an existing lab directory. |
 | `--dry-run` | list what would be written, write nothing. |
@@ -60,13 +64,19 @@ than leaving a hole in it.
 
 ```
 templates/
-    common/                what every lab gets: qmldir, figures/make.sh
-    purposes/<purpose>/    paper.md, overview.grafli, lab-check.json
-    <kind>/                Sandbox.qml, strings.js, records/make.sh
+    common/                       what every lab gets: qmldir, figures/make.sh
+    purposes/<purpose>/           paper.md, overview.grafli, lab-check.json
+    <kind>/                       Sandbox.qml, strings.js, records/make.sh
+    <kind>/purposes/<purpose>/    what this kind ships for one purpose only
 ```
 
-Three layers, applied in that order; a later layer wins on the same path. So
+Four layers, applied in that order; a later layer wins on the same path. So
 a kind may override anything `common/` provides just by shipping its own copy.
+The fourth layer holds the research lab's skeleton study
+(`<kind>/purposes/research/studies/first-look/`): its manifest names the kind's
+own probes and its records hold the kind's own numbers, so it belongs neither
+to the purpose alone nor to the kind alone. A kind's `purposes/` directory is
+never copied into a lab as content.
 
 **A kind is a directory under `templates/` that contains a `Sandbox.qml`.**
 Nothing lists the kinds — not the Python, not the help text, not the CMake,
@@ -77,9 +87,19 @@ not the tests. `common` and `purposes` are the two reserved names.
 1. `mkdir templates/<kind>` and put a working `Sandbox.qml` in it, plus its
    own `strings.js` and `records/make.sh` (the scenario names in the driver
    have to be the ones the sandbox declares — the test checks that).
-2. Nothing else. `lab-new --kind <kind>` works, `python3
+2. Give it a research study: copy `purposes/research/studies/first-look/`
+   from the nearest kind, point the manifest at your probes, generate a
+   research lab and run `tools/lab-sweep/lab-sweep` on its study, and copy the
+   records, `results.md` and the rendered table back with the lab's slug
+   turned into `{{slug}}` again.
+3. Nothing else. `lab-new --kind <kind>` works, `python3
    tests/run_lab_new_tests.py` covers it, and the next `cmake` configure
-   registers `lab_new_boot_<kind>`.
+   registers `lab_new_boot_<kind>` and one `lab_new_check_<kind>_<purpose>`
+   per purpose.
+
+A change to a kind's sandbox that moves what its study measures leaves the
+committed study records stale; `lab_new_check_<kind>_research` goes red on it
+where `clayrender` can run, and step 2 regenerates them.
 
 Write the new sandbox by copying the nearest existing kind rather than from
 scratch: the conventions block, the HUD slots and the key map are the same in
@@ -92,6 +112,13 @@ built or selected, so the left mouse button is free to pan the view; the plot
 sits bottom-right; the flow's demo step turns a knob (`setParam`). This is the
 starting point for anything that runs on its own while you watch it.
 
+**`build`** — a board you place parts on and wire together: two kinds of
+part, a lever and a block, and a stub model in which a lever that is on lights
+everything wired to it. The whole left-button gesture is the kernel's
+`BoardInput`; the board's store is the kernel's `Board`. This is the starting
+point for anything assembled from parts, as `labs/electronics-101` and
+`labs/hydraulics-101` are.
+
 **`draw`** — a sheet you drag lines onto, snapped to the grid, with a click
 selecting the nearest line and `Del`/`C`/`E` removing them. The left button is
 always the sheet's and never the camera's; the gesture lives in named
@@ -101,7 +128,7 @@ bottom-right. This is the starting point for anything you author by hand.
 
 ## How the tests work
 
-Both are registered in `CMakeLists.txt` and run under `ctest`.
+All three are registered in `CMakeLists.txt` and run under `ctest`.
 
 **`lab_new`** — `tests/run_lab_new_tests.py`, a stdlib `unittest` suite, no
 engine and no build. It generates every *discovered* kind × every *discovered*
@@ -134,13 +161,30 @@ python3 tools/lab-new/tests/run_boot_test.py \
     --loader build/bin/clayliveloader --kind continuous
 ```
 
+**`lab_new_check_<kind>_<purpose>`** — `tests/run_check_test.py`, one per
+discovered kind and purpose. It generates a lab and runs
+`tools/lab-check/lab-check` on it unchanged: the promise this README opens
+with, checked rather than believed. The lab is written into a throwaway tree
+shaped like a checkout (a `.git` marker, a `build` link to the real build,
+`labs/<slug>/`) so it never sits in the real `labs/` while other tests read
+it. Where `clayrender` cannot run, the records check reports NOT RUN, as
+`lab-check` does anywhere. Exits 77 when the loader has not been built.
+
+```sh
+python3 tools/lab-new/tests/run_check_test.py --kind build --purpose research \
+    --loader build/bin/clayliveloader --clayrender build/bin/clayrender
+```
+
 ## After generating
 
 ```sh
 ./build/bin/claydojo --sbx labs/<slug>/Sandbox.qml
 ```
 
-Then, in order: the strings, the model, the scenarios, the flow — and the
-paper and the board **last**, out of committed run records
-(`labs/<slug>/records/make.sh`). See `skills/clay-lab/SKILL.md` for the full
+Then, in order: the strings, the model, the scenarios, the flow (or, for a
+research lab, the study) — and the paper and the board **last**, out of
+committed run records (`labs/<slug>/records/make.sh`,
+`tools/lab-sweep/lab-sweep labs/<slug>/studies/<study>`). Before the commit,
+`tools/lab-check/lab-check labs/<slug>` — the gate `ctest` runs as
+`lab_check_<slug>`. See `skills/clay-lab/SKILL.md` for the full
 recipe and `skills/clay-lab/references/pitfalls.md` before writing any 3D code.

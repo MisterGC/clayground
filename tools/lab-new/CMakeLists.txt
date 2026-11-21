@@ -12,10 +12,16 @@
 #                        generated sandbox in clayliveloader offscreen and
 #                        drives it through the inspector protocol. Skips (77)
 #                        when the loader has not been built.
+#   lab_new_check_<kind>_<purpose>
+#                        the claim that a generated lab is GREEN under
+#                        tools/lab-check from its first commit (#531). Runs the
+#                        gate itself on a freshly generated lab; a research lab
+#                        without a study loaded fine and failed this.
 #
-# The per-kind tests are DISCOVERED from the templates tree, so adding
-# templates/build/Sandbox.qml adds lab_new_boot_build at the next configure -
-# no line here changes.
+# The per-kind and per-purpose tests are DISCOVERED from the templates tree, so
+# adding templates/<kind>/Sandbox.qml adds lab_new_boot_<kind> and one
+# lab_new_check_<kind>_<purpose> per purpose at the next configure - no line
+# here changes.
 
 if(BUILD_TESTING)
     find_package(Python3 COMPONENTS Interpreter)
@@ -43,6 +49,33 @@ if(BUILD_TESTING)
                     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;QT_DISABLE_SHADER_DISK_CACHE=1"
                     SKIP_RETURN_CODE 77
                     TIMEOUT 180)
+                if(TARGET clayrender)
+                    file(GLOB _lab_new_purposes LIST_DIRECTORIES true
+                         ${CMAKE_CURRENT_SOURCE_DIR}/templates/purposes/*)
+                    foreach(_pdir IN LISTS _lab_new_purposes)
+                        if(NOT IS_DIRECTORY ${_pdir})
+                            continue()
+                        endif()
+                        get_filename_component(_purpose ${_pdir} NAME)
+                        add_test(NAME lab_new_check_${_kind}_${_purpose}
+                            COMMAND ${Python3_EXECUTABLE}
+                                    ${CMAKE_CURRENT_SOURCE_DIR}/tests/run_check_test.py
+                                    --loader $<TARGET_FILE:clayliveloader>
+                                    --clayrender $<TARGET_FILE:clayrender>
+                                    --kind ${_kind} --purpose ${_purpose})
+                        # tools/lab-check and tools/lab-sweep decide this
+                        # test's verdict: a change there runs it (verify.sh).
+                        # No QT_QPA_PLATFORM: lab-check runs the loader
+                        # offscreen itself, and the records check needs the
+                        # graphics session clayrender refuses to run without.
+                        set_tests_properties(lab_new_check_${_kind}_${_purpose}
+                            PROPERTIES
+                            LABELS "tools;tools/lab-check;tools/lab-sweep;integration"
+                            ENVIRONMENT "QT_DISABLE_SHADER_DISK_CACHE=1;CLAY_SOUND_MUTE=1"
+                            SKIP_RETURN_CODE 77
+                            TIMEOUT 900)
+                    endforeach()
+                endif()
             endforeach()
         endif()
     endif()

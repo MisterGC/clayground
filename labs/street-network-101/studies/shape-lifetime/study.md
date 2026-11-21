@@ -175,7 +175,7 @@ records each row was read from; nothing here was typed.
 | shape | dead-end share of lane (%) | junctions | turns | cars | speed (u/s) | waiting (%) | lost (/min) | mean lifetime (s) | seed spread (s) | records |
 |---|---|---|---|---|---|---|---|---|---|---|
 | crossroads | 50.0 | 1 | 12 | 5.9 | 13.02 | 1.2 | 52.4 | 6.2 | 0.6 | `crossroads-11`, `crossroads-23`, `crossroads-42` |
-| cul-de-sac | 28.0 | 4 | 28 | 8.9 | 13.33 | 0.9 | 74.1 | 6.3 | 0.3 | `cul-de-sac-11`, `cul-de-sac-23`, `cul-de-sac-42` |
+| cul-de-sac | 28.0 | 4 | 28 | 8.9 | 13.33 | 0.8 | 74.1 | 6.3 | 0.3 | `cul-de-sac-11`, `cul-de-sac-23`, `cul-de-sac-42` |
 | grid | 17.8 | 9 | 108 | 18.8 | 12.25 | 4.0 | 106.3 | 9.1 | 0.6 | `grid-11`, `grid-23`, `grid-42` |
 | ring | 6.2 | 4 | 32 | 12.0 | 13.69 | 1.1 | 22.1 | 20.0 | 3.4 | `ring-11`, `ring-23`, `ring-42` |
 <!-- /table -->

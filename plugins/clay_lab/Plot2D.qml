@@ -267,10 +267,7 @@ Rectangle {
             _plot._legendHits = []
             if (drawn === 0 && _plot.placeholder !== "") {
                 ctx.fillStyle = LabTheme.inkFaint.toString()
-                // quoted: a family with a space in it ("Patrick Hand",
-                // "DejaVu Sans Mono") is not a valid CSS font shorthand
-                // unquoted, and Context2D rejects the whole declaration
-                ctx.font = LabTheme.fontLabel + 'px "' + LabTheme.handFont + '"'
+                ctx.font = LabTheme.fontLabel + 'px ' + LabTheme.canvasHand
                 ctx.textAlign = "center"
                 ctx.fillText(_plot.placeholder, width / 2, height / 2 + LabTheme.spaceS)
                 ctx.textAlign = "left"
@@ -285,7 +282,7 @@ Rectangle {
             // wide enough for every strip's ticks: the curves get a rect of
             // their own so a spike can never run through a label, and the
             // strips line up on the same instant of time.
-            ctx.font = LabTheme.fontMicro + 'px "' + LabTheme.monoFont + '"'
+            ctx.font = LabTheme.fontMicro + 'px ' + LabTheme.canvasMono
             // a flat-zero series must not read as "-0.00", and the decimal
             // separator follows the lab's language
             const fmt = v => LabLang.num(Math.abs(v) < 5e-3 ? 0 : v, 2)

@@ -31,7 +31,7 @@ Each check prints a named `PASS`/`FAIL` line; any FAIL is a non-zero exit.
 
 | Check | What it asserts |
 |---|---|
-| `load` | the lab reaches phase `ready`, a root exists, and it logged no QML warning or error of its own |
+| `load` | the lab reaches phase `ready`, a root exists, and nothing but [the environment](#what-counts-as-the-environment) logged a warning or error — the lab, its kits and the kernel alike |
 | `determinism` | for every name in `scenarios()`, two stepped runs of N steps produce byte-identical run records |
 | `flows` | every id in `flows()` runs to `finished` through `Lab.runFlow()`, with no unresolved verb, no unsatisfied task and no failed `expect` |
 | `strings` | EN and DE carry the same key set, and every `flow.<flowId>.<key>` a `FlowStep` needs exists in both |
@@ -44,6 +44,33 @@ Each check prints a named `PASS`/`FAIL` line; any FAIL is a non-zero exit.
 Exit codes: `0` everything passed, `1` something failed, `77` (CTest's
 `SKIP_RETURN_CODE`) the machine cannot run the check at all — `clayliveloader`
 is not built.
+
+## What counts as the environment
+
+A headless run logs a few warnings whatever the lab is. These, and only these,
+do not fail `load`; they are matched by name in `ENVIRONMENT` in
+`lab_check.py` and printed as a count under the `load` line:
+
+| Name | The message, as it starts | Why it is the machine's |
+|---|---|---|
+| `qtquick3d-no-rhi` | `The Qt Quick scene is using a rendering method that is not based on QRhi and a 3D graphics API.` | offscreen has no RHI, so Qt Quick 3D refuses every `View3D` |
+| `qtquick3d-no-rhi-assert` | `Unexpected condition met: "QSGRendererInterface::isApiRhiBased(` | the same refusal, as the soft assert Qt Quick 3D logs after it |
+| `offscreen-default-font` | `Populating font family aliases took <n> ms. Replace uses of missing font family "Sans Serif"` | under `QT_QPA_PLATFORM=offscreen` on macOS Qt asks for a default family the system does not have, once |
+| `linux-multimedia-libraries` | `Couldn't load <library> library` or `Couldn't resolve <library> symbols`, in the category `qt.multimedia.symbolsresolver` only | on Linux Qt Multimedia loads optional system libraries (PipeWire, VA-API) at run time and logs each one the machine lacks; the CI runner lacks them all |
+| `linux-no-pulseaudio` | `PulseAudioService: pa_context_connect() failed` | the same Qt Multimedia on a Linux machine with no PulseAudio server, such as the CI runner |
+| `offscreen-no-font-directory` | `QFontDatabase: Cannot find font directory <dir>` | offscreen on Windows reads fonts from the Qt installation's `lib/fonts`, which a Qt install does not ship, so the machine has no fonts at all |
+
+Every other warning or error fails `load`, wherever it comes from: a file of
+the lab, a kit under `labs/kits/`, the kernel in `plugins/clay_lab/` (shown as
+its source file, not its `qrc:` URL), any other plugin — and a message that
+names no file at all, such as a `console.warn`. Each is printed with the file
+and line it names, or `(names no file)`. A lab that came up and logged one
+still gets every other check, so one run says everything that is wrong.
+
+Until #534 a message counted as the lab's only when it named a file inside the
+lab's own folder, and a kit that threw a `TypeError` at load passed. A message
+belongs on this list only when it comes from the machine whatever the lab is;
+the list and this table change together.
 
 ## `lab-check.json`
 
@@ -149,3 +176,13 @@ afterwards; nothing else in the tree is written. Records regenerate into a
 temporary directory (`records/make.sh --out-dir`, `lab-sweep --records-dir`) and
 are compared from there; tables render in memory (`lab-table --check`) and are
 compared against the committed prose.
+
+## Pages that are not labs
+
+`load_check.py <Sandbox.qml>` is the load stage alone, for a page with no
+paper, flows or records to judge: the kernel's demo page
+(`ctest -R lab_kernel_demo_load`) and the professor kit's sandbox
+(`ctest -R kit_professor_load`). It fails on any warning raised from QML or JS
+— the kernel's files count as much as the page's — and ignores what the
+offscreen environment logs about itself (Qt Quick 3D without an RHI, the font
+alias cache). Exit 0 clean, 1 a warning or no load, 77 no loader built.

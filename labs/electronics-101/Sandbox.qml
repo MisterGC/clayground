@@ -2600,7 +2600,7 @@ Item {
 
                 const fs = LabTheme.fontSmall
                 const lh = Math.round(fs * 1.3)
-                ctx.font = fs + "px \"" + LabTheme.monoFont + "\""
+                ctx.font = fs + "px " + LabTheme.canvasMono
                 ctx.textBaseline = "top"
 
                 // Every part contributes its symbol box, so a label dodges the
