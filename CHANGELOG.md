@@ -7,9 +7,9 @@ described on their [GitHub release pages](https://github.com/MisterGC/clayground
 
 ## [2026.14] - 2026-11-21
 
-### Fixed
+### Added
 
-- **The electronics-101 professor says what the board shows.** The transistor's legs are named where the preset puts them: collector at the back toward the LED, emitter at the front, base on the left. The XOR lesson no longer says the learner wired a board the lesson loaded, counts nine resistors as the board has, and calls the LED an LED, not a lamp. English and German say the same in every line; the German is corrected and calls the board "Brett" throughout. The LED lesson's directed lines moved from the lab's QML into its strings, so the check that both languages carry the same keys covers them, and German gets the same pointing and gestures as English. Eight English clips were rendered again for the changed lines. ([#529](https://github.com/MisterGC/clayground/issues/529))
+- **The clay-lab skill says how to teach with a lab.** `skills/clay-lab/references/teaching.md` is what an agent reads before it writes a lesson: a term defined before it is used, one idea per step, predict before observing, a task that needs more than a click, a check for understanding, a closing task that transfers the idea, scenarios as a progression and one word per thing, each with what to do, what to avoid and an example from electronics-101 or hydraulics-101. It also says how to write the German (a word list per kit, no word-for-word translation, a read-through as a German reader) and how narration clips are made and kept in step with their text, and it ends with a checklist to go through before handing a lab over. The skill's definition of done for a teaching lab now points to it. Why: a lab could pass every rule of the skill and still only narrate, and electronics-101 did. ([#530](https://github.com/MisterGC/clayground/issues/530))
 
 ## [2026.13] - 2026-11-14
 
