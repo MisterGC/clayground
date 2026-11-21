@@ -1143,10 +1143,13 @@ Item {
             "setVolts":   (id, v) => setBatteryVolts(id, v),
             "setOhms":    (id, ohms) => setResistanceStep(id, resistorStepOf(ohms)),
             "watch":      (id, on) => setWatched(id, on),
+            // which quantity the plot draws: "I", "V" or "P"
+            "plot":       (q) => { monitor.quantity = q },
             // a named probe on the k-th part of a type: "probe", "bulb1I", "bulb", 0, "I"
             "probe":      (name, type, index, attr) => probeOrdinal(name, type, index, attr),
             "select":     (id) => { selectedId = id },
-            "showValues": (on) => { valueAttr = on ? "I" : "" },
+            // true labels the currents; "V" or "P" names what to label
+            "showValues": (on) => { valueAttr = on === true ? "I" : (on || "") },
             "clear":      () => clearBoard(),
             "scenario":   (n) => applyScenario(n),
             "frame":      (what) => what === "selection" ? frameSelection() : frameSetup(),
@@ -1308,13 +1311,20 @@ Item {
     function ledSubject(f, key) {
         const n = (s) => f.nameOf(s)
         if (key === "battery")  return [n("bat")]
+        if (key === "voltage")  return [n("bat")]
         if (key === "led")      return [n("led")]
         if (key === "resistor") return [n("res")]
+        if (key === "resistance") return [n("res")]
+        if (key === "switch")   return [n("sw")]
         if (key === "wire")     return [n("bat"), n("sw"), n("led"), n("res")]
         if (key === "flip")     return [n("sw")]
         if (key === "lit")      return [n("led")]
-        if (key === "why")      return [n("res"), n("led")]
+        if (key === "current")  return [n("led")]
         if (key === "values")   return root.elements.map(e => e.id)
+        if (key === "volts")    return [n("led"), n("res")]
+        if (key === "why")      return [n("res"), n("led")]
+        if (key === "ohm")      return [n("res")]
+        if (key === "power")    return [n("led")]
         if (key === "try")      return [n("res")]
         return []               // "empty": there is nothing on the board yet
     }
@@ -1329,12 +1339,16 @@ Item {
         const leds = root.idsOfType("led")
         const ins = root.logicInputs || []
         if (key === "meet")      return q.slice(0, 1)
+        if (key === "legs")      return q.slice(0, 1)
         if (key === "switch")    return ins.slice(0, 1)
         if (key === "gain")      return leds.concat(root.idsOfType("ammeter"))
+        if (key === "limit")     return q.slice(0, 1)
         if (key === "and")       return q
         if (key === "andtask")   return ins
         if (key === "or")        return q
         if (key === "xor")       return q
+        if (key === "nand")      return q
+        if (key === "xorbuild")  return q
         if (key === "xortask")   return ins
         if (key === "both")      return q.slice(-1).concat(leds)
         if (key === "cost")      return q
@@ -1371,10 +1385,12 @@ Item {
     // side is unaffected. The LED flow's directed steps (battery, led,
     // resistor, lit, why) do not appear here - they speak per LINE through
     // flowScriptVoice below, not per step.
-    readonly property var voicedLedSteps: ["empty", "wire", "flip", "values", "try"]
-    readonly property var voicedLogicSteps: ["meet", "switch", "gain", "and", "andtask",
-                                             "or", "xor", "xortask", "both", "cost",
-                                             "chip", "chiptask", "switchit", "adder"]
+    readonly property var voicedLedSteps: ["empty", "voltage", "resistance", "switch", "wire",
+                                           "flip", "current", "values", "volts", "ohm", "power", "try"]
+    readonly property var voicedLogicSteps: ["meet", "legs", "switch", "gain", "limit", "and",
+                                             "andtask", "or", "xor", "nand", "xorbuild",
+                                             "xortask", "both", "cost", "chip", "chiptask",
+                                             "switchit", "adder"]
     function flowVoice(i) {
         const f = root.currentFlow
         if (!f || LabLang.lang !== "en")
@@ -1951,7 +1967,10 @@ Item {
 
     // --- flow --------------------------------------------------------------
     // "Why does the LED light?" - a demo that builds the circuit, hands the
-    // switch to the learner, then explains the number it produced.
+    // switch to the learner, then explains the number it produced. Each of
+    // voltage, resistance and current gets a step of its own, on the part
+    // that shows it, before anything is computed from them; the board's
+    // readings come before the reasoning that explains them (#537).
     Flow {
         id: ledFlow
         lab: root
@@ -1961,13 +1980,17 @@ Item {
 
         FlowStep {
             key: "empty"
-            demo: [["clear"], ["showValues", false], ["frame", "setup"]]
+            // the plot back on current: `power` leaves it on watts, and a
+            // second run would otherwise plot power while `current` says
+            // "the plot draws it"
+            demo: [["clear"], ["showValues", false], ["plot", "I"], ["frame", "setup"]]
         }
         FlowStep {
             key: "battery"
             demo: [["let", "bat", "addPart", "battery", 6, 2],
                    ["select", "bat"], ["frame", "selection"]]
         }
+        FlowStep { key: "voltage" }
         FlowStep {
             key: "led"
             demo: [["let", "led", "addPart", "led", 12, 8],
@@ -1979,14 +2002,21 @@ Item {
                    ["setOhms", "res", 470],
                    ["select", "res"], ["frame", "selection"]]
         }
+        FlowStep { key: "resistance" }
+        // The switch is placed and named before the learner is asked to flip
+        // it, not slipped in with the wiring.
+        FlowStep {
+            key: "switch"
+            demo: [["let", "sw", "addPart", "switch", 12, 2],
+                   ["select", "sw"], ["frame", "selection"]]
+        }
         FlowStep {
             key: "wire"
             // "cell to switch, switch to LED, LED through the resistor and
             // back to the cell" - four parts named in one breath, and until
             // now four things to find by ear.
             mark: ["battery", "switch", "led", "resistor"]
-            demo: [["let", "sw", "addPart", "switch", 12, 2],
-                   ["select", -1], ["frame", "setup"],
+            demo: [["select", -1], ["frame", "setup"],
                    ["wire", "bat", 1, "sw", 0],
                    ["wire", "sw", 1, "led", 1],
                    ["wire", "led", 0, "res", 1],
@@ -2005,10 +2035,31 @@ Item {
             demo: [["watch", "led", true]]
             expect: (n) => Math.abs(root.simOf(n("led")).i - 0.00515) < 5e-5
         }
-        FlowStep { key: "why" }
+        FlowStep {
+            key: "current"
+            // "and the plot draws it" - the LED's current, not its power
+            expect: (n) => monitor.quantity === "I" && monitor.isWatched(n("led"))
+        }
         FlowStep {
             key: "values"
             demo: [["showValues", true]]
+        }
+        // the voltages the explanation is about, on the board before it
+        FlowStep {
+            key: "volts"
+            demo: [["showValues", "V"]]
+        }
+        FlowStep { key: "why" }
+        FlowStep {
+            key: "ohm"
+            // the law the line names, on the numbers it quotes
+            expect: (n) => Math.abs(root.simOf(n("res")).v / 470 - root.simOf(n("res")).i) < 1e-6
+        }
+        FlowStep {
+            key: "power"
+            demo: [["plot", "P"]]
+            // "2.1 V times 5.1 mA, about 11 mW"
+            expect: (n) => Math.abs(root.simOf(n("led")).power - 0.011) < 0.0006
         }
         // The handoff, and a task rather than a closing line: the lesson ends
         // by lending the learner the one control it has been talking about,
@@ -2039,14 +2090,17 @@ Item {
 
         FlowStep {
             key: "meet"
+            demo: [["scenario", "transistor"], ["showValues", false],
+                   ["setInputs", 0], ["frame", "setup"]]
+        }
+        FlowStep {
+            key: "legs"
             // "the collector at the back, the emitter at the front, the base
             // on the left" - as the preset places the part, turned a quarter
             // so the collector faces the LED: three sub-parts of one part,
             // each ringed and captioned in the reader's language while the
             // line names them.
             mark: ["collector", "base", "emitter"]
-            demo: [["scenario", "transistor"], ["showValues", false],
-                   ["setInputs", 0], ["frame", "setup"]]
         }
         FlowStep {
             key: "switch"
@@ -2062,6 +2116,7 @@ Item {
             key: "gain"
             demo: [["showValues", true]]
         }
+        FlowStep { key: "limit" }
         FlowStep {
             key: "and"
             demo: [["scenario", "logic-and"], ["setInputs", 0],
@@ -2092,6 +2147,10 @@ Item {
             key: "xor"
             demo: [["scenario", "logic-xor"], ["setInputs", 0], ["frame", "setup"]]
         }
+        // NOT and NAND said in plain words before the line that builds XOR
+        // out of them (#537)
+        FlowStep { key: "nand" }
+        FlowStep { key: "xorbuild" }
         FlowStep {
             key: "xortask"
             task: ({ "until": () => { const r = root.logicRowIndex()
