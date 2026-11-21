@@ -111,17 +111,32 @@ var dict = {
         "flow.showme": "show me",
         "flow.watching": "watching…",
         "flow.led-basics.empty": "Let's build the simplest circuit that lights an LED. Watch — I'll place the parts on the board.",
-        "flow.led-basics.battery": "This is the cell. It pushes: 4.5 volts between its two pads, the gold one is plus.",
-        "flow.led-basics.led": "The LED. It only conducts one way — and only above about 2 volts, its forward voltage.",
+        "flow.led-basics.battery": "This is the cell. It pushes: 4.5 volts between its two pads. The gold pad is the plus side.",
+        "flow.led-basics.led": "The LED. It only conducts one way. And only above about 2 volts — its forward voltage.",
         "flow.led-basics.resistor": "And a 470 Ω resistor. Without it the LED would take all the current it can get and die. This is its seatbelt.",
         "flow.led-basics.wire": "Now the loop: cell to switch, switch to LED, LED through the resistor and back to the cell. Current needs a closed ring.",
         "flow.led-basics.flip": "Your turn: click the switch to close the circuit.",
         "flow.led-basics.flip.hint": "The switch is the small part with the tilted lever — one click flips it.",
-        "flow.led-basics.lit": "There it is. 5.1 milliamps flow, and the LED glows.",
+        "flow.led-basics.lit": "There it is. 5.1 mA flow, and the LED glows.",
         "flow.led-basics.why": "Why 5.1 mA? The cell offers 4.5 V, the LED eats about 2.1 of them, and the rest — 2.4 V — falls across the resistor. 2.4 V over 470 Ω is 5.1 mA. The resistor sets the current.",
         "flow.led-basics.values": "Read it off the board: each part shows its own voltage and current. Same current everywhere in one ring — that is a series circuit.",
         "flow.led-basics.try": "Try it yourself: select the resistor and drag its slider. Less resistance, more current, brighter LED — until it gives up.",
         "flow.led-basics.try.hint": "Its card is already up — drag the slider on it, or press h and l.",
+
+        // The directed steps: the same lines as above, with the professor's
+        // stage directions between the stars. The directions are authoring
+        // tokens and stay English in both languages; what the professor says
+        // is translated. Each say cue between two directions is one voice
+        // clip (voice/en/<step>-<n>.m4a), so a changed line here wants its
+        // clip rendered again.
+        "flow.led-basics.battery.script": "*point at the battery* This is the cell. It pushes: 4.5 volts between its two pads. *face viewer* *gesticulate* The gold pad is the plus side.",
+        "flow.led-basics.led.script": "*point at the LED* The LED. It only conducts one way. *face viewer* *gesticulate* And only above about 2 volts — its forward voltage.",
+        "flow.led-basics.resistor.script": "*point at the resistor* And a 470 Ω resistor. *face viewer* *gesticulate* Without it the LED would take all the current it can get and die. This is its seatbelt.",
+        // The insert: the LED alone for a beat as it is named, the way a
+        // science programme cuts to the thing at the moment it does its
+        // thing - then back out for the number, said to the reader.
+        "flow.led-basics.lit.script": "*happy* *point at the LED* There it is. *cut to the LED* *pause 1.8s* *face viewer* *gesticulate* 5.1 mA flow, and the LED glows.",
+        "flow.led-basics.why.script": "*face viewer* *gesticulate* Why 5.1 mA? The cell offers 4.5 V, the LED eats about 2.1 of them, and the rest — 2.4 V — falls across the resistor. *point at the resistor* 2.4 V over 470 Ω is 5.1 mA. The resistor sets the current.",
 
         // --- flow: logic-gates ---
         "flow.logic-gates.title": "From one transistor to XOR",
@@ -248,17 +263,23 @@ var dict = {
         "flow.showme": "zeig es mir",
         "flow.watching": "beobachten…",
         "flow.led-basics.empty": "Wir bauen die einfachste Schaltung, die eine LED zum Leuchten bringt. Schau zu — ich lege die Bauteile aufs Brett.",
-        "flow.led-basics.battery": "Das ist die Zelle. Sie drückt: 4,5 Volt zwischen ihren beiden Kontakten, der goldene ist Plus.",
-        "flow.led-basics.led": "Die LED. Sie leitet nur in eine Richtung — und erst ab etwa 2 Volt, ihrer Durchlassspannung.",
+        "flow.led-basics.battery": "Das ist die Zelle. Sie drückt: 4,5 Volt zwischen ihren beiden Kontakten. Der goldene Kontakt ist der Pluspol.",
+        "flow.led-basics.led": "Die LED. Sie leitet nur in eine Richtung. Und erst ab etwa 2 Volt — ihrer Durchlassspannung.",
         "flow.led-basics.resistor": "Und ein 470-Ω-Widerstand. Ohne ihn würde die LED jeden Strom nehmen, den sie bekommt, und durchbrennen. Er ist ihr Sicherheitsgurt.",
         "flow.led-basics.wire": "Jetzt der Kreis: Zelle zum Schalter, Schalter zur LED, LED über den Widerstand zurück zur Zelle. Strom braucht einen geschlossenen Ring.",
         "flow.led-basics.flip": "Du bist dran: klicke den Schalter, um den Kreis zu schließen.",
         "flow.led-basics.flip.hint": "Der Schalter ist das kleine Bauteil mit dem schrägen Hebel — ein Klick genügt.",
-        "flow.led-basics.lit": "Da ist es. 5,1 Milliampere fließen, und die LED leuchtet.",
-        "flow.led-basics.why": "Warum 5,1 mA? Die Zelle bietet 4,5 V, die LED nimmt davon etwa 2,1 — der Rest, 2,4 V, fällt über dem Widerstand ab. 2,4 V an 470 Ω sind 5,1 mA. Der Widerstand bestimmt den Strom.",
+        "flow.led-basics.lit": "Da ist es. 5,1 mA fließen, und die LED leuchtet.",
+        "flow.led-basics.why": "Warum 5,1 mA? Die Zelle bietet 4,5 V, die LED nimmt davon etwa 2,1, und der Rest — 2,4 V — fällt über dem Widerstand ab. 2,4 V an 470 Ω sind 5,1 mA. Der Widerstand bestimmt den Strom.",
         "flow.led-basics.values": "Lies es am Brett ab: jedes Bauteil zeigt seine Spannung und seinen Strom. Überall derselbe Strom in einem Ring — das ist eine Reihenschaltung.",
         "flow.led-basics.try": "Probiere selbst: wähle den Widerstand und zieh seinen Schieber. Weniger Ohm, mehr Strom, hellere LED — bis sie aufgibt.",
         "flow.led-basics.try.hint": "Seine Karte ist schon offen — zieh den Schieber darauf, oder drück h und l.",
+
+        "flow.led-basics.battery.script": "*point at the battery* Das ist die Zelle. Sie drückt: 4,5 Volt zwischen ihren beiden Kontakten. *face viewer* *gesticulate* Der goldene Kontakt ist der Pluspol.",
+        "flow.led-basics.led.script": "*point at the LED* Die LED. Sie leitet nur in eine Richtung. *face viewer* *gesticulate* Und erst ab etwa 2 Volt — ihrer Durchlassspannung.",
+        "flow.led-basics.resistor.script": "*point at the resistor* Und ein 470-Ω-Widerstand. *face viewer* *gesticulate* Ohne ihn würde die LED jeden Strom nehmen, den sie bekommt, und durchbrennen. Er ist ihr Sicherheitsgurt.",
+        "flow.led-basics.lit.script": "*happy* *point at the LED* Da ist es. *cut to the LED* *pause 1.8s* *face viewer* *gesticulate* 5,1 mA fließen, und die LED leuchtet.",
+        "flow.led-basics.why.script": "*face viewer* *gesticulate* Warum 5,1 mA? Die Zelle bietet 4,5 V, die LED nimmt davon etwa 2,1, und der Rest — 2,4 V — fällt über dem Widerstand ab. *point at the resistor* 2,4 V an 470 Ω sind 5,1 mA. Der Widerstand bestimmt den Strom.",
 
         // --- flow: logic-gates ---
         "flow.logic-gates.title": "Von einem Transistor zum XOR",
