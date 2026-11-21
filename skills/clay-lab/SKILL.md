@@ -38,18 +38,15 @@ do is reachable through `eval` via the conventions below), **teaching-first**
 | **learning** — you are working it out | a `paper.md` study path and a concept-map `overview.grafli` |
 
 Common base, every tier — exactly what `lab-check` demands of every lab:
-`lab-check.json` with its `"purpose"`; `Sandbox.qml` whose root is
+`lab-check.json` with its `"purpose"`; a `Sandbox.qml` whose root is
 `id: root`, answers a non-empty `scenarios()` and loads without a QML
-warning of its own; EN registered through `LabLang` (`strings.js`);
-`paper.md`; every scenario deterministic. On top it demands what the
-purpose owes, and checks whatever the lab has — DE parity in a research
-lab that ships DE, the records once `records/make.sh` exists. `lab-new`
-also writes `records/make.sh`, `figures/make.sh` and a `qmldir`, which the
-check does not ask for: a number in a paper needs a record, and a
-published lab a `qmldir` in every directory it imports, its own once it
-has a sibling type (`pitfalls.md`, *Publishing*). Tiers, papers, boards: `references/triad.md`. Flows:
-`references/flows.md`. What a lesson says, the German and the voice
-clips: `references/teaching.md` — read it before writing a flow.
+warning of its own; EN through `LabLang` (`strings.js`); `paper.md`;
+deterministic scenarios. On top it demands what the purpose owes, and checks
+what the lab has (DE parity, the records once `records/make.sh` exists).
+`lab-new` also writes `records/make.sh`, `figures/make.sh` and a `qmldir`,
+not demanded: a number in a paper needs a record, a published lab a `qmldir`
+per imported directory (`pitfalls.md`, *Publishing*). Tiers:
+`references/triad.md`; read `references/teaching.md` before writing a flow.
 
 ## Bootstrap
 
@@ -92,16 +89,18 @@ labs/<lab>/                  one lab = one situation; records/, figures/, studie
   3D), `labs/electronics-101/` (build lab, richest conventions),
   `labs/street-network-101/` (draw → derive → simulate, research study),
   `labs/character-101/` (one entry point, one kit scene per aspect).
-  Not every one has every file `lab-new` writes: electronics-101 and
-  street-network-101 have no `qmldir` (no sibling type to list) and no
-  `records/make.sh` (their records are studies'); sensor-fusion-101 and
-  street-network-101 have no `figures/make.sh`.
+  They lack files `lab-new` writes: electronics-101 and street-network-101
+  `qmldir` (no sibling type) and `records/make.sh` (records are studies'),
+  sensor-fusion-101 and street-network-101 `figures/make.sh`.
 - **A lab with many aspects loads one kit scene per scenario.** The lab
   keeps the clock, camera, panels, plot, record and keys; each aspect is a
   kit `Node` with its knobs as `Parameter`s and readings as `Probe`s
   (registered only while loaded), its choices as verbs, swapped by a
   `Loader3D`. `labs/kits/character/README.md` is the contract;
   `GaitSheet.qml` the reference scene.
+- Every kit has a README (model card, API, traps) — the professor kit's,
+  `labs/kits/professor/README.md`, gives a lab a teacher who points. Adding
+  a part to a kit, from the model to the scenario: `references/kits.md`.
 
 ## Composition recipe
 
@@ -229,7 +228,7 @@ the sim RNG stream (decorative jitter hashes stable inputs); (b) runs
 correctly under the inspector's `time` pause/step; (c) exposes `labInfo()`.
 
 **Run the gate first, then verify what it does not cover** — nothing in it
-looks at a picture:
+looks at a picture. A red line: `references/check-failures.md`.
 
 ```bash
 tools/lab-check/lab-check labs/<slug>                    # load, determinism, flows, strings, records, tables, study, triad, remarks
@@ -237,8 +236,6 @@ tools/lab-check/lab-check labs/<slug> --only flows       # while you work
 tools/lab-sweep/lab-table labs/<slug> --check            # are the paper's tables current?
 ctest --preset default -R lab_check                       # every lab
 ```
-
-Every FAIL line, and what to do about it: `references/check-failures.md`.
 
 Then, in order (clay-crew skill has the inspector protocol):
 
@@ -279,11 +276,9 @@ Its options: `docs/docs/manual/clayrender.md`.
   writes it, and `lab-check` is red while a block differs from the records.
   The prose around the table is yours; the lines between the markers are
   not.
-- Records come from **stepped** runs by the committed driver:
-  `labs/<lab>/records/make.sh` (with `--verify`, which runs each scenario
-  twice and `cmp`s). Any change to model, sensors or RNG consumption
-  invalidates the records — rerun `make.sh` and re-read the table in the
-  same commit.
+- Records come from **stepped** runs by the committed `records/make.sh`
+  (`--verify` runs each scenario twice and `cmp`s). A change to model,
+  sensors or RNG use invalidates them: rerun, re-read the table, one commit.
 - Figures come only from `figures/make.sh`, cropped by `objectName`, never
   downscaled, and no number is read off one.
 - A question asked of a lab is a **study**: answerability first
@@ -294,15 +289,11 @@ Its options: `docs/docs/manual/clayrender.md`.
 
 ## Pointers
 
-- `references/catalog.md` — every `Clayground.Lab` block; regenerate with
-  `python3 docs/scripts/lab_catalog.py` (ctest `lab_catalog`).
-- `references/pitfalls.md` — the one list of traps.
-- `references/flows.md` — verbs as data, step kinds, control, pacing, keys.
-- `references/teaching.md` — what a lesson says, German, voice clips, the
-  handover checklist.
-- `references/triad.md` — purpose tiers, paper, board, figures, studies.
+- `references/`: `catalog.md` (every block; regenerate with `python3
+  docs/scripts/lab_catalog.py`, ctest `lab_catalog`), `pitfalls.md`,
+  `flows.md`, `teaching.md`, `triad.md`, `check-failures.md`, `kits.md`.
 - `plugins/clay_lab/README.md` — the kernel and why; `plugins/clay_lab/demo/`
   — every instrument on one page, at two scales in two themes.
 - `tools/lab-new/`, `tools/lab-check/`, `tools/lab-sweep/` READMEs — the
-  generator, the gate, the sweep runner.
-- `skills/clay-crew/SKILL.md` — the inspector protocol; load it to verify.
+  generator, the gate, the sweep runner; `skills/clay-crew/SKILL.md` — the
+  inspector protocol, load it to verify.
