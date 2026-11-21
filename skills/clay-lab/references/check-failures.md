@@ -64,7 +64,6 @@ temporary directory with the determinism runs' records.
 | `expect failed: <step>` | the measured value is not the one the step claims. Either the lab changed (fix the narration and the expect together) or the expect reads an interpolant: read a goal (`spread`, `focus`), never a `…Now` value |
 | `finished: false` | the flow stopped before its last step — often `maxFlowSteps` in `lab-check.json` (default 20000 sim frames) is shorter than the flow's waits |
 | `flows() does not publish this id` | `lab-check.json` lists an id that `flows()` does not return |
-| `no step carries an expect` | a teaching flow asserts at least one measured value; add an `expect` to the step that states one |
 | `the lab never reached phase ready within <n> s` or `the lab did not come back from a reload within <n> s` | a fresh lab for this flow failed to load; see *Load* |
 | `the loader ended with exit code <n>` | the loader died during this flow; its last output follows. See `load: the loader keeps running` |
 | `NOT RUN  flows: <id>` or `NOT RUN  determinism: <scenario>` | an earlier run's loader never got the lab ready, so this run was not started: one timeout, not one per run. Fix the run that failed first |
@@ -80,6 +79,19 @@ One flow by hand: `clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png
 | `strings: the lab registers DE` | a teaching lab owes German: add the `de` half of `strings.js` (`teaching.md`) |
 | `strings: EN and DE carry the same keys` | the detail lists the first keys only in one language; add the missing translations, never delete a key to pass |
 | `strings: every key a FlowStep needs exists in EN and DE` | a step's narration key `flow.<flowId>.<stepKey>` is missing in one dictionary |
+
+## Teaching
+
+A teaching lab only (#542). The rules behind these lines: `teaching.md`,
+rules 2 and 4, and `flows.md`, *Narration and i18n*.
+
+| line | what to do |
+|---|---|
+| `teaching: <id> has a learner task and an expect` with `no step is a task` | the flow never hands the learner anything to do. Give one step a `task` whose `until` reads lab state the learner has to produce — a question the lab takes an answer to and a `"wiring": true` task count |
+| `teaching: <id> has a learner task and an expect` with `no step carries an expect` | a lesson asserts at least one measured value; add an `expect` to the step that states one |
+| `teaching: every narration line fits in 240 characters` | the detail names each line as `<key> [<lang>] <length>`. A line that long usually holds two ideas: split the step in two, each with its own key, rather than trimming words. A script is measured without its `*cues*`; a German line is often the one over |
+| `teaching: no narration is written in the QML` | the detail names `<flowId>.<stepKey>` for each step with a `say:` literal. Move the text to `strings.js` as `flow.<flowId>.<stepKey>`, EN and DE, and delete the `say:` |
+| `teaching: no lesson rules owed by this purpose` | a pass: a learning or research lab is not held to these rules |
 
 ## Records, tables, study, board
 

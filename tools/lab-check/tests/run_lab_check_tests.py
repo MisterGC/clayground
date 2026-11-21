@@ -435,6 +435,93 @@ def test_strings():
 # -- the drivers ------------------------------------------------------------
 
 
+def lesson(**over):
+    """The probe of a teaching lab with one flow that keeps every rule;
+    a test changes one thing and expects exactly that thing to be red."""
+    probe = {"tasks": {"f": 1}, "expects": {"f": 1}, "literals": {"f": []},
+             "flowKeys": ["flow.f.go", "flow.f.go.hint"],
+             "narration": {"en": {"flow.f.go": "Make the lamp light.",
+                                  "flow.f.go.hint": "Which switch is open?"},
+                           "de": {"flow.f.go": "Bring die Lampe zum Leuchten.",
+                                  "flow.f.go.hint": "Welcher Schalter ist offen?"}}}
+    probe.update(over)
+    return probe
+
+
+def teaching(probe, purpose="teaching"):
+    rep = Recorder()
+    L.check_teaching(rep, probe, ["f"], purpose)
+    return rep
+
+
+def test_teaching():
+    """The teaching rules a program can test (#542): one failing example
+    per rule, each red on its own line and on nothing else."""
+    rep = teaching(lesson())
+    check("teaching: a lesson that keeps every rule passes", not rep.failed(),
+          str(rep.failed()))
+
+    rep = teaching(lesson(tasks={"f": 0}))
+    check("teaching: a flow with no task fails, naming the missing task",
+          rep.failed() == ["teaching: f has a learner task and an expect"]
+          and "no step is a task" in rep.detail("learner task"), str(rep.lines))
+
+    rep = teaching(lesson(expects={"f": 0}))
+    check("teaching: a flow with no expect fails, naming the missing expect",
+          rep.failed() == ["teaching: f has a learner task and an expect"]
+          and "no step carries an expect" in rep.detail("learner task"),
+          str(rep.lines))
+
+    long_de = lesson()
+    long_de["narration"]["de"]["flow.f.go"] = "x" * 241
+    rep = teaching(long_de)
+    check("teaching: a German line of 241 characters fails, naming key and language",
+          rep.failed() == ["teaching: every narration line fits in 240 characters"]
+          and "flow.f.go [de] 241" in rep.detail("narration line"),
+          str(rep.lines))
+
+    long_hint = lesson()
+    long_hint["narration"]["en"]["flow.f.go.hint"] = "y" * 300
+    rep = teaching(long_hint)
+    check("teaching: a hint is a narration line too",
+          "flow.f.go.hint [en] 300" in (rep.detail("narration line") or ""),
+          str(rep.lines))
+
+    exact = lesson()
+    exact["narration"]["en"]["flow.f.go"] = "z" * 240
+    rep = teaching(exact)
+    check("teaching: a line of exactly 240 characters passes", not rep.failed(),
+          str(rep.lines))
+
+    scripted = lesson()
+    scripted["narration"]["en"]["flow.f.go.script"] = \
+        "*point at the battery* " + "w" * 200 + " *face viewer* *gesticulate* " + "v" * 30
+    rep = teaching(scripted)
+    check("teaching: a script's *cues* do not count towards its length",
+          not rep.failed(), str(rep.lines))
+
+    other = lesson()
+    other["narration"]["en"]["flow.someone-else.go"] = "u" * 400
+    other["narration"]["en"]["hint.free"] = "u" * 400
+    rep = teaching(other)
+    check("teaching: only the lines of the flows it checks are measured",
+          not rep.failed(), str(rep.lines))
+
+    rep = teaching(lesson(literals={"f": ["go"]}))
+    check("teaching: a say literal in the QML fails, naming the step",
+          rep.failed() == ["teaching: no narration is written in the QML"]
+          and "f.go" in rep.detail("written in the QML"), str(rep.lines))
+
+    for purpose in ("learning", "research"):
+        rep = teaching(lesson(tasks={"f": 0}, literals={"f": ["go"]}), purpose)
+        check(f"teaching: a {purpose} lab owes none of the lesson rules",
+              not rep.failed(), str(rep.lines))
+
+    check("teaching: the probe counts tasks and say literals per flow",
+          "++nTask" in L.PROBE_JS and "literal.push(" in L.PROBE_JS
+          and "out.narration[l] = said" in L.PROBE_JS)
+
+
 def test_drivers():
     """The JS is built by string templating, so a stray %% or a renamed key is
     a runtime error inside a lab an hour later. Render both here."""
@@ -755,6 +842,7 @@ def main():
             test_records(tmp)
         test_remarks(tmp)
         test_strings()
+        test_teaching()
         test_drivers()
         test_step_of()
         test_load_diagnostics(tmp)

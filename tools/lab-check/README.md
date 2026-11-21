@@ -41,6 +41,7 @@ counted as a pass: the summary reads `17/17 checks passed, 2 not run`, and with
 | `determinism` | for every name in `scenarios()`, two stepped runs of N steps produce byte-identical run records |
 | `flows` | every id in `flows()` runs to `finished` through `Lab.runFlow()`, with no unresolved verb, no unsatisfied task and no failed `expect` |
 | `strings` | EN and DE carry the same key set, and every `flow.<flowId>.<key>` a `FlowStep` needs exists in both |
+| `teaching` | for a teaching lab, the lesson rules a program can test (#542): every flow has a step the learner acts on (a `task`, which a question the lab takes an answer to and a `"wiring": true` task are) and an `expect`; every line a flow can say — its steps' keys, answered variants and scripts, the hints its tasks name, its title — is at most 240 characters in every language, a script's `*cues*` not counted; and no step's narration is a `say` literal in the QML |
 | `records` | `records/make.sh` and every `studies/*/records/` regenerate to the committed bytes, with the `clayrender` given as `--clayrender` (default `build/bin/clayrender` beside the lab's checkout); `records/session.labrec`, the scratch run `Shift+R` writes, is not compared |
 | `tables` | every `<!-- table: … -->` block in `paper.md` and `studies/*/study.md` renders to the committed bytes (`tools/lab-sweep/lab-table --check`); pure, never NOT RUN |
 | `study` | a research lab has at least one `studies/<slug>/study.md` whose manifest parses, with committed `records/` and an `## Answerability` section |
@@ -138,14 +139,17 @@ for what its purpose *owes* on top:
 | check | every purpose | teaching | research | learning |
 |---|---|---|---|---|
 | `load`, `determinism`, `records`, `tables`, `remarks` | as above | — | — | — |
-| `flows` | every published flow finishes with its expects holding | at least one flow, and each declared flow carries at least one `expect` | — | — |
+| `flows` | every published flow finishes with its expects holding | at least one flow | — | — |
 | `strings` | EN registered; if DE is registered, the key sets match and every flow key exists in both | DE registered | — | — |
+| `teaching` | — | each flow has a task and an `expect`; no narration line over 240 characters; no `say` literal | — | — |
 | `study` | — | — | a study with a parsing manifest, committed records and an answerability section | — |
 | `triad` | `paper.md` exists | `overview.grafli` exists | — | `overview.grafli` exists |
 
 The tiers themselves — what a research paper, a lesson plan and a study path
 look like — are in `skills/clay-lab/references/triad.md`; this tool checks
-what is mechanical about them and nothing more.
+what is mechanical about them and nothing more. Which of the skill's rules it
+checks, and which are judgement, is marked beside each rule in the skill's
+references (`teaching.md`, `flows.md`, `triad.md`).
 
 ## How it drives the lab, and why that way
 
