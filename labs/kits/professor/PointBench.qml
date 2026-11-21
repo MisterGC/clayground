@@ -224,7 +224,7 @@ Item {
 
     Timer {
         id: reaimTimer
-        interval: prof.character.gestureSettleMs + 200
+        interval: (prof.character ? prof.character.gestureSettleMs : 420) + 200
         onTriggered: {
             root.pointAt(root._reaimTo)
             midwayTimer.restart()
@@ -239,7 +239,7 @@ Item {
 
     Timer {
         id: stressTail
-        interval: prof.character.gestureSettleMs + 250
+        interval: (prof.character ? prof.character.gestureSettleMs : 420) + 250
         onTriggered: root.stressDone = true
     }
 
