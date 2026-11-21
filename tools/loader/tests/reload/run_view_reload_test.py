@@ -22,8 +22,9 @@ selected and the clock stepped, then:
   2. a `snapshot` response shows the flow's step without its checkpoints;
   3. another part is selected, the loader killed once it has saved that view
      (as the dojo kills its child to restart it), and a new loader started
-     with --restore-view: the lesson, the new selection and the snapshot are
-     back, restored from the saved file;
+     with --restore-view, --paused and --lab-src, as a dojo respawn may be:
+     a second later the lesson, the new selection and the snapshot - sim time
+     included - are back, restored from the saved file, and the clock held;
   4. a loader started without --restore-view starts without the lesson.
 
 The lab is copied, with labs/kits beside it, into a temporary directory.
@@ -271,12 +272,18 @@ def run(args, sandbox, work, loaders):
     ld.stop(kill=True)
 
     t0 = time.time()
-    ld2 = Loader(args, sandbox, work, ["--restore-view"], "restart")
+    # as a dojo respawn starts it: its own options (--lab-src, --paused) and
+    # --restore-view beside them
+    ld2 = Loader(args, sandbox, work, ["--restore-view", "--paused", "--lab-src"], "restart")
     loaders.append(ld2)
     g2 = ld2.wait_for_generation(0)
     took = time.time() - t0
     if not check(f"{name}: the restarted loader became ready", g2 is not None):
         return 1
+    # a second of wall clock: a clock that runs would have left the restored time
+    time.sleep(1.0)
+    paused = (ld2.request({"action": "time"}) or {}).get("paused")
+    check(f"{name}: --paused holds the restored lab", paused is True, f"paused={paused}")
     back = place(ld2, args.flow)
     for key in ("flow", "selected", "answers", "snapshot"):
         check(f"{name}: after the restart the {key} is as before",
