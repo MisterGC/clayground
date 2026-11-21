@@ -13,6 +13,13 @@ Each reload is sent as soon as the previous one is the root - the timing an
 agent driving the loader has, and the one that built the second set.
 
   run_reload_test.py --loader <clayliveloader> --lab <labs/name> [--reloads 50]
+                     [--pause-after <seconds>]
+
+A reload replays the lab's clock up to the time it had (Lab.applyViewState),
+so in a lab whose clock runs, every reload is slower than the last (#568).
+--pause-after lets the lab run that long and then pauses its clock: the
+replay then costs the same on every reload, and what is measured is the
+loader.
 
 The lab is copied, with labs/kits beside it, into a temporary directory, so
 the test never writes .clay/ into the source tree or into the directory of a
@@ -34,6 +41,8 @@ def main():
     ap.add_argument("--loader", required=True)
     ap.add_argument("--lab", required=True, help="a lab directory under labs/")
     ap.add_argument("--reloads", type=int, default=50)
+    ap.add_argument("--pause-after", type=float, default=None,
+                    help="seconds the lab runs before its clock is paused")
     ap.add_argument("--timeout", type=float, default=30.0,
                     help="seconds one reload may take to become the root")
     args = ap.parse_args()
@@ -111,6 +120,10 @@ def run(args, sandbox, log_path):
     generation = wait_for_generation(0)
     if generation is None:
         failure = "the first load never became ready"
+    elif args.pause_after is not None:
+        time.sleep(args.pause_after)
+        if request({"action": "time", "paused": True}) is None:
+            failure = "the clock could not be paused"
     for i in range(args.reloads if failure is None else 0):
         if request({"action": "reload"}) is None:
             failure = "reload %d was not answered" % (i + 1)
