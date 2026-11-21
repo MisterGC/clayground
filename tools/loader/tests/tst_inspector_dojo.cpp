@@ -26,6 +26,7 @@ private slots:
     void testSnapshotFlagInfo();
     void snapshotIncludesViewState();
     void viewStateSurvivesReload();
+    void freshReloadDropsViewState();
     void requestWithoutIdIsCarriedOutOnce();
     void testSnapshotLogTail();
     void testSnapshotEval();
@@ -300,6 +301,60 @@ void TestInspectorDojo::viewStateSurvivesReload()
     QVERIFY(qAbs(vs["camX"].toDouble() - 111.0) < 0.01);
     QVERIFY(qAbs(vs["camY"].toDouble() - 222.0) < 0.01);
     QVERIFY(qAbs(vs["zoom"].toDouble() - 3.5) < 0.01);
+}
+
+// A reload asked to start fresh brings the sandbox up with its declared
+// values, not the place the last root left (#566). Runs after
+// viewStateSurvivesReload, so the capture it drops is a real one: camX 111.
+void TestInspectorDojo::freshReloadDropsViewState()
+{
+    QJsonObject evalReq;
+    evalReq["action"] = "eval";
+    evalReq["eval"] = QJsonArray({"camX = 333"});
+    QVERIFY(writeRequest(evalReq));
+    QVERIFY2(!waitForResponse().isEmpty(), "No response for eval mutation");
+
+    QJsonObject reloadReq;
+    reloadReq["action"] = "reload";
+    reloadReq["fresh"] = true;
+    QVERIFY(writeRequest(reloadReq));
+    auto reloadResp = waitForResponse();
+    QVERIFY2(!reloadResp.isEmpty(), "No response for reload");
+    QCOMPARE(reloadResp["reloadStatus"].toString(), "requested");
+    QCOMPARE(reloadResp["fresh"].toBool(), true);
+
+    QJsonObject waitReq;
+    waitReq["action"] = "waitForRoot";
+    waitReq["timeoutMs"] = 8000;
+    QVERIFY(writeRequest(waitReq));
+    QVERIFY2(!waitForResponse(12000).isEmpty(), "No response for waitForRoot");
+    QTest::qWait(200);
+
+    QJsonObject snapReq;
+    snapReq["action"] = "snapshot";
+    QVERIFY(writeRequest(snapReq));
+    auto resp = waitForResponse();
+    QVERIFY2(!resp.isEmpty(), "No response for post-reload snapshot");
+    auto props = resp["rootProperties"].toObject();
+    QVERIFY2(qAbs(props["camX"].toDouble() - 12.5) < 0.01,
+             qPrintable(QString("camX is not the declared 12.5: %1")
+                            .arg(props["camX"].toDouble())));
+    QVERIFY(qAbs(props["camY"].toDouble() - 34.5) < 0.01);
+    QVERIFY(qAbs(props["zoom"].toDouble() - 1.5) < 0.01);
+
+    // Fresh covers one reload: the next plain reload keeps the place again.
+    QVERIFY(writeRequest(QJsonObject{{"action", "eval"},
+                                     {"eval", QJsonArray({"camX = 444"})}}));
+    QVERIFY2(!waitForResponse().isEmpty(), "No response for eval mutation");
+    QVERIFY(writeRequest(QJsonObject{{"action", "reload"}}));
+    QVERIFY2(!waitForResponse().isEmpty(), "No response for reload");
+    QVERIFY(writeRequest(waitReq));
+    QVERIFY2(!waitForResponse(12000).isEmpty(), "No response for waitForRoot");
+    QTest::qWait(200);
+    QVERIFY(writeRequest(snapReq));
+    resp = waitForResponse();
+    QVERIFY2(qAbs(resp["rootProperties"].toObject()["camX"].toDouble() - 444.0) < 0.01,
+             "a plain reload after a fresh one did not keep the place");
 }
 
 // The inspector notices a request both by looking at request.json and through
