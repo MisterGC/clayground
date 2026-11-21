@@ -28,6 +28,7 @@ clay_plugin( Lab
         ScaleSwitch.qml
         Parameter.qml
         Probe.qml
+        ModelState.qml
         SimClock.qml
         ParamPanel.qml
         Plot2D.qml

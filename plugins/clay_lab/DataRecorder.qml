@@ -234,7 +234,41 @@ QtObject {
         written(destination, rows)
     }
 
+    // A recording in progress is part of a running lab: Lab.snapshot() carries
+    // it and Lab.restore() hands it back, so a record finished after a
+    // restore holds the whole run rather than the part since the restore.
+    property bool _resuming: false
+
+    function _snapshot() {
+        return { names: _names.slice(), rows: Lab._pack(_rows), count: rows,
+                 destination: destination, format: format, lab: lab,
+                 recordId: recordId, command: command, steps: steps,
+                 stepSize: stepSize, maxBytes: maxBytes }
+    }
+
+    function _resume(s) {
+        destination = s.destination; format = s.format; lab = s.lab
+        recordId = s.recordId; command = s.command; steps = s.steps
+        stepSize = s.stepSize; maxBytes = s.maxBytes
+        _resuming = true
+        recording = true
+        _resuming = false
+        _csv = false
+        _names = s.names.slice()
+        _rows = Lab._unpack(s.rows)
+        rows = s.count
+    }
+
+    function _restart() {
+        _rows = []
+        rows = 0
+    }
+
+    Component.onCompleted: Lab.registerRecorder(_rec)
+    Component.onDestruction: Lab.unregisterRecorder(_rec)
+
     onRecordingChanged: {
+        if (_resuming) return
         if (recording) {
             _names = probes.length ? probes.slice() : Lab.probeNames.slice()
             rows = 0

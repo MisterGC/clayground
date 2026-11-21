@@ -108,6 +108,8 @@ QtObject {
     Component.onCompleted: { _keepDefault(); _register() }
     Component.onDestruction: Lab.unregisterParameter(_param)
     onNameChanged: _register()
+    // the replay of a reload applies each change at the sim time it was made
+    onValueChanged: Lab._paramChanged(_param)
 
     // The name a Lab entry is currently filed under, so a renamed parameter
     // takes its old entry with it instead of leaving a ghost behind.

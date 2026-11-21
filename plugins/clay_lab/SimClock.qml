@@ -85,6 +85,7 @@ QtObject {
         _stepAccum = 0
         _lastStepTime = 0
         Lab.clearProbes()
+        Lab._clockReset()
         wasReset()
     }
 
