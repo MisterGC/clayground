@@ -269,8 +269,11 @@ Rectangle {
                 ctx.fillStyle = LabTheme.inkFaint.toString()
                 // quoted: a family with a space in it ("Patrick Hand",
                 // "DejaVu Sans Mono") is not a valid CSS font shorthand
-                // unquoted, and Context2D rejects the whole declaration
-                ctx.font = LabTheme.fontLabel + 'px "' + LabTheme.handFont + '"'
+                // unquoted, and Context2D rejects the whole declaration.
+                // handFont is "" where no handwriting family is installed (a
+                // Linux runner), and '""' is an invalid family too (#534).
+                ctx.font = LabTheme.fontLabel + 'px '
+                        + (LabTheme.handFont ? '"' + LabTheme.handFont + '"' : 'sans-serif')
                 ctx.textAlign = "center"
                 ctx.fillText(_plot.placeholder, width / 2, height / 2 + LabTheme.spaceS)
                 ctx.textAlign = "left"

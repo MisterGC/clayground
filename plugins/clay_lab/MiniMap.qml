@@ -162,8 +162,11 @@ LabPanel {
                 if (root.emptyText === "") return
                 ctx.fillStyle = LabTheme.inkFaint.toString()
                 // quoted: a family with a space in it is not a valid CSS font
-                // shorthand unquoted, and the whole declaration is then dropped
-                ctx.font = LabTheme.fontBody + 'px "' + LabTheme.handFont + '"'
+                // shorthand unquoted, and the whole declaration is then dropped.
+                // handFont is "" where no handwriting family is installed (a
+                // Linux runner), and '""' is an invalid family too (#534).
+                ctx.font = LabTheme.fontBody + 'px '
+                        + (LabTheme.handFont ? '"' + LabTheme.handFont + '"' : 'sans-serif')
                 ctx.textAlign = "center"
                 ctx.fillText(root.emptyText, width / 2, height / 2)
                 ctx.textAlign = "left"
