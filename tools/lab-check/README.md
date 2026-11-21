@@ -14,6 +14,7 @@ opens.
 tools/lab-check/lab-check labs/electronics-101
 tools/lab-check/lab-check labs/electronics-101 --only flows
 tools/lab-check/lab-check labs/electronics-101 --only determinism --keep
+tools/lab-check/lab-check labs/electronics-101 --ready-timeout 30 --verbose
 tools/lab-check/lab-check labs/electronics-101 --clayrender build-debug/bin/clayrender --strict
 ```
 
@@ -47,9 +48,29 @@ counted as a pass: the summary reads `17/17 checks passed, 2 not run`, and with
 | `remarks` | open CriticMarkup marks in `paper.md` and `studies/*/study.md` — counted, reported, never failed |
 
 Exit codes: `0` everything passed (with no `--strict`: or did not run), `1`
-something failed, or with `--strict` did not run, `77` (CTest's
-`SKIP_RETURN_CODE`) the machine cannot run the check at all — `clayliveloader`
-is not built.
+something failed, or with `--strict` did not run, `2` the command line is
+wrong — the directory has no `Sandbox.qml`, or `--only` names a check that
+does not exist — and nothing was checked, `77` (CTest's `SKIP_RETURN_CODE`)
+the machine cannot run the check at all — `clayliveloader` is not built.
+
+### When the loader dies or the lab never gets ready
+
+Every wait on the loader also looks at its process (#536). A loader that
+ends — a crash, a plugin it cannot load — fails the run it was serving within
+a fraction of a second: the FAIL line says `the loader ended with exit code
+<n>` (or `was killed by signal <n> (<name>)`) and what it was waiting for, and
+the loader's last lines of output follow it. Without `--verbose` that output
+is not shown, but it is still read, so the last lines are there when it dies.
+
+A loader that stays up and never gets the lab to phase `ready` fails after
+`--ready-timeout` seconds, 90 by default, which the first line of every run
+states (`ready within 90 s`). The first loader that times out fails its
+check; every loader run after it is NOT RUN, rather than each waiting out the
+same timeout again. A loader that is up and stops answering a request fails
+one `protocol:` line, and the scene checks after it do not run.
+
+None of this stops the checks that need no loader: `records`, `tables`,
+`study`, `triad` and `remarks` report whatever happened to the scene.
 
 The `lab_check_<lab>` gates run without `--strict`, because CI's Linux runners
 render offscreen, where `clayrender` does not start: there the records check is
@@ -203,4 +224,5 @@ paper, flows or records to judge: the kernel's demo page
 (`ctest -R kit_professor_load`). It fails on any warning raised from QML or JS
 — the kernel's files count as much as the page's — and ignores what the
 offscreen environment logs about itself (Qt Quick 3D without an RHI, the font
-alias cache). Exit 0 clean, 1 a warning or no load, 77 no loader built.
+alias cache). Exit 0 clean, 1 a warning, no load or a loader that died (with
+its exit code and last output), 77 no loader built.
