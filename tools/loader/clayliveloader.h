@@ -33,6 +33,10 @@ public:
     void setAltMessage(const QString &altMessage);
     QString instanceName() const;
     void setInstanceName(const QString &name);
+    // --restore-view (#569): the first load comes back to the view the last
+    // process saved for the sandbox.
+    bool restoreView() const { return restoreView_; }
+    void setRestoreView(bool on) { restoreView_ = on; }
     int numRestarts() const;
     // --lab-src (#570): the directory put first on every engine's import path
     // and the kernel source directory watched for edits; empty when not set.
@@ -80,6 +84,7 @@ private:
     QTimer reload_;
     QString altMessage_;
     QString instanceName_;
+    bool restoreView_ = false;
     int numRestarts_ = 0;
     QString labSrcImportDir_;
     QString labSrcDir_;

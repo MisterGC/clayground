@@ -57,6 +57,15 @@ static constexpr const char* LAB_SRC_ARG_DESCR =
                       "plugin, so an edit to the lab kernel is live on the next "
                       "reload - no rebuild, no restart. Needs a build tree.";
 
+static constexpr const char* RESTORE_VIEW_ARG = "restore-view";
+static constexpr const char* RESTORE_VIEW_ARG_DESCR =
+                      "Comes back to the view the last loader of the sandbox "
+                      "saved (.clay/inspect/view-state.json): the scenario, sim "
+                      "time, running lesson, selection and camera. The dojo "
+                      "passes it to every child after its first, so a rebuild "
+                      "or a crash keeps the place; given to the dojo, its first "
+                      "child comes back too.";
+
 static constexpr const char* LIVE_LOADER_CAT = "ClayLiveLoad";
 
 /** Wait this time (in ms) until reacting on file change

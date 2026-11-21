@@ -14,6 +14,7 @@ void addCommonArgs(QCommandLineParser &parser)
     parser.addOption({GUI_STYLE_ARG, STYLE_ARG_DESCR, "style-name"});
     parser.addOption({INSTANCE_ARG, INSTANCE_ARG_DESCR, "name"});
     parser.addOption({LAB_SRC_ARG, LAB_SRC_ARG_DESCR});
+    parser.addOption({RESTORE_VIEW_ARG, RESTORE_VIEW_ARG_DESCR});
 }
 
 QString labSourceImportDir(QString* error)

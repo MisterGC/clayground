@@ -309,6 +309,7 @@ void MainWindow::onSandboxUrlChanged()
     // setSandboxDir must precede setSource so the inspector has a write target
     // when the first load's ready/error signal fires.
     m_inspector->setInstanceName(m_liveLoader->instanceName());
+    m_inspector->setRestoreViewOnStart(m_liveLoader->restoreView());
     m_inspector->setSandboxDir(m_liveLoader->sandboxDir());
     m_annotations->setSandboxDir(m_liveLoader->sandboxDir());
     m_container->setSource(url);
