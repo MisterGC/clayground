@@ -216,13 +216,16 @@ jobs:
 
     # A passing test prints nothing above, so whether a lab's records were
     # regenerated or NOT RUN was nowhere in the log; ctest keeps every test's
-    # output in LastTest.log, and this lists the records lines from it (#535)
+    # output in LastTest.log, and this lists the records lines from it (#535).
+    # ctest_retry.py keeps the first run's copy as FirstRunTest.log: a network
+    # repeat rewrites LastTest.log with the repeated tests alone.
     - name: Report Which Lab Records Were Regenerated
       if: always() && startsWith(matrix.shard.name, 'suite')
       working-directory: build
       shell: bash
       run: |
-        log=Testing/Temporary/LastTest.log
+        log=Testing/Temporary/FirstRunTest.log
+        [ -f "$log" ] || log=Testing/Temporary/LastTest.log
         [ -f "$log" ] || { echo "no ctest log - the suite did not run"; exit 0; }
         echo "records on ${{ runner.os }}, ${{ matrix.shard.name }}:"
         awk '/^[0-9]+\/[0-9]+ Test: / { t = ($3 ~ /^lab_(new_)?check_/) ? $3 : ""; next }
