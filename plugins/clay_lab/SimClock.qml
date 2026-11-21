@@ -128,6 +128,10 @@ QtObject {
     /*!
         \qmlproperty int SimClock::maxStepsPerAdvance
         \brief Fixed steps allowed per advance, so a hitch cannot become a freeze.
+
+        An advance that needs more steps than this runs this many and drops
+        the rest of the whole steps; the part of a step still to come is kept.
+        An advance that needs exactly this many loses nothing.
     */
     property int maxStepsPerAdvance: 8
 
@@ -159,12 +163,24 @@ QtObject {
         _lastStepTime = time
         if (d <= 0) return                  // a reset rewinds; never step back
         _stepAccum += d
+        // The tolerance is the one the sample grid uses: time is a running
+        // float sum, so an advance of exactly one fixedStep can arrive as a
+        // hair less than one and hold that step back to the next advance -
+        // 5999 steps out of 6000 advances of 1/60 (#532).
         let budget = maxStepsPerAdvance
-        while (_stepAccum >= fixedStep && budget-- > 0) {
+        while (_stepAccum + 1e-9 >= fixedStep) {
+            if (budget-- <= 0) {
+                // drop the backlog, don't chase it - but only the whole steps
+                // of it. The part of a step that is still to come is time the
+                // next advance owes, and dropping it (as this once did on
+                // every advance that used up exactly the budget) put the step
+                // grid out of phase with the clock (#532).
+                _stepAccum -= Math.floor((_stepAccum + 1e-9) / fixedStep) * fixedStep
+                break
+            }
             _stepAccum -= fixedStep
             stepped(fixedStep)
         }
-        if (budget <= 0) _stepAccum = 0     // drop the backlog, don't chase it
     }
 
     onSeedChanged: reset()
