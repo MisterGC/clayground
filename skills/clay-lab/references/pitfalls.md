@@ -231,9 +231,8 @@ until you publish.
 - **Measure determinism with the clock PAUSED.** The frame ticker keeps
   running between inspector round-trips, so "same seed, same N steps"
   silently compares N and N+30 steps. Pause before the root exists —
-  `clayrender --paused`; in a loader, pause with the inspector's `time`
-  action (the same `Clayground.paused`) and then reload, as `lab-check`
-  does — then `time step`, then read, otherwise you will chase a
+  `clayrender --paused`, or start the loader (or dojo) with `--paused`, as
+  `lab-check` does — then `time step`, then read, otherwise you will chase a
   determinism bug that is not there.
 - `SimClock.wasReset` exists so sensors/estimators snap at scenario
   boundaries instead of blending across a reset.
