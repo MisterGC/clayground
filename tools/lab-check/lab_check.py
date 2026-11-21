@@ -353,16 +353,13 @@ class Loader:
         measures the scene the previous run left behind, which is a
         determinism check that compares two different experiments.
 
-        The clock of the OUTGOING root is reset, AFTER the pause and before
-        the reload, and neither half of that order is housekeeping. The loader
-        captures viewState() from every root it is about to throw away and
-        re-applies it to the next one, and a lab's viewState carries its sim
-        time - so Lab.applyViewState() re-steps the brand-new clock to where
-        the finished run left it, and a "fresh" root arrives having already
-        replayed the previous run. Resetting before the pause is no better:
-        the ticker keeps running in the gap and the capture picks up whatever
-        wall-clock time elapsed between the two requests, which is how the
-        first run of a session ends up being the only one that differs.
+        The reload asks for a fresh root (#566). A plain one hands the
+        outgoing root's viewState() to the next, and a lab's view state
+        carries its sim time, scenario and parameters - so the brand-new
+        clock was re-stepped to where the finished run left it, and a
+        "fresh" root arrived having replayed the previous run. This used to
+        be worked around by resetting the outgoing clock between the pause
+        and the reload; the loader now drops the view state itself.
         """
         if timeout is None:
             timeout = self.ready_timeout
@@ -374,9 +371,7 @@ class Loader:
         before = self.insp.request({"action": "time", "paused": True},
                                    timeout=left()) \
                      .get("status", {}).get("generation", 0)
-        self.insp.eval1("(function(){ if (Lab.clock) Lab.clock.reset(); })()",
-                        timeout=left())
-        self.insp.request({"action": "reload"}, timeout=left())
+        self.insp.request({"action": "reload", "fresh": True}, timeout=left())
         while time.time() < deadline:
             r = self.insp.request({"action": "waitForRoot",
                                    "timeoutMs": int(left() * 1000)},
@@ -739,9 +734,10 @@ def one_run(session, lab_dir, lab_id, scenario, steps, dest):
     """One stepped run of one scenario, in a process of its own.
 
     A process of its own is the whole point. Two runs sharing a loader share
-    everything a QML engine does not throw away with the root - and the loader
-    is worse than neutral here, because it hands the outgoing root's
-    viewState() to the incoming one. Under one process electronics-101's parts
+    everything a QML engine does not throw away with the root - and before
+    the fresh reload (#566) the loader was worse than neutral here, because
+    it handed the outgoing root's viewState() to the incoming one. Under one
+    process electronics-101's parts
     come back numbered part12 in the first run and part20 in the second, which
     is a difference between two records with identical numbers in them: a
     determinism failure that says nothing about determinism. `make.sh` runs
@@ -860,14 +856,20 @@ def check_flows(rep, spawn, flows, require, expects, max_steps):
 def step_of(entry):
     """Name a runFlow failure by its step key, with the index as a fallback.
 
-    runFlow reports {index, step} (plus `error` when an expect threw). The
-    key is what the author reads; the index is what is left when a step has
-    no key, which is legal.
+    runFlow reports {index, step} (plus `error` when an expect threw, and
+    `saw` with what an expect looked at, #567). The key is what the author
+    reads; the index is what is left when a step has no key, which is legal.
     """
     if not isinstance(entry, dict):
         return str(entry)
     name = entry.get("step") or f"step {entry.get('index')}"
-    return f"{name} ({entry['error']})" if entry.get("error") else name
+    if entry.get("error"):
+        name = f"{name} ({entry['error']})"
+    if entry.get("saw"):
+        name += " - saw " + ", ".join(
+            f"{k}={json.dumps(v, ensure_ascii=False)}"
+            for k, v in entry["saw"].items())
+    return name
 
 
 def check_strings(rep, probe, require_de=True):
