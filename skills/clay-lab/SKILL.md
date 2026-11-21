@@ -203,8 +203,8 @@ keys, never reassign these. Letters stay physical across languages.
 
 | key | meaning | owner |
 |---|---|---|
-| `1..9` | scenarios | lab |
-| `C` / `E` / `R` / `Del` | clear / eraser / rotate / delete | lab |
+| `1..9` | the first nine scenarios; a tenth on has no key — its `ScenarioBar` chip (drawn without a digit) or `applyScenario(name)` reaches it | lab |
+| `C` / `E` / `R` / `Del` | clear / eraser / rotate / delete | lab; in a build lab `Board.keys()` supplies them, with `V`, `Q`, `#` |
 | `V` | show values — the scene-wide value attribute in a build lab (off → each quantity → off), the readout panel in a continuous one | lab |
 | `M` | abstract view — schematic or lane graph in a build/draw lab, the plot in a continuous one | lab |
 | `Q` | watch / plot the selection | lab |
@@ -212,7 +212,7 @@ keys, never reassign these. Letters stay physical across languages.
 | `j` `k` / `h` `l` / `⏎` | walk the card's rows / adjust the focused one / operate the actuator — while something is selected | card |
 | `H` / `P` | take the next instrument / keep (pin) its reading as a probe | belt |
 | `Backspace` / `Esc` | undo a measured point / clear, then put the instrument away, cancel, leave | belt, flow |
-| `T` | start / stop the (first) flow | flow |
+| `T` | start / stop the one flow bound to `LabKeys.flow`. With several lessons the lab binds the one it offers now (electronics-101: by scenario, a running flow wins); the others start by `startFlow(id)` | flow |
 | `Space` / `→` / `←` | next / next / back while a flow runs | flow |
 | `Space` held | lends the left button to the camera while nothing narrates | camera |
 | arrows, `WASD` / `Shift`+arrows / `+` `-` / `0` `Home` | travel / turn / zoom / reset view — `W A S D` are as reserved as the arrows | camera |
