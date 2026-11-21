@@ -7,7 +7,8 @@ graphics session: the config it reads and the purpose it demands, what each tier
 owes (flows, DE, a study, a board), that a typed table is red, the remark
 counter, the first-difference message a failed determinism run has to carry,
 and that the scene drivers are still complete JavaScript after being templated,
-and what the load check counts as the environment (#534). The other half - driving an
+and what the load check counts as the environment (#534), and that a loader that
+dies or never gets ready is red in seconds with its reason (#536). The other half - driving an
 actual lab - is exercised by the four lab_check_<lab> gates themselves.
 
     python3 tools/lab-check/tests/run_lab_check_tests.py
@@ -20,6 +21,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(HERE))
@@ -611,6 +613,132 @@ def test_load_diagnostics(tmp):
               "file:///C:/x/labs/kits/k/K.qml:3: TypeError", "D:/repo"))
 
 
+# -- a loader that dies or never gets ready (#536) ----------------------------
+
+STAND_IN = os.path.join(HERE, "stand_in_loader.py")
+LAB_CHECK = os.path.join(os.path.dirname(HERE), "lab_check.py")
+LOAD_CHECK = os.path.join(os.path.dirname(HERE), "load_check.py")
+
+
+def stand_in_lab(tmp, name):
+    """A minimal learning lab for the stand-in loader to 'load'."""
+    lab = os.path.join(tmp, name)
+    os.makedirs(lab)
+    for fname, text in (("Sandbox.qml", ""), ("paper.md", "# Paper\n"),
+                        ("overview.grafli", ""),
+                        ("lab-check.json", '{"purpose": "learning"}')):
+        with open(os.path.join(lab, fname), "w") as f:
+            f.write(text)
+    return lab
+
+
+def run_timed(cmd, mode):
+    """(exit code, output, seconds it took) of cmd with STAND_IN_MODE=mode."""
+    env = dict(os.environ, STAND_IN_MODE=mode)
+    start = time.time()
+    proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.STDOUT, text=True, timeout=120)
+    return proc.returncode, proc.stdout, time.time() - start
+
+
+def run_with_stand_in(tmp, name, mode, ready_timeout):
+    """lab-check over a minimal learning lab, with the stand-in as its loader."""
+    lab = stand_in_lab(tmp, name)
+    return run_timed(
+        [sys.executable, LAB_CHECK, lab, "--loader", STAND_IN,
+         "--ready-timeout", str(ready_timeout),
+         "--only", "load,determinism,flows,triad,remarks"], mode)
+
+
+def quote(out):
+    """The output a failing line carries - its last lines, where the verdict is."""
+    return " | ".join(out.splitlines()[-8:])
+
+
+def test_loader_watch(tmp):
+    check("loader: the default ready timeout is two minutes at most",
+          L.DEFAULT_READY_TIMEOUT <= 120, str(L.DEFAULT_READY_TIMEOUT))
+
+    # a loader that dies at once: red in seconds, not after the timeout,
+    # with its exit code and its last line
+    code, out, took = run_with_stand_in(tmp, "crash-101", "crash", 60)
+    check("loader: a loader that dies fails the check", code == 1, f"exit {code}")
+    check("loader: a dead loader is seen within seconds, not the timeout",
+          took < 15, f"{took:.1f} s against a 60 s timeout")
+    check("loader: the FAIL line carries the loader's exit code",
+          "FAIL  load: the loader keeps running  (the loader ended with exit "
+          "code 3" in out, quote(out))
+    check("loader: the loader's last output is printed",
+          'module "Clayground.Missing" is not installed' in out, quote(out))
+    check("loader: the checks that need no loader still report after a crash",
+          "PASS  triad: paper.md exists" in out, quote(out))
+
+    # a loader that stays up and never gets ready: red after the stated timeout
+    code, out, took = run_with_stand_in(tmp, "never-101", "never-ready", 2)
+    check("loader: a lab that never gets ready fails the check", code == 1,
+          f"exit {code}")
+    check("loader: the header states the ready timeout",
+          "ready within 2 s" in out, out.splitlines()[0] if out else "")
+    check("loader: the FAIL line states the timeout it waited",
+          "FAIL  load: the lab reaches phase ready  (the lab never reached "
+          "phase ready within 2 s (phase=loading))" in out, quote(out))
+    check("loader: a never-ready lab ends near its timeout",
+          took < 15, f"{took:.1f} s against a 2 s timeout")
+    check("loader: the checks that need no loader still report after a timeout",
+          "PASS  triad: paper.md exists" in out, quote(out))
+
+    # the first process serves, every run after it stalls: one run waits the
+    # timeout, the others are NOT RUN instead of each waiting it again
+    code, out, took = run_with_stand_in(tmp, "stall-101", "stall-after-first", 2)
+    check("loader: the first run that never gets ready fails",
+          "FAIL  determinism: one  (the lab never reached phase ready within 2 s"
+          in out, quote(out))
+    check("loader: the runs after a stalled one are NOT RUN",
+          "NOT RUN  determinism: two  (an earlier run's loader did not get the "
+          "lab ready within 2 s)" in out, quote(out))
+    check("loader: a stall costs one timeout, not one per run",
+          took < 15, f"{took:.1f} s")
+
+    # the first process serves, every run after it dies: each run is red with
+    # the exit code, and the next run is still tried
+    code, out, took = run_with_stand_in(tmp, "crash-run-101", "crash-after-first", 60)
+    check("loader: a run whose loader dies fails with the exit code",
+          "FAIL  determinism: one  (the loader ended with exit code 3" in out
+          and "FAIL  determinism: two  (the loader ended with exit code 3" in out,
+          quote(out))
+    check("loader: crashing runs are seen within seconds", took < 15,
+          f"{took:.1f} s against a 60 s timeout")
+    check("loader: the checks that need no loader still report after a crashed run",
+          "PASS  triad: paper.md exists" in out, quote(out))
+
+    # the first process serves, the next one is up and never answers: one
+    # protocol FAIL, and the checks that need no loader still report - a
+    # timeout used to cost them their lines (#536)
+    code, out, took = run_with_stand_in(tmp, "mute-101", "mute-after-first", 2)
+    check("loader: a loader that stops answering fails one protocol line",
+          code == 1 and "FAIL  protocol: no response for " in out,
+          f"exit {code}: {quote(out)}")
+    check("loader: the checks that need no loader still report after a protocol timeout",
+          "PASS  triad: paper.md exists" in out, quote(out))
+    check("loader: a protocol timeout ends within its ready timeout",
+          took < 15, f"{took:.1f} s against a 2 s timeout")
+
+    # load_check.py, the load stage for pages that are not labs, reports a
+    # dead loader the same way
+    lab = stand_in_lab(tmp, "load-crash-101")
+    code, out, took = run_timed(
+        [sys.executable, LOAD_CHECK, os.path.join(lab, "Sandbox.qml"),
+         "--loader", STAND_IN], "crash")
+    check("load_check: a loader that dies fails the page", code == 1,
+          f"exit {code}")
+    check("load_check: the FAIL line carries the loader's exit code",
+          "the loader ended with exit code 3" in out, quote(out))
+    check("load_check: the loader's last output is printed",
+          'module "Clayground.Missing" is not installed' in out, quote(out))
+    check("load_check: a dead loader is seen well within the 90 s timeout",
+          took < 15, f"{took:.1f} s")
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
@@ -630,6 +758,9 @@ def main():
         test_drivers()
         test_step_of()
         test_load_diagnostics(tmp)
+        if os.name != "nt":
+            # the stand-in loader is started as an executable script
+            test_loader_watch(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

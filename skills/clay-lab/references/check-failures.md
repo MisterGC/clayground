@@ -25,10 +25,11 @@ temporary directory with the determinism runs' records.
 
 | line | what to do |
 |---|---|
-| `load: the lab reaches phase ready` | the scene never finished loading. Open it with `--verbose`, or in the dojo, and read the first QML error |
+| `load: the lab reaches phase ready` | the detail is `the lab never reached phase ready within <n> s`: the loader stayed up and the scene never finished loading. Open it with `--verbose`, or in the dojo, and read the first QML error. Only a lab that is slow on purpose needs a longer `--ready-timeout` |
+| `load: the loader keeps running` | the loader ended before the check was done with it; the detail gives its exit code (or the signal that killed it) and what the check was waiting for, and the loader's last output follows. A plugin or module it could not load is named there; a signal is a crash — rerun with `--verbose`, and if it reproduces, it is a loader bug, not the lab's |
 | `load: a root object exists` | the load ended without a live root; usually the same first error as above |
 | `load: the lab logged no qml warning or error` | the detail quotes up to four warnings from files of this lab. Fix each — a binding loop or an undefined property is a warning here, and a warning fails. Lines marked `(environment, not the lab)` do not count |
-| `load: the lab came up` | the load failed, so no other check ran. Fix the load first |
+| `load: the lab came up` | the load failed, so no other scene check ran (records, tables, study, triad and remarks still do). Fix the load first |
 | `contract: the lab answers scenarios()/flows()` | the gate evaluates in the root's context: the root needs `id: root` and both functions |
 | `contract: scenarios() answers with a non-empty list` | every lab has at least one scenario, and it cold-opens into it |
 
@@ -44,7 +45,10 @@ temporary directory with the determinism runs' records.
   header lists under `samples.columns`. `pitfalls.md`, *Determinism*,
   has every case that has happened so far. `--keep` leaves both records to
   diff in full.
-- **an error** (`the lab never reached phase ready`, `no record written`,
+- **the loader ended** (`the loader ended with exit code <n>` or `was killed
+  by signal <n>`), with its last output after the line: see `load: the loader
+  keeps running`. The next run is still tried.
+- **an error** (`the lab never reached phase ready within <n> s`, `no record written`,
   a script error from `applyScenario`): the scenario's `script` throws, or
   the lab does not come back from a reload. Run the scenario by hand:
   `clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png --paused --result -
@@ -61,7 +65,9 @@ temporary directory with the determinism runs' records.
 | `finished: false` | the flow stopped before its last step — often `maxFlowSteps` in `lab-check.json` (default 20000 sim frames) is shorter than the flow's waits |
 | `flows() does not publish this id` | `lab-check.json` lists an id that `flows()` does not return |
 | `no step carries an expect` | a teaching flow asserts at least one measured value; add an `expect` to the step that states one |
-| `the lab did not come up for this run` | a fresh lab for this flow failed to load; see *Load* |
+| `the lab never reached phase ready within <n> s` or `the lab did not come back from a reload within <n> s` | a fresh lab for this flow failed to load; see *Load* |
+| `the loader ended with exit code <n>` | the loader died during this flow; its last output follows. See `load: the loader keeps running` |
+| `NOT RUN  flows: <id>` or `NOT RUN  determinism: <scenario>` | an earlier run's loader never got the lab ready, so this run was not started: one timeout, not one per run. Fix the run that failed first |
 
 One flow by hand: `clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png
 --paused --result - --eval 'Lab.runFlow("<id>")'` (`flows.md`).
@@ -87,7 +93,7 @@ One flow by hand: `clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png
 | `study: <name>` | the detail says which part is missing: a manifest that does not parse, no committed `records/*.labrec`, or no `## Answerability` section |
 | `triad: paper.md exists` | every lab has a `paper.md` |
 | `triad: overview.grafli exists` | a teaching or learning lab owes the board (`triad.md`) |
-| `protocol: no response for <action>` | the loader stopped answering the inspector — it crashed or hung. Rerun with `--verbose` and read its last lines |
+| `protocol: no response for <action>` | the loader is still running and stopped answering the inspector — it hung. The scene checks after it did not run; the others did. Rerun with `--verbose` and read its last lines (a loader that crashed is `load: the loader keeps running` or a run's `the loader ended …` instead) |
 
 `remarks` is never red: it counts the open CriticMarkup marks in the paper
 and the studies, so you see them before you cite the prose.
