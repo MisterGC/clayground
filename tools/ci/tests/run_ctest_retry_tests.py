@@ -4,7 +4,7 @@
 project whose tests fail a set number of times, counted in files, so each
 case can check how often every test ran.
 
-Usage: run_ctest_retry_tests.py <cmake> <ctest>"""
+Usage: run_ctest_retry_tests.py <cmake> <ctest> [<generator>]"""
 
 import os
 import subprocess
@@ -14,6 +14,10 @@ import tempfile
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCRIPT = os.path.join(HERE, "..", "ctest_retry.py")
 CMAKE, CTEST = sys.argv[1], sys.argv[2]
+# The scratch project takes the generator of the build that runs this suite:
+# CMake's default on Windows is Visual Studio, multi-config, where a test
+# without -C never runs and every count stayed 0
+GENERATOR = ["-G", sys.argv[3]] if len(sys.argv) > 3 else []
 
 # name, labels, how many runs fail before it passes (-1: never passes)
 TESTS = [
@@ -60,7 +64,7 @@ def setup(root):
         lines.append(f'set_tests_properties({name} PROPERTIES LABELS "{labels}")')
     with open(os.path.join(src, "CMakeLists.txt"), "w") as f:
         f.write("\n".join(lines) + "\n")
-    subprocess.run([CMAKE, "-S", src, "-B", build], check=True,
+    subprocess.run([CMAKE, *GENERATOR, "-S", src, "-B", build], check=True,
                    stdout=subprocess.DEVNULL)
     return build
 
