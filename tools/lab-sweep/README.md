@@ -21,6 +21,10 @@ Worked example: `labs/street-network-101/studies/topology-four-houses/`.
 
 It drives `clayrender` once per cell, writes one `.labrec` per run into the
 study's `records/`, then reads those records back to build `results.md`.
+`--clayrender` names the renderer (default `build/bin/clayrender` under the
+checkout). A study whose lab is in no checkout — made with `lab-new --dir`
+elsewhere — runs from the directory that holds the lab, and its records still
+say `labs/<slug>/studies/<study>` in their `command` field (#535).
 
 It contains **no optimization and no search**. It does not pick the next
 experiment, stop early on a promising cell, or fit anything. That is not a
