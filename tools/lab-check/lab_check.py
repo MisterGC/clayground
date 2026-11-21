@@ -453,6 +453,15 @@ ENVIRONMENT = [
     # Two lines: the second says "Note that Qt no longer ships fonts. ...".
     ("offscreen-no-font-directory",
      re.compile(r"^QFontDatabase: Cannot find font directory "), None),
+    # The inspector replaces its state.json and response.json by renaming a
+    # new file over them, and on Windows that fails while a reader has the
+    # file open - which lab-check, polling every 10 ms with runs side by side,
+    # does now and then (#572). The inspector retries and says it did; one
+    # that SUCCEEDED is the check reading its own protocol, not the lab. A
+    # replace that never succeeded logs "failed to write" and still fails.
+    ("inspector-replace-retry",
+     re.compile(r'^ClayInspector: replacing "[^"]*/\.clay/inspect/[^"]*" '
+                r"took \d+ attempts$"), None),
 ]
 
 # A QML or JS location as Qt prints it at the start of a diagnostic:

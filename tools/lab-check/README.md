@@ -93,6 +93,7 @@ do not fail `load`; they are matched by name in `ENVIRONMENT` in
 | `linux-multimedia-libraries` | `Couldn't load <library> library` or `Couldn't resolve <library> symbols`, in the category `qt.multimedia.symbolsresolver` only | on Linux Qt Multimedia loads optional system libraries (PipeWire, VA-API) at run time and logs each one the machine lacks; the CI runner lacks them all |
 | `linux-no-pulseaudio` | `PulseAudioService: pa_context_connect() failed` | the same Qt Multimedia on a Linux machine with no PulseAudio server, such as the CI runner |
 | `offscreen-no-font-directory` | `QFontDatabase: Cannot find font directory <dir>` | offscreen on Windows reads fonts from the Qt installation's `lib/fonts`, which a Qt install does not ship, so the machine has no fonts at all |
+| `inspector-replace-retry` | `ClayInspector: replacing "<…>/.clay/inspect/<…>" took <n> attempts` | on Windows a file cannot be renamed over while it is open, and lab-check's own reads of `state.json` and `response.json` sometimes are; the inspector's retry succeeded. One that never succeeds logs `failed to write` and still fails `load` (#572) |
 
 Every other warning or error fails `load`, wherever it comes from: a file of
 the lab, a kit under `labs/kits/`, the kernel in `plugins/clay_lab/` (shown as

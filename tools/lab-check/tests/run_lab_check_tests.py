@@ -663,6 +663,10 @@ ENV_LINES = [
      "D:/a/clayground/Qt/6.10.1/msvc2022_64/lib/fonts.\nNote that Qt no longer "
      "ships fonts. Deploy some (from https://dejavu-fonts.github.io/ for "
      "example) or switch to fontconfig."},
+    # ... and on Windows, while lab-check reads the inspector's files (#572)
+    {"level": "warning", "text": "ClayInspector: replacing \"D:/a/clayground/"
+     "clayground/labs/character-101/.clay/inspect/i/lab-check-2/state.json\" "
+     "took 2 attempts"},
     {"level": "log", "text": "qml: a log line is never a diagnostic"},
 ]
 
@@ -673,9 +677,13 @@ def test_load_diagnostics(tmp):
           came_up and clean is True, det)
     check("load: every message the five labs log offscreen, macOS, Linux and Windows, is on the list",
           all(L.environment_name(e["text"], e.get("category", "default"))
-              for e in ENV_LINES[:9]),
+              for e in ENV_LINES if e["level"] != "log"),
           str([L.environment_name(e["text"], e.get("category", "default"))
-               for e in ENV_LINES[:9]]))
+               for e in ENV_LINES if e["level"] != "log"]))
+    check("load: an inspector replace that never succeeded is not the environment",
+          L.environment_name("ClayInspector: failed to write state.json") is None
+          and L.environment_name('ClayInspector: replacing "/x/labs/a/B.qml" '
+                                 "took 2 attempts") is None)
     check("load: the README holds the environment list, entry by entry",
           all(f"`{name}`" in open(os.path.join(os.path.dirname(HERE),
                                                "README.md")).read()
