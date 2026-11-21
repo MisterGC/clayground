@@ -127,8 +127,9 @@ var dict = {
         "flow.led-basics.why": "Why 5.1 mA? The LED keeps about 2.1 V for itself, as LEDs do. The 2.4 V left over is what pushes the current through the resistor.",
         "flow.led-basics.ohm": "That is Ohm's law: current is voltage divided by resistance. 2.4 V over 470 Ω is 5.1 mA. The resistor sets the current.",
         "flow.led-basics.power": "The plot now shows power: voltage times current, the energy a part turns into light and heat each second, in watts (W). The LED: 2.1 V times 5.1 mA, about 11 mW; the plot rounds it to 0.01 W.",
-        "flow.led-basics.try": "Try it yourself: select the resistor and drag its slider. Less resistance, more current, brighter LED — until it gives up.",
-        "flow.led-basics.try.hint": "Its card is already up — drag the slider on it, or press h and l.",
+        "flow.led-basics.try": "Now find the limit yourself: lower the resistor with its slider. Less resistance, more current, brighter LED — watch the current climb, and keep going until the LED gives up.",
+        "flow.led-basics.try.hint": "Its card is already up — drag the slider to the left, or press h.",
+        "flow.led-basics.burnt": "There it went. Past 30 mA, the most this LED takes, its chip turns more power into heat than it can shed, and it burns out. It stays dark now, even with more resistance. Its card can put in a new one.",
 
         // The directed steps: the same lines as above, with the professor's
         // stage directions between the stars. The directions are authoring
@@ -290,8 +291,9 @@ var dict = {
         "flow.led-basics.why": "Warum 5,1 mA? Die LED behält etwa 2,1 V für sich, wie LEDs das tun. Die übrigen 2,4 V treiben den Strom durch den Widerstand.",
         "flow.led-basics.ohm": "Das ist das ohmsche Gesetz: Strom ist Spannung geteilt durch Widerstand. 2,4 V an 470 Ω sind 5,1 mA. Der Widerstand bestimmt den Strom.",
         "flow.led-basics.power": "Das Diagramm zeigt jetzt die Leistung: Spannung mal Strom, die Energie, die ein Bauteil pro Sekunde in Licht und Wärme umsetzt, in Watt (W). Die LED: 2,1 V mal 5,1 mA, etwa 11 mW; das Diagramm rundet das auf 0,01 W.",
-        "flow.led-basics.try": "Probiere selbst: wähle den Widerstand und zieh seinen Schieber. Weniger Widerstand, mehr Strom, hellere LED — bis sie aufgibt.",
-        "flow.led-basics.try.hint": "Seine Karte ist schon offen — zieh den Schieber darauf, oder drück h und l.",
+        "flow.led-basics.try": "Jetzt finde die Grenze selbst: verkleinere den Widerstand mit seinem Schieber. Weniger Widerstand, mehr Strom, hellere LED — sieh den Strom steigen und mach weiter, bis die LED aufgibt.",
+        "flow.led-basics.try.hint": "Seine Karte ist schon offen — zieh den Schieber nach links, oder drück h.",
+        "flow.led-basics.burnt": "Da ging sie hin. Über 30 mA, mehr als diese LED verträgt, macht ihr Chip mehr Wärme, als er abgeben kann, und brennt durch. Sie bleibt jetzt dunkel, auch mit mehr Widerstand. Ihre Karte setzt eine neue ein.",
 
         "flow.led-basics.battery.script": "*point at the battery* Das ist die Zelle, das Bauteil, das alles auf diesem Brett antreibt. *face viewer* *gesticulate* Der goldene Kontakt ist ihr Pluspol.",
         "flow.led-basics.led.script": "*point at the LED* Die LED. Sie leitet nur in eine Richtung. *face viewer* *gesticulate* Und erst ab etwa 2 Volt — ihrer Durchlassspannung.",

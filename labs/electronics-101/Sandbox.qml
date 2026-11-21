@@ -1347,6 +1347,7 @@ Item {
         if (key === "ohm")      return [n("res")]
         if (key === "power")    return [n("led")]
         if (key === "try")      return [n("res")]
+        if (key === "burnt")    return [n("led")]
         return []               // "empty": there is nothing on the board yet
     }
 
@@ -1407,7 +1408,8 @@ Item {
     // resistor, lit, why) do not appear here - they speak per LINE through
     // flowScriptVoice below, not per step.
     readonly property var voicedLedSteps: ["empty", "voltage", "resistance", "switch", "wire",
-                                           "flip", "current", "values", "volts", "ohm", "power", "try"]
+                                           "flip", "current", "values", "volts", "ohm", "power", "try",
+                                           "burnt"]
     readonly property var voicedLogicSteps: ["meet", "legs", "switch", "gain", "limit", "and",
                                              "andtask", "or", "xor", "nand", "xorbuild",
                                              "xortask", "both", "cost", "chip", "chiptask",
@@ -2090,19 +2092,33 @@ Item {
             // "2.1 V times 5.1 mA, about 11 mW"
             expect: (n) => Math.abs(root.simOf(n("led")).power - 0.011) < 0.0006
         }
-        // The handoff, and a task rather than a closing line: the lesson ends
-        // by lending the learner the one control it has been talking about,
-        // and ends FOR GOOD the moment they use it - after which the whole
-        // board is theirs.
+        // The handoff: the lesson lends the learner the one control it has
+        // been talking about and asks them to find the limit the resistor
+        // line warned of. The task holds only once the LED has burnt out -
+        // any change of the value used to pass it, so the warning never had
+        // a consequence (#539). The plot goes back to current and the board
+        // labels it, so the climb towards 30 mA is in sight while they drag.
+        // The solve is 56 ohm: the first E12 step past the limit (68 ohm
+        // is 29.9 mA and survives, 56 ohm is 35 mA and does not).
         FlowStep {
             key: "try"
-            demo: [["select", "res"], ["frame", "selection"]]
-            task: ({ "until": (n) => { const e = root.elemAt(n("res"))
-                                       return e && e.value !== 470 },
+            demo: [["plot", "I"], ["showValues", true],
+                   ["select", "res"], ["frame", "selection"]]
+            task: ({ "until": (n) => { const e = root.elemAt(n("led"))
+                                       return e && !!e.blown },
                      "hint": "flow.led-basics.try.hint",
                      "hintAfter": 9,
                      "allow": ["res"],
-                     "solve": [["setOhms", "res", 220]] })
+                     "solve": [["setOhms", "res", 56]] })
+        }
+        // What happened and why, on the LED and its card - after which the
+        // whole board is the learner's.
+        FlowStep {
+            key: "burnt"
+            demo: [["select", "led"], ["frame", "selection"]]
+            expect: (n) => { const e = root.elemAt(n("led"))
+                             return e && !!e.blown && !root.simOf(n("led")).on
+                                 && Math.abs(root.simOf(n("led")).i) < 1e-6 }
         }
     }
     // --- flow: from one transistor to XOR ----------------------------------
