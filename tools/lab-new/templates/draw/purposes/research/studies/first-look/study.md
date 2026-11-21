@@ -78,5 +78,5 @@ Rendered from `records/` by `tools/lab-sweep/lab-table` between the markers;
 <!-- table: pen -->
 | configuration | length (m) | max walked (m) | walked at 10 s (m) | records |
 |---|---|---|---|---|
-| intro | 8.00 | 8.00 | 5.95 | `intro-42` |
+| intro | 8.00 | 7.95 | 5.95 | `intro-42` |
 <!-- /table -->
