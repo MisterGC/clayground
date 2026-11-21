@@ -899,7 +899,7 @@ The keys, exactly as `?` lists them, in its order:
 | key | what `?` says it does |
 |---|---|
 | `1-9` | presets |
-| click | presets 10 and 11, logic gate and half adder: under PRESETS in the palette |
+| click | presets 10, 11: in the palette |
 | `C` | clear the board |
 | `E` | eraser |
 | `V` | show every value |
