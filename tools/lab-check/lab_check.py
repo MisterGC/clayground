@@ -93,6 +93,7 @@ steps. Sim time is a function of the step count and of nothing else.
 
 import argparse
 import collections
+import concurrent.futures
 import json
 import os
 import re
@@ -118,6 +119,10 @@ MAX_NARRATION = 240
 # to be 90 s per wait with nothing watching the process, so a loader that had
 # died was polled for the full time of every wait left (#536).
 DEFAULT_READY_TIMEOUT = 90
+# How many loader and clayrender processes a check runs at once (#572), the
+# same default as lab-sweep's --jobs. The runs are independent processes, so
+# the only limit is the machine; ctest is told through PROCESSORS.
+DEFAULT_JOBS = 4
 # The lines of loader output a failure quotes.
 LOADER_TAIL = 12
 # How often a wait looks at the inspector's files, in seconds. The loader
@@ -136,6 +141,7 @@ SWEEP_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 sys.path.insert(0, SWEEP_DIR)
 import lab_table as LT         # noqa: E402
 import manifest as M           # noqa: E402
+import record as R             # noqa: E402
 
 
 # --------------------------------------------------------------------------
@@ -702,34 +708,77 @@ def report_died(rep, name, died):
         rep.note("the loader printed nothing")
 
 
-def in_fresh_loader(rep, spawn, name, body):
-    """body(session) in a loader of its own, on a root paused from birth; its value,
-    or None once a FAIL or NOT RUN line under `name` has said why not.
+class Outcome:
+    """What one run in a loader of its own came to, for the report to say.
+
+    kind is "value" (the body answered: value holds it), "stalled" (the
+    loader never got the lab ready, or did not start paused), "skipped" (an
+    earlier run had stalled before this one started) or "died" (the
+    process ended: died holds the LoaderDied). A run is carried out on a
+    worker thread and reported on the main one, in the order the checks have
+    always printed, so the output does not depend on which run ended first.
+    """
+
+    def __init__(self, kind, value=None, detail="", died=None):
+        self.kind = kind
+        self.value = value
+        self.detail = detail
+        self.died = died
+
+
+def run_fresh(spawn, body):
+    """body(session) in a loader of its own, on a root paused from birth.
 
     A loader that never gets the lab ready is a property of the lab or the
     machine, not of the one run, and the next process would wait out the
     same timeout for the same answer - which is how six scenarios became
-    fifteen minutes (#353). So the first such run fails, and every one after
-    it is NOT RUN (#536)."""
-    stalled = getattr(spawn, "stalled", None)
-    if stalled:
-        rep.not_run(name, stalled)
-        return None
+    fifteen minutes (#353). So once a run has stalled, a run that has not
+    started yet does not start (#536); report_run() says which of the
+    stalled ones is the FAIL line."""
+    if spawn.stalled:
+        return Outcome("skipped", detail=spawn.stalled)
     try:
         with spawn() as session:
             if not session.ready():
-                rep.check(name, False, never_ready(session))
+                detail = never_ready(session)
             elif not session.paused_root():
-                rep.check(name, False, "the loader did not start with its "
-                          "clock paused (--paused)")
+                detail = "the loader did not start with its clock paused (--paused)"
             else:
-                return body(session)
+                return Outcome("value", value=body(session))
             spawn.stalled = (f"an earlier run's loader did not get the lab ready "
                              f"within {session.ready_timeout:g} s")
-            return None
+            return Outcome("stalled", detail=detail)
     except LoaderDied as died:
-        report_died(rep, name, died)
-        return None
+        return Outcome("died", died=died)
+
+
+def report_run(rep, spawn, name, outcome):
+    """The run's value, or None once a FAIL or NOT RUN line under `name` has
+    said why not. Of the runs that stalled, the first one reported is the
+    FAIL; every later one is NOT RUN, as when the runs went one at a time."""
+    if outcome.kind == "value":
+        return outcome.value
+    if outcome.kind == "died":
+        report_died(rep, name, outcome.died)
+    elif outcome.kind == "stalled" and not spawn.stall_reported:
+        spawn.stall_reported = True
+        rep.check(name, False, outcome.detail)
+    else:
+        rep.not_run(name, spawn.stalled or outcome.detail)
+    return None
+
+
+class Inline:
+    """An executor that runs what it is handed at once, on this thread: the
+    pool's stand-in where a caller passes none."""
+
+    def submit(self, fn, *args):
+        fut = concurrent.futures.Future()
+        try:
+            fut.set_result(fn(*args))
+        except BaseException as e:  # noqa: B036 - handed to result()
+            fut.set_exception(e)
+        return fut
 
 
 def one_run(session, lab_dir, lab_id, scenario, steps, dest):
@@ -753,19 +802,34 @@ def one_run(session, lab_dir, lab_id, scenario, steps, dest):
     }, timeout=300)
 
 
-def check_determinism(rep, spawn, lab_dir, lab_id, scenarios, steps, workdir):
-    all_ok = True
+def start_determinism(pool, spawn, lab_dir, lab_id, scenarios, steps, workdir):
+    """Hand every run of the determinism check to the pool: two per scenario,
+    each in a loader of its own. Returns what check_determinism() reports."""
+    runs = []
     for scenario in scenarios:
+        pair = []
+        for rep_no in ("a", "b"):
+            dest = os.path.join(workdir, f"{scenario}-{rep_no}.labrec")
+            pair.append((dest, pool.submit(
+                run_fresh, spawn,
+                lambda s, sc=scenario, d=dest: one_run(s, lab_dir, lab_id, sc,
+                                                       steps, d))))
+        runs.append((scenario, pair))
+    return runs
+
+
+def check_determinism(rep, spawn, runs):
+    all_ok = True
+    for scenario, pair in runs:
         paths = []
         broke = None
         name = f"determinism: {scenario}"
-        for rep_no in ("a", "b"):
-            dest = os.path.join(workdir, f"{scenario}-{rep_no}.labrec")
-            res = in_fresh_loader(
-                rep, spawn, name,
-                lambda s: one_run(s, lab_dir, lab_id, scenario, steps, dest))
+        for dest, fut in pair:
+            # A run after a failed one says nothing more: its outcome is
+            # dropped, as it was never started when the runs went in turn
+            res = report_run(rep, spawn, name, fut.result())
             if res is None:
-                # in_fresh_loader has written this scenario's line already
+                # report_run has written this scenario's line already
                 all_ok = False
                 break
             if res.get("__error__") or res.get("error"):
@@ -805,7 +869,19 @@ def first_difference(a, b):
     return f"{len(la)} vs {len(lb)} lines"
 
 
-def check_flows(rep, spawn, flows, require, expects, max_steps):
+def start_flows(pool, spawn, flows, max_steps):
+    """Hand every flow to the pool, each in a loader of its own: a flow builds
+    a board and leaves it there, and the next flow has to start where a
+    learner starts, which is a lab nobody has touched."""
+    return [(flow_id, pool.submit(
+        run_fresh, spawn,
+        lambda s, f=flow_id: s.insp.eval_json(
+            FLOW_JS % {"flow": js_str(f), "maxSteps": max_steps},
+            timeout=600)))
+        for flow_id in flows]
+
+
+def check_flows(rep, spawn, flows, require, expects, runs):
     """Run every published flow; a teaching lab must also HAVE one.
 
     `require` is whether the purpose owes a flow (teaching). `expects` maps a
@@ -820,14 +896,8 @@ def check_flows(rep, spawn, flows, require, expects, max_steps):
                 'flows() is empty and a teaching lab owes a flow with expects')
         return rep.check("flows: none published, none owed by this purpose", True)
     all_ok = True
-    for flow_id in flows:
-        # A flow builds a board and leaves it there; the next flow has to
-        # start where a learner starts, which is a lab nobody has touched.
-        res = in_fresh_loader(
-            rep, spawn, f"flows: {flow_id}",
-            lambda s: s.insp.eval_json(
-                FLOW_JS % {"flow": js_str(flow_id), "maxSteps": max_steps},
-                timeout=600))
+    for flow_id, fut in runs:
+        res = report_run(rep, spawn, f"flows: {flow_id}", fut.result())
         if res is None:
             all_ok = False
             continue
@@ -968,8 +1038,33 @@ def check_teaching(rep, probe, flows, purpose, limit=MAX_NARRATION):
     return all_ok
 
 
-def check_records(rep, lab_dir, workdir, render):
-    """Regenerate what is committed and compare, without touching the tree.
+def record_scenarios(committed):
+    """The make.sh argument each committed record's `command` field names, in
+    file order - or None when one of them names something else, or there is
+    none. `labs/<lab>/records/make.sh <scenario>` is what make.sh writes into
+    every record, so running it per record is running what the record says
+    regenerates it, and the runs can go side by side (#572)."""
+    scenarios = []
+    for name in sorted(os.listdir(committed)):
+        if not name.endswith(".labrec") or name in SCRATCH_RECORDS:
+            continue
+        try:
+            command = R.read(os.path.join(committed, name)).header.get("command", "")
+        except (OSError, ValueError, R.RecordError):
+            return None
+        parts = str(command).split()
+        if len(parts) != 2 or not parts[0].endswith("records/make.sh"):
+            return None
+        scenarios.append(parts[1])
+    return scenarios or None
+
+
+def run_command(cmd, cwd, env):
+    return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+
+
+def start_records(pool, lab_dir, workdir, render, jobs=DEFAULT_JOBS):
+    """Hand the regenerating runs to the pool; check_records() reports them.
 
     The record's own `command` field says what regenerates it, so that is what
     runs here - `records/make.sh` for a lab's own records, `lab-sweep` for a
@@ -981,12 +1076,20 @@ def check_records(rep, lab_dir, workdir, render):
     build/bin/clayrender itself, so a build folder of another name, or a lab
     outside the checkout, regenerated nothing whatever --clayrender said
     (#535).
+
+    make.sh runs once per committed record when every record names its
+    scenario, else once for all of them; lab-sweep runs once per study, with
+    `jobs` runs of its own at a time.
     """
-    jobs = []
+    jobs_ = []
     make = os.path.join(lab_dir, "records", "make.sh")
     if os.path.isfile(make):
-        jobs.append(("make.sh", script_command(make) + ["--out-dir"],
-                     os.path.join(lab_dir, "records")))
+        committed = os.path.join(lab_dir, "records")
+        per = record_scenarios(committed)
+        base = script_command(make) + ["--out-dir"]
+        jobs_.append(("make.sh", committed,
+                      [lambda out, sc=sc: base + [out, sc] for sc in per]
+                      if per else [lambda out: base + [out]]))
     studies = os.path.join(lab_dir, "studies")
     if os.path.isdir(studies):
         for name in sorted(os.listdir(studies)):
@@ -996,32 +1099,52 @@ def check_records(rep, lab_dir, workdir, render):
                 # the lab's checkout, which for a lab generated into a temp
                 # tree has no tools/ (#531)
                 sweep = os.path.join(SWEEP_DIR, "lab_sweep.py")
-                jobs.append((f"studies/{name}",
-                             [sys.executable, sweep, study, "--clayrender",
-                              render or "", "--records-dir"],
-                             os.path.join(study, "records")))
+                cmd = [sys.executable, sweep, study, "--jobs", str(jobs),
+                       "--clayrender", render or "", "--records-dir"]
+                jobs_.append((f"studies/{name}", os.path.join(study, "records"),
+                              [lambda out, c=cmd: c + [out]]))
+    if not jobs_ or not render or not os.path.isfile(render):
+        return {"jobs": [(label, committed, None, None)
+                         for label, committed, _c in jobs_]}
+
+    started = []
+    env = dict(os.environ)
+    env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
+    env["CLAYRENDER"] = render
+    for label, committed, commands in jobs_:
+        out = os.path.join(workdir, label.replace("/", "-"))
+        os.makedirs(out, exist_ok=True)
+        # Forward slashes: make.sh puts the path into a JS string, where a
+        # Windows backslash starts an escape
+        futs = [pool.submit(run_command, command(out.replace(os.sep, "/")),
+                            repo_root(lab_dir), env)
+                for command in commands]
+        started.append((label, committed, out, futs))
+    return {"jobs": started}
+
+
+def check_records(rep, lab_dir, workdir, render, started=None):
+    """Regenerate what is committed and compare, without touching the tree.
+
+    `started` is what start_records() handed to a pool; without it the runs
+    are carried out here, one after the other."""
+    if started is None:
+        started = start_records(Inline(), lab_dir, workdir, render)
+    jobs = started["jobs"]
     if not jobs:
         return rep.check("records: nothing committed to regenerate", True,
                          "no records/make.sh and no studies/*/records")
     if not render or not os.path.isfile(render):
-        for label, _cmd, _committed in jobs:
+        for label, _committed, _out, _futs in jobs:
             rep.not_run(f"records: {label} regenerates",
                         f"no clayrender at {render}")
         return True
 
     all_ok = True
-    for label, cmd, committed in jobs:
-        out = os.path.join(workdir, label.replace("/", "-"))
-        os.makedirs(out, exist_ok=True)
-        env = dict(os.environ)
-        env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
-        env["CLAYRENDER"] = render
-        # Forward slashes: make.sh puts the path into a JS string, where a
-        # Windows backslash starts an escape
-        proc = subprocess.run(cmd + [out.replace(os.sep, "/")],
-                              cwd=repo_root(lab_dir), env=env,
-                              capture_output=True, text=True)
-        if proc.returncode != 0:
+    for label, committed, out, futs in jobs:
+        procs = [f.result() for f in futs]
+        proc = next((p for p in procs if p.returncode != 0), None)
+        if proc is not None:
             # Both streams: make.sh reports on stderr, lab-sweep echoes
             # clayrender's own output on stdout, and the sentence that says
             # "there is no display here" can arrive on either.
@@ -1265,6 +1388,10 @@ def main():
     ap.add_argument("--ready-timeout", type=float, default=DEFAULT_READY_TIMEOUT,
                     help="seconds one loader gets to bring the lab to phase "
                          f"ready (default {DEFAULT_READY_TIMEOUT})")
+    ap.add_argument("--jobs", type=int, default=DEFAULT_JOBS,
+                    help="loader and clayrender processes to run at once - the "
+                         "stepped runs, the flows and the records "
+                         f"(default {DEFAULT_JOBS})")
     ap.add_argument("--keep", action="store_true", help="keep the temp workdir")
     ap.add_argument("--strict", action="store_true",
                     help="exit 1 when a check did not run (records without a "
@@ -1301,8 +1428,10 @@ def main():
     steps = args.steps or int(cfg.get("steps", DEFAULT_STEPS))
     max_flow_steps = int(cfg.get("maxFlowSteps", DEFAULT_MAX_FLOW_STEPS))
 
+    jobs = max(1, args.jobs)
     print(f"lab-check {lab_id}  ({purpose}, steps={steps}, "
-          f"ready within {args.ready_timeout:g} s, checks={','.join(wanted)})")
+          f"ready within {args.ready_timeout:g} s, jobs={jobs}, "
+          f"checks={','.join(wanted)})")
 
     needs_scene = any(c in wanted for c in ("load", "determinism", "flows",
                                             "strings", "teaching"))
@@ -1312,28 +1441,41 @@ def main():
         return SKIP
 
     workdir = tempfile.mkdtemp(prefix=f"lab-check-{lab_id}-")
+    # One pool for every process the check starts: the records runs go in
+    # first, since they need nothing the scene says, and run while the first
+    # session asks the lab its questions (#572).
+    pool = concurrent.futures.ThreadPoolExecutor(max_workers=jobs)
     try:
+        # The .clay of an earlier check, once: each loader of this one only
+        # clears its own instance directory
+        shutil.rmtree(os.path.join(lab_dir, ".clay"), ignore_errors=True)
+        records = start_records(pool, lab_dir, workdir, render, jobs) \
+            if "records" in wanted else None
         if needs_scene:
             runs = iter(range(1, 1 << 30))
+            lock = threading.Lock()
 
             def spawn(stepped=True):
                 # A stepped run gets a paused clock and an instance of its
                 # own; the first session, which asks whether the lab loads,
                 # runs the lab as a person sees it, ticking.
+                with lock:
+                    n = next(runs)
                 return Loader(loader, sandbox, quiet=not args.verbose,
                               ready_timeout=args.ready_timeout, paused=stepped,
-                              instance=f"lab-check-{next(runs)}" if stepped else None)
+                              instance=f"lab-check-{n}" if stepped else None)
             spawn.stalled = None
+            spawn.stall_reported = False
             try:
-                run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir,
+                run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir,
                                  lab_id, steps, max_flow_steps, workdir)
             except TimeoutError as e:
                 # A loader that is up and no longer answers. The scene checks
                 # left cannot ask it anything; the checks below never needed
-                # it, and one hang used to cost them their lines too (#536).
+                # it, and one hang used to cost them their lines (#536).
                 rep.check(f"protocol: {e}", False)
-        if "records" in wanted:
-            check_records(rep, lab_dir, workdir, render)
+        if records is not None:
+            check_records(rep, lab_dir, workdir, render, started=records)
         if "tables" in wanted:
             check_tables(rep, lab_dir)
         if "study" in wanted:
@@ -1343,6 +1485,9 @@ def main():
         if "remarks" in wanted:
             check_remarks(rep, lab_dir)
     finally:
+        # Runs not started yet are dropped; the ones running end within their
+        # own timeouts
+        pool.shutdown(wait=True, cancel_futures=True)
         if args.keep:
             print(f"workdir kept: {workdir}")
         else:
@@ -1378,8 +1523,8 @@ def flows_to_run(cfg, published):
     return list(declared) if isinstance(declared, list) else list(published)
 
 
-def run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id, steps,
-                     max_flow_steps, workdir):
+def run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir, lab_id,
+                     steps, max_flow_steps, workdir):
     # One session answers everything that is a QUESTION about the lab - does
     # it load, what does it call its scenarios, what does it say in German.
     # The runs that are EXPERIMENTS each get their own process further down.
@@ -1410,13 +1555,30 @@ def run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id, steps,
               isinstance(scenarios, list) and len(scenarios) > 0,
               ", ".join(scenarios) if isinstance(scenarios, list) else str(scenarios))
 
-    if "determinism" in wanted and scenarios:
-        check_determinism(rep, spawn, lab_dir, lab_id, scenarios, steps, workdir)
+    # Every run is handed to the pool before the first is reported: the
+    # flows first, as a flow is usually the longest run there is, then the
+    # determinism pairs. The report reads them back in the order it always
+    # printed them.
+    flows = flows_to_run(cfg, probe.get("flows", [])) if "flows" in wanted else []
+    flow_runs = start_flows(pool, spawn, flows, max_flow_steps)
+    det_runs = start_determinism(pool, spawn, lab_dir, lab_id, scenarios, steps,
+                                 workdir) \
+        if "determinism" in wanted and isinstance(scenarios, list) else []
+    try:
+        if det_runs:
+            check_determinism(rep, spawn, det_runs)
 
-    if "flows" in wanted:
-        flows = flows_to_run(cfg, probe.get("flows", []))
-        check_flows(rep, spawn, flows, purpose == "teaching",
-                    probe.get("expects", {}), max_flow_steps)
+        if "flows" in wanted:
+            check_flows(rep, spawn, flows, purpose == "teaching",
+                        probe.get("expects", {}), flow_runs)
+    except TimeoutError:
+        # A hang ends the scene checks; the runs not started yet need not
+        for _name, pair in det_runs:
+            for _dest, fut in pair:
+                fut.cancel()
+        for _flow, fut in flow_runs:
+            fut.cancel()
+        raise
 
     if "strings" in wanted:
         check_strings(rep, probe, require_de=(purpose == "teaching"))
