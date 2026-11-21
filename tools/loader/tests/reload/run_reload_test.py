@@ -69,6 +69,9 @@ def run(args, sandbox, log_path):
     env = dict(os.environ)
     env["QT_QPA_PLATFORM"] = env.get("QT_QPA_PLATFORM", "offscreen")
     env["CLAY_SOUND_MUTE"] = "1"
+    # The overlay check reads the loader's qDebug lines; a logging rule that
+    # turns debug output off would leave it nothing to see, and it would pass
+    env["QT_LOGGING_RULES"] = "default.debug=true"
     log = open(log_path, "w")
     proc = subprocess.Popen([args.loader, "--sbx", sandbox], env=env,
                             cwd=os.path.dirname(args.loader),
@@ -154,6 +157,9 @@ def run(args, sandbox, log_path):
 
     with open(log_path, errors="replace") as f:
         lines = f.read().splitlines()
+    # The lines are MainWindow's qDebug output (mainwindow.cpp). The last
+    # engine had a second to build its overlays: no build there means the
+    # check could not see one, not that there was nothing to see.
     built = 0
     for line in lines:
         if line.startswith("Engine about to be destroyed"):
@@ -162,6 +168,9 @@ def run(args, sandbox, log_path):
             built += 1
             if built > 1 and failure is None:
                 failure = "the overlays were built twice on one engine"
+    if built == 0 and failure is None:
+        failure = ("the loader logged no overlay build for its last engine - "
+                   "\"Overlays created successfully\" is missing from its log")
 
     print("reloads: %d of %d in %.1f s, loader %s, exit %s"
           % (done, args.reloads, elapsed, "alive" if alive else "dead",

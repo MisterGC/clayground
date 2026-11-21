@@ -55,6 +55,7 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
             
     // Connect to engine destruction to clean up overlays
     connect(m_container, &HotReloadContainer::engineAboutToBeDestroyed, [this]() {
+        // loader_reloads reads this line (tests/reload/run_reload_test.py)
         qDebug() << "Engine about to be destroyed - cleaning up overlays";
         if (m_logOverlay) {
             delete m_logOverlay;
@@ -543,6 +544,7 @@ void MainWindow::createOverlays()
                 this, SLOT(hideAnnotationOverlay()));
     }
 
+    // loader_reloads reads this line (tests/reload/run_reload_test.py)
     qDebug() << "Overlays created successfully";
 
     // Engine recreation is handled in the constructor
