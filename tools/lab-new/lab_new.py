@@ -308,8 +308,16 @@ def main(argv=None):
     print(f"  3. make the model yours in {sbx}, then re-run it")
     print(f"  4. record a run: {show(os.path.join(target, 'records/make.sh'))} "
           "  (--verify checks determinism)")
-    print(f"  5. paper and board LAST, from the records: "
+    if args.purpose == "research":
+        study = show(os.path.join(target, "studies", "first-look"))
+        print(f"  5. replace the skeleton study with yours, then sweep it: "
+              f"tools/lab-sweep/lab-sweep {study}")
+    else:
+        print("  5. add a flow to flows() and lab-check runs it - no file "
+              "names it")
+    print(f"  6. paper and board LAST, from the records: "
           f"{show(os.path.join(target, 'paper.md'))}")
+    print(f"  7. check it, as ctest will: tools/lab-check/lab-check {show(target)}")
     return 0
 
 
