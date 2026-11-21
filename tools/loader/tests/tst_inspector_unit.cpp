@@ -8,6 +8,7 @@
 #include <QDir>
 #include <QFile>
 #include <QRectF>
+#include <QThread>
 
 #include "clayinspector.h"
 #include "claycontrols.h"
@@ -40,6 +41,7 @@ private slots:
     void testGenerationCountsSuccessfulLoadsOnly();
     void testErrorsActionCarriesFileAndLine();
     void testErrorsActionFiltersBySinceGeneration();
+    void diagnosticsFromOtherThreadsAllArrive();
     void testStatusLastErrorFromDojoState();
     void testBatchRunsStepsInOrder();
     void testBatchStopsAtFirstFailingStep();
@@ -698,6 +700,58 @@ void TestInspectorUnit::testErrorsActionCarriesFileAndLine()
     QCOMPARE(resp["errorCount"].toInt(), 1);
     QCOMPARE(resp["warningCount"].toInt(), 1);
     QCOMPARE(resp["truncated"].toBool(), false);
+}
+
+void TestInspectorUnit::diagnosticsFromOtherThreadsAllArrive()
+{
+    // The loader's message handler runs on whichever thread logged (#565).
+    // Seven threads and this one add at once; every message has to arrive,
+    // and none may be lost or corrupt the buffers. One round of the race
+    // rarely loses an append, so it is run twenty times.
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+    inspector.markReady();
+
+    constexpr int perThread = 25;
+    for (int round = 0; round < 20; ++round) {
+        inspector.clearLogs();
+        QList<QThread*> threads;
+        for (int t = 0; t < 7; ++t) {
+            threads << QThread::create([&inspector, t]() {
+                for (int i = 0; i < perThread; ++i) {
+                    inspector.addError(QString("thread %1 error %2").arg(t).arg(i));
+                    inspector.addWarning(QString("thread %1 warning %2").arg(t).arg(i));
+                    inspector.addLogMessage(QString("thread %1 log %2").arg(t).arg(i));
+                }
+            });
+        }
+        for (auto* thread : threads)
+            thread->start();
+        for (int i = 0; i < perThread; ++i) {
+            inspector.addError(QString("main error %1").arg(i));
+            inspector.addWarning(QString("main warning %1").arg(i));
+        }
+        for (auto* thread : threads) {
+            QVERIFY(thread->wait(10000));
+            delete thread;
+        }
+        // The other threads' calls are queued to this one. Deliver them now:
+        // the request poll's timer may otherwise run first and answer early.
+        QCoreApplication::sendPostedEvents(&inspector);
+
+        QJsonObject req;
+        req["action"] = "errors";
+        req["id"] = QString("threads-%1").arg(round);
+        auto resp = roundtrip(inspector, tmpDir.path(), req);
+        // 8 * 25 = 200, exactly the buffer's cap: nothing dropped, nothing extra
+        QCOMPARE(resp["errorCount"].toInt(), 8 * perThread);
+        QCOMPARE(resp["warningCount"].toInt(), 8 * perThread);
+        for (const auto& e : resp["errors"].toArray())
+            QVERIFY(e.toObject()["text"].toString().contains(" error "));
+    }
 }
 
 void TestInspectorUnit::testErrorsActionFiltersBySinceGeneration()

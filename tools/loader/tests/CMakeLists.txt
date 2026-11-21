@@ -126,4 +126,19 @@ if(Python3_FOUND)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
         TIMEOUT 180
     )
+
+    # 50 reloads of one lab, each sent as soon as the last is the root: the
+    # loader died within a handful (#565). It reads a lab and its kits, so a
+    # change under labs/ runs it too.
+    add_test(NAME loader_reloads
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload/run_reload_test.py
+                --loader $<TARGET_FILE:clayliveloader>
+                --lab ${CMAKE_SOURCE_DIR}/labs/hydraulics-101
+                --reloads 50
+    )
+    set_tests_properties(loader_reloads PROPERTIES
+        LABELS "inspector;integration;labs"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_SOUND_MUTE=1"
+        TIMEOUT 180
+    )
 endif()

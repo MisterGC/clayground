@@ -76,8 +76,7 @@ labs/<lab>/                  one lab = one situation; records/, figures/, studie
 
 - Labs are not CMake targets. Run them: `./build/bin/claydojo --sbx
   labs/<lab>/Sandbox.qml`; headless, `QT_QPA_PLATFORM=offscreen
-  ./build/bin/clayliveloader --sbx …`. Launch either with
-  `QT_DISABLE_SHADER_DISK_CACHE=1`.
+  ./build/bin/clayliveloader --sbx …`.
 - **Kit vs lab.** The kit owns the domain (solver, part visuals, symbols,
   vocabulary); the lab owns the situation (UI, scenarios, narration, keys).
   Test: could a second lab use this kit without editing it? A kit graduates

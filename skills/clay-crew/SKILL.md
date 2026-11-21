@@ -95,10 +95,7 @@ record worthless.
 Also check for annotations **without** a live session — `.clay/crew/annotations/index.json`
 is a plain file you can read directly when no loader is running.
 
-## Two things that cost an hour each if you don't know them
-
-**Launch with `QT_DISABLE_SHADER_DISK_CACHE=1`.** Without it the loader
-dies unpredictably mid-session on shader-heavy scenes.
+## One thing that costs an hour if you don't know it
 
 **After touching plugin QML, rebuild the plugin and RESTART the loader.**
 Plugin QML is compiled into the plugin's Qt resources, so a hot reload
