@@ -21,7 +21,7 @@ the measurement; `--wait-for` must hold before it, or clayrender exits 3 and
 so does the check - which is how a state that cannot be seen in a frame count
 (a professor who is away has no body loaded) is asserted too.
 
-Exit 0 as expected, 1 not, 77 no clayrender built.
+Exit 0 as expected, 1 not, 77 no clayrender built or no GPU session to draw in.
 """
 
 import argparse
@@ -65,6 +65,13 @@ def main():
     env = dict(os.environ)
     env["CLAY_SOUND_MUTE"] = "1"
     p = subprocess.run(cmd, capture_output=True, text=True, env=env, timeout=150)
+    # A machine with no GPU session (the Linux CI runners) cannot draw a frame
+    # at all, so a frame count there says nothing. The marker is clayrender's
+    # own, the one tools/render/tests/run_render_tests.py skips on.
+    if p.returncode == 1 and "graphics session" in p.stderr:
+        print("SKIP: clayrender cannot reach a GPU here")
+        sys.stdout.write(p.stderr)
+        return SKIP
     if p.returncode != 0:
         print(f"FAIL: clayrender exited {p.returncode}"
               + (" - --wait-for never held: " + a.wait_for if p.returncode == 3 else ""))
