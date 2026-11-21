@@ -23,6 +23,7 @@ Node {
     property real simI: 0            // amps through the part
     property real simV: 0            // volts across the part
     property bool lit: false         // led/bulb emitting
+    property bool blown: false       // an LED burnt out past its maximum
     property real simPower: 0        // watts dissipated
     property bool shorted: false     // battery terminals effectively bridged
     property bool overloaded: false  // heavy but honest load
@@ -326,16 +327,25 @@ Node {
     Node {
         id: _led
         visible: root.type === "led"
-        // brightness from current: 20 mA is a bright hobby LED
-        readonly property real glow: Math.min(1.5, Math.max(0, root.simI / 0.02))
-        Model {  // dome
+        // brightness from current: 20 mA is a bright hobby LED, and the glow
+        // tops out at 30 mA - which is also the most the part survives
+        readonly property real glow: root.blown ? 0
+            : Math.min(1.5, Math.max(0, root.simI / 0.02))
+        Model {  // dome - smoked brown once it has burnt out
             source: "#Sphere"
             position: Qt.vector3d(0, 2.4, 0)
             scale: Qt.vector3d(0.034, 0.034, 0.034)
             materials: Matte {
-                baseColor: root.lit ? "#e05a40" : "#9a5244"
+                baseColor: root.blown ? "#3a2c26" : root.lit ? "#e05a40" : "#9a5244"
                 emissiveFactor: Qt.vector3d(2.2, 0.55, 0.35).times(_led.glow)
             }
+        }
+        Model {  // the scorch on top a burnt die leaves: seen from any angle
+            visible: root.blown
+            source: "#Sphere"
+            position: Qt.vector3d(0, 3.75, 0)
+            scale: Qt.vector3d(0.022, 0.009, 0.022)
+            materials: Matte { baseColor: "#151110" }
         }
         Model {  // socket
             source: "#Cylinder"
