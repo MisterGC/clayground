@@ -2,6 +2,7 @@
 
 pragma Singleton
 import QtQuick
+import "record.js" as Record
 
 /*!
     \qmltype Lab
@@ -54,6 +55,18 @@ QtObject {
         \brief The active SimClock (set automatically by SimClock).
     */
     property QtObject clock: null
+
+    /*!
+        \qmlproperty var Lab::host
+        \brief The sandbox root: what supplies \c scenarios() and \c applyScenario().
+
+        Set by \l LabKeys from its \c lab, which every lab has, and cleared
+        when that LabKeys goes; a host without one sets it by hand. \l run()
+        applies a scenario through it, because a lab's own \c applyScenario()
+        does more than its ScenarioSet - street-network-101's frames the plan
+        and resets the clock after the script.
+    */
+    property var host: null
 
     /*!
         \qmlsignal Lab::sampled(real t)
@@ -235,6 +248,191 @@ QtObject {
             params: params,
             probes: probeSummary()
         }
+    }
+
+    /*!
+        \qmlmethod var Lab::schema()
+        \brief What this lab can be asked: its parameters, probes, scenarios and flows.
+
+        Returns \c {{params, probes, scenarios, flows, clock}}:
+
+        \list
+        \li \c params - one \c {{name, value, defaultValue, from, to, stepSize,
+            unit, description}} per parameter, in registration order. \c from
+            and \c to are the range \l set() and \l run() hold a value to;
+        \li \c probes - one \c {{name, unit}} per probe;
+        \li \c scenarios - the names \l host's \c scenarios() returns (empty
+            without a host);
+        \li \c flows - the registered \l Flow ids;
+        \li \c clock - \c {{seed, sampleInterval, fixedStep}} of \l clock, or
+            null without one.
+        \endlist
+
+        \c description is the text the lab declared, in whatever language it
+        declared it in; \l labInfo() stays ids and values only.
+
+        \sa run, labInfo
+    */
+    function schema() {
+        const params = []
+        for (const n of paramNames) {
+            const p = _params[n]
+            p._keepDefault()
+            params.push({ name: n, value: p.value, defaultValue: p.defaultValue,
+                          from: p.from, to: p.to, stepSize: p.stepSize,
+                          unit: p.unit, description: p.description })
+        }
+        const probes = []
+        for (const n of probeNames) probes.push({ name: n, unit: _probes[n].unit })
+        const sc = host && typeof host.scenarios === "function" ? host.scenarios() : []
+        return {
+            params: params,
+            probes: probes,
+            scenarios: sc ? Array.from(sc) : [],
+            flows: flowIds.slice(),
+            clock: clock ? { seed: clock.seed, sampleInterval: clock.sampleInterval,
+                             fixedStep: clock.fixedStep } : null
+        }
+    }
+
+    /*!
+        \qmlmethod var Lab::run(var opts)
+        \brief Runs one experiment in fixed steps and returns its probes' summaries.
+
+        The one-off form of a \c lab-sweep study: one call instead of a
+        manifest. \a opts:
+
+        \list
+        \li \c scenario - applied through \l host's \c applyScenario().
+            Omitted, the current \l scenario is applied again, so a run never
+            starts from what the previous one left behind;
+        \li \c seed - the clock's seed (default: the seed it has);
+        \li \c params - \c {{name: value}}. Every parameter is put back to
+            its \c defaultValue (\l resetParameters()) before the scenario,
+            so one the run does not name starts where a fresh load has it;
+        \li \c warmupSteps - steps advanced before recording starts (default 0);
+        \li \c steps - steps recorded (default 600);
+        \li \c stepHz - steps per sim second (default 60);
+        \li \c probes - the probe names to report (default: all);
+        \li \c series - true to add each probe's samples.
+        \endlist
+
+        The order is the one \c tools/lab-sweep/lab_sweep.py documents: seed,
+        scenario, parameters, clock reset, warm-up, record. Parameters are set
+        before the reset so that whatever the lab rebuilds on \c wasReset is
+        built with them.
+
+        Returns \c {{scenario, seed, warmupSteps, steps, stepSize,
+        sampleInterval, duration, params, probes}}: \c params is every
+        parameter's value as run, \c probes maps a name to \c {{unit, count,
+        first, last, min, max, mean, stddev}} over the RECORDED samples only -
+        not the warm-up - computed the way a run record computes them, so a
+        mean here is the mean a \c .labrec of the same run holds. The
+        summaries are the run's own: a probe keeps its last 1200 samples and
+        a longer run is still summarized in full. With \c series, \c series
+        maps a name to \c {[[t, v], ...]}, every sample of the run.
+
+        Nothing is run when something in \a opts is wrong - an unknown
+        parameter or probe, a value \l set() refuses, a scenario the host
+        does not have: the result is then \c {{error}}.
+
+        \sa schema, runFlow
+    */
+    function run(opts) {
+        opts = opts ?? ({})
+        if (!clock) return { error: "no SimClock: a run is stepped in sim time" }
+        if (clock.world && clock.world.physics)
+            return { error: "the clock is driven by a physics world, which "
+                            + "cannot be stepped from here" }
+
+        const hz = opts.stepHz !== undefined ? Number(opts.stepHz) : 60
+        const warm = opts.warmupSteps !== undefined ? Number(opts.warmupSteps) : 0
+        const steps = opts.steps !== undefined ? Number(opts.steps) : 600
+        if (!(hz > 0)) return { error: "stepHz must be above 0, not " + opts.stepHz }
+        for (const [k, v] of [["warmupSteps", warm], ["steps", steps]])
+            if (!(v >= 0) || Math.floor(v) !== v)
+                return { error: k + " must be a whole number of steps, not " + v }
+
+        const given = opts.params ?? ({})
+        for (const n in given) {
+            const p = _params[n]
+            if (!p) return { error: "no parameter '" + n + "'; registered: ["
+                                    + paramNames.join(", ") + "]" }
+            const v = Number(given[n])
+            if (isNaN(v) || (p.to > p.from && (v < p.from || v > p.to)))
+                return { error: "parameter " + n + " cannot be " + given[n]
+                                + " - its range is " + p.from + " to " + p.to }
+        }
+        const names = opts.probes ? Array.from(opts.probes) : probeNames.slice()
+        for (const n of names)
+            if (!_probes[n]) return { error: "no probe '" + n + "'; registered: ["
+                                             + probeNames.join(", ") + "]" }
+
+        const sc = opts.scenario !== undefined ? String(opts.scenario) : scenario
+        if (sc !== "") {
+            if (!host || typeof host.applyScenario !== "function")
+                return { error: "no host with applyScenario() to apply scenario '"
+                                + sc + "' - set Lab.host" }
+            const known = typeof host.scenarios === "function"
+                ? Array.from(host.scenarios() ?? []) : null
+            if (known && known.indexOf(sc) === -1)
+                return { error: "no scenario '" + sc + "'; the lab has: ["
+                                + known.join(", ") + "]" }
+        }
+
+        // seed -> scenario -> parameters -> reset -> warm-up -> record. The
+        // defaults go back BEFORE the scenario: a scenario may set parameters
+        // of its own, and a fresh load applies it over the defaults too.
+        if (opts.seed !== undefined) clock.seed = Number(opts.seed)
+        resetParameters()
+        if (sc !== "") host.applyScenario(sc)
+        for (const n in given) set(n, given[n])
+        clock.reset()
+
+        const dt = 1 / hz
+        for (let i = 0; i < warm; ++i) clock._advance(dt)
+
+        const accs = names.map(() => Record.accInit())
+        const series = opts.series ? names.map(() => []) : null
+        // A probe keeps only finite samples, so "did it sample at this tick?"
+        // is "is its newest sample this tick?" - the rule DataRecorder uses,
+        // which is what makes these summaries the record's.
+        const onSampled = function(t) {
+            for (let c = 0; c < names.length; ++c) {
+                const s = _probes[names[c]].samples
+                if (s.length === 0 || s[s.length - 1].t !== t) continue
+                const v = s[s.length - 1].v
+                Record.accAdd(accs[c], v)
+                if (series) series[c].push([t, v])
+            }
+        }
+        let duration = clock.time
+        sampled.connect(onSampled)
+        try {
+            for (let i = 0; i < steps; ++i) clock._advance(dt)
+        } finally {
+            sampled.disconnect(onSampled)
+        }
+        duration = clock.time - duration
+
+        const params = {}
+        for (const n of paramNames) params[n] = _params[n].value
+        const r = {
+            scenario: scenario, seed: clock.seed,
+            warmupSteps: warm, steps: steps, stepSize: dt,
+            sampleInterval: clock.sampleInterval, duration: duration,
+            params: params, probes: {}
+        }
+        for (let c = 0; c < names.length; ++c) {
+            const s = Record.accSummary(accs[c])
+            s.unit = _probes[names[c]].unit
+            r.probes[names[c]] = s
+        }
+        if (series) {
+            r.series = {}
+            for (let c = 0; c < names.length; ++c) r.series[names[c]] = series[c]
+        }
+        return r
     }
 
     /*!
