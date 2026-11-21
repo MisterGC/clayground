@@ -487,8 +487,20 @@ Item {
         return Circuit.solve(solverElements(switchStates), wires)
     }
 
+    // The table is a function of the board with its inputs left out - it sets
+    // them itself, row by row - so flipping an input switch must not solve it
+    // again. It did: four solves per row of the XOR table, twice per flip,
+    // were most of what a flip cost (#577). The key is what the solver is
+    // handed with every input held off, plus the wiring and which parts are
+    // inputs and outputs; the cache is mutated in place, so the bindings that
+    // call this do not come to depend on it.
+    property var _truthCache: ({ key: "", rows: [] })
     function truthTable() {
         if (!hasLogic) return []
+        const held = ({})
+        for (const id of logicInputs) held[id] = false
+        const key = JSON.stringify([solverElements(held), wires, logicInputs, logicOutputs])
+        if (key === _truthCache.key) return _truthCache.rows
         const n = logicInputs.length
         const rows = []
         for (let m = 0; m < (1 << n); ++m) {
@@ -502,6 +514,8 @@ Item {
             const outs = logicOutputs.map(id => !!(solved[id] && solved[id].on))
             rows.push({ inputs: bits, outs: outs, out: outs[0] })
         }
+        _truthCache.key = key
+        _truthCache.rows = rows
         return rows
     }
     // A / B / C ... for the inputs; the outputs use whatever the preset named
@@ -3159,8 +3173,10 @@ Item {
                                                + root.logicOutputs.length * 1.4)
         title: LabLang.t("truth.title")
 
+        // not the sim: every row is a solve of its own, and the board's
+        // current answer is liveRow's business
         readonly property var rows: {
-            root.elemRev; root.sim; root.logicInputs; root.logicOutputs
+            root.elemRev; root.logicInputs; root.logicOutputs
             return root.truthTable()
         }
         readonly property int liveRow: { root.elemRev; return root.logicRowIndex() }
