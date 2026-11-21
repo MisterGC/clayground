@@ -312,8 +312,16 @@ ENVIRONMENT = [
     # lacks, twice; the CI runner lacks them all. Held to its own category, so
     # the same words from anywhere else are not waved through.
     ("linux-multimedia-libraries",
-     re.compile(r"^Couldn't (load|resolve) [\w.+-]+ (library|symbols)$"),
+     re.compile(r"^Couldn't (load|resolve) \S.* (library|symbols)$"),
      "qt.multimedia.symbolsresolver"),
+    # The same Qt Multimedia on a Linux machine with no PulseAudio server to
+    # connect to, such as the CI runner.
+    ("linux-no-pulseaudio",
+     re.compile(r"^PulseAudioService: pa_context_connect\(\) failed$"), None),
+    # Offscreen on Windows reads fonts from the Qt installation's lib/fonts,
+    # which a Qt install does not ship, so the machine has no fonts at all.
+    ("offscreen-no-font-directory",
+     re.compile(r"^QFontDatabase: Cannot find font directory .+$"), None),
 ]
 
 # A QML or JS location as Qt prints it at the start of a diagnostic:

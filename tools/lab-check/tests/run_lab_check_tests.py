@@ -400,8 +400,8 @@ def load_verdict(tmp, name, entries):
         rep.detail("nothing but the environment") or ""
 
 
-# What the five labs log offscreen on macOS and on the Linux CI runner, word
-# for word: the environment.
+# What the five labs log offscreen on macOS and on the Linux and Windows CI
+# runners, word for word: the environment.
 ENV_LINES = [
     {"level": "warning", "text": "The Qt Quick scene is using a rendering method "
      "that is not based on QRhi and a 3D graphics API. Qt Quick 3D is not "
@@ -420,6 +420,12 @@ ENV_LINES = [
      "text": "Couldn't resolve pipewire-0.3 symbols"},
     {"level": "warning", "category": "qt.multimedia.symbolsresolver",
      "text": "Couldn't load va-x11 library"},
+    {"level": "warning", "category": "qt.multimedia.symbolsresolver",
+     "text": "Couldn't load va(in plugin) library"},
+    {"level": "warning", "text": "PulseAudioService: pa_context_connect() failed"},
+    # ... and on the Windows CI runner
+    {"level": "warning", "text": "QFontDatabase: Cannot find font directory "
+     "D:/a/clayground/Qt/6.10.1/msvc2022_64/lib/fonts."},
     {"level": "log", "text": "qml: a log line is never a diagnostic"},
 ]
 
@@ -428,11 +434,11 @@ def test_load_diagnostics(tmp):
     _repo, came_up, clean, det = load_verdict(tmp, "env", ENV_LINES)
     check("load: the named environment messages alone pass the load",
           came_up and clean is True, det)
-    check("load: every message the five labs log offscreen, macOS and Linux, is on the list",
+    check("load: every message the five labs log offscreen, macOS, Linux and Windows, is on the list",
           all(L.environment_name(e["text"], e.get("category", "default"))
-              for e in ENV_LINES[:6]),
+              for e in ENV_LINES[:9]),
           str([L.environment_name(e["text"], e.get("category", "default"))
-               for e in ENV_LINES[:6]]))
+               for e in ENV_LINES[:9]]))
     check("load: the README holds the environment list, entry by entry",
           all(f"`{name}`" in open(os.path.join(os.path.dirname(HERE),
                                                "README.md")).read()
