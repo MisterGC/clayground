@@ -7,6 +7,10 @@ described on their [GitHub release pages](https://github.com/MisterGC/clayground
 
 ## [2026.14] - 2026-11-21
 
+### Fixed
+
+- **The lab check fails a lab whose kit or kernel throws while it loads.** Any warning or error at load fails the `load` check and is printed with the file and line it names, whether that file belongs to the lab, a kit under `labs/kits/` or the kernel in `plugins/clay_lab/`; a message that names no file, such as a `console.warn`, fails it too. Only three named messages count as the machine's, the two Qt Quick 3D warnings about having no 3D graphics API offscreen and macOS's missing "Sans Serif" font, and `tools/lab-check/README.md` lists them. A lab that fails `load` this way still gets every other check. Why: a message counted as the lab's only when it named a file in the lab's own folder, so a kit that threw a `TypeError` at load passed the check. ([#534](https://github.com/MisterGC/clayground/issues/534))
+
 ## [2026.13] - 2026-11-14
 
 A world can run a slow motion on simulated time, so a bench that steps it by
