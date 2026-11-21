@@ -24,6 +24,8 @@ namespace FrameStats {
 //   rendered   frames the window really drew in them
 //   seconds    wall time of the run
 //   cpuMs      process CPU time per slot: median, mean, min, max
+//   loadAverage the machine's one-minute load average at the end, null on
+//              Windows - CPU time moves with it
 //   cpuInstructions  instructions the process retired per slot, the same
 //              way; null where the platform does not count them (only
 //              macOS does). Unlike CPU time it holds under load.

@@ -396,10 +396,12 @@ int main(int argc, char* argv[])
         "counted, run n frame slots of 1/60 s, draw a frame only when the "
         "scene asks for one, as a window does, and print one JSON line - "
         "frames, rendered (frames really drawn), seconds, cpuMs (process CPU "
-        "time per slot), cpuInstructions (instructions retired per slot, "
+        "time per slot), loadAverage (one-minute, beside it; null on Windows), "
+        "cpuInstructions (instructions retired per slot, "
         "macOS only, steady under load), renderMs (wall time to draw a frame), "
-        "drawCalls and vertices (summed over every View3D), views3d. Each is "
-        "{median, mean, min, max}, or null when nothing was drawn. Waiting for "
+        "drawCalls and vertices (summed over every View3D), views3d. Each per-slot "
+        "and per-frame figure is {median, mean, min, max}, or null when "
+        "nothing was drawn. Waiting for "
         "the next slot is in none of them.", "n");
     QCommandLineOption settleOpt("settle",
         "Capture once the picture stops changing (or the timeout expires).");
