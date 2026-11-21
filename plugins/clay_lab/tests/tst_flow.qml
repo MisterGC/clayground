@@ -208,6 +208,25 @@ Item {
         }
     }
 
+    // A task whose outcome is a changed circuit lends the pads and wires
+    // as well as the parts it names.
+    Flow {
+        id: wiringFlow
+        lab: fakeLab
+        flowId: "tst-wiring"
+        pacing: "manual"
+
+        FlowStep { key: "build"; demo: [["let", "sw", "addPart", "switch"]] }
+        FlowStep {
+            key: "rewire"
+            task: ({ "until": () => fakeLab.tagged !== -1,
+                     "allow": ["sw"],
+                     "wiring": true,
+                     "solve": [["tagPart", "sw"]] })
+        }
+        FlowStep { key: "after" }
+    }
+
     TestCase {
         name: "Flow"
 
@@ -218,7 +237,7 @@ Item {
             flow.stop(); viewFlow.stop(); blindFlow.stop()
             goodFlow.stop(); verblessFlow.stop(); endlessFlow.stop()
             wrongFlow.stop(); unsolvableFlow.stop()
-            gatedFlow.stop(); openTaskFlow.stop()
+            gatedFlow.stop(); openTaskFlow.stop(); wiringFlow.stop()
             fakeCam.lastCall = ""; fakeCam.lastArg = null
             fakeCam.calls = 0; fakeCam.partsWhenAimed = -1
         }
@@ -451,6 +470,31 @@ Item {
             compare(openTaskFlow.control, "task")
             verify(openTaskFlow.grants(fakeLab.parts[0].id))
             verify(openTaskFlow.grants(4242), "anything at all")
+        }
+
+        function test_wiringIsTheLearnersUntilAFlowStarts() {
+            verify(gatedFlow.lendsWiring(), "with nothing running, the pads are live")
+        }
+
+        function test_aPartTaskKeepsTheWiringLocked() {
+            gatedFlow.start()
+            verify(!gatedFlow.lendsWiring(), "not on a demo step")
+            gatedFlow.next()
+            compare(gatedFlow.control, "task")
+            verify(!gatedFlow.lendsWiring(), "nor on a task that lent only a part")
+        }
+
+        function test_aWiringTaskLendsTheCircuitAndTakesItBack() {
+            wiringFlow.start()
+            verify(!wiringFlow.lendsWiring(), "its demo step locks the wiring")
+            wiringFlow.next()
+            verify(wiringFlow.lendsWiring(), "the task lends the pads and wires")
+            compare(wiringFlow.grants(wiringFlow.nameOf("sw")), true, "and the part it named")
+            fakeLab.tagPart(wiringFlow.nameOf("sw"))
+            verify(wiringFlow.check())
+            verify(!wiringFlow.lendsWiring(), "locked again the instant it is done")
+            wiringFlow.stop()
+            verify(wiringFlow.lendsWiring(), "and the learner's once the flow is left")
         }
 
         function test_aRefusalIsSaidAndThenForgotten() {

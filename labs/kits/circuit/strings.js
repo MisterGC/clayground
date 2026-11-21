@@ -36,6 +36,13 @@ var dict = {
         "switch.closed": "closed",
         "switch.open": "open",
 
+        // an LED's state, and what its card offers once it has burnt out;
+        // %1 is its maximum current
+        "led.intact": "intact",
+        "led.burnt": "burnt out",
+        "led.rated": "takes at most %1",
+        "led.replace": "BURNT OUT · REPLACE",
+
         // the transistor's three terminals, and the region it is working in
         "npn.collector": "collector",
         "npn.base": "base",
@@ -148,6 +155,11 @@ var dict = {
         "switch.off": "AUS",
         "switch.closed": "geschlossen",
         "switch.open": "offen",
+
+        "led.intact": "intakt",
+        "led.burnt": "durchgebrannt",
+        "led.rated": "verträgt höchstens %1",
+        "led.replace": "DURCHGEBRANNT · ERSETZEN",
 
         "npn.collector": "Kollektor",
         "npn.base": "Basis",

@@ -2,9 +2,12 @@
 """Generate the website's lab pages from the labs themselves.
 
     python3 docs/scripts/import_labs.py
+    python3 docs/scripts/import_labs.py --check --out <dir>   # exit 1 when a lab got no page
 
-The labs are the source of truth; nothing here is authored twice. For each
-lab under `labs/` this reads
+The labs are the source of truth; nothing here is authored twice. Every
+directory under `labs/` with a `Sandbox.qml` is a lab and gets a page - the
+labs `ORDER` names come first in that order, the rest follow by name, so a new
+lab is published without an edit here (#533). For each lab this reads
 
     paper.md    the H1 (title + tagline) and the opening "## The question"
     strings.js  the scenario names and their `scenario.note.*` one-liners
@@ -34,24 +37,47 @@ import re
 import shutil
 import sys
 
+import argparse
+
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-LABS_DIR = os.path.join(ROOT, "labs")
-KITS_DIR = os.path.join(LABS_DIR, "kits")
-OUT_DIR = os.path.join(ROOT, "docs", "labs")
-CARD_DIR = os.path.join(OUT_DIR, "kits")
-DATA_FILE = os.path.join(ROOT, "docs", "_data", "labs.yml")
-CARD_DATA_FILE = os.path.join(ROOT, "docs", "_data", "lab_cards.yml")
-SHOT_DIR = os.path.join(ROOT, "docs", "assets", "images", "labs")
+# Set by configure(): the defaults are the real tree, and the test points them
+# at a temp copy so it never writes into docs/.
+LABS_DIR = KITS_DIR = OUT_DIR = CARD_DIR = DATA_FILE = CARD_DATA_FILE = SHOT_DIR = None
+
+
+def configure(labs_dir, site_dir):
+    """labs_dir holds the labs, site_dir is the Jekyll root the pages go to."""
+    global LABS_DIR, KITS_DIR, OUT_DIR, CARD_DIR, DATA_FILE, CARD_DATA_FILE, SHOT_DIR
+    LABS_DIR = labs_dir
+    KITS_DIR = os.path.join(LABS_DIR, "kits")
+    OUT_DIR = os.path.join(site_dir, "labs")
+    CARD_DIR = os.path.join(OUT_DIR, "kits")
+    DATA_FILE = os.path.join(site_dir, "_data", "labs.yml")
+    CARD_DATA_FILE = os.path.join(site_dir, "_data", "lab_cards.yml")
+    # Shots are committed, so they are read from the real docs/ even when the
+    # pages go elsewhere.
+    SHOT_DIR = os.path.join(ROOT, "docs", "assets", "images", "labs")
 REPO_ROOT = "https://github.com/MisterGC/clayground"
 REPO = REPO_ROOT + "/blob/main"
 
 # Order is editorial, not alphabetical: this is the sequence a newcomer
-# should meet them in - simplest domain first, most open-ended last.
+# should meet them in - simplest domain first, most open-ended last. It only
+# ranks: a lab missing here still gets its page, after these (#533).
 ORDER = ["electronics-101", "hydraulics-101", "sensor-fusion-101", "street-network-101"]
 
+
+def lab_slugs():
+    """Every directory under labs/ with a Sandbox.qml - the same rule
+    labs/CMakeLists.txt uses for the lab_check gates - ORDER's first."""
+    found = sorted(d for d in os.listdir(LABS_DIR)
+                   if os.path.isfile(os.path.join(LABS_DIR, d, "Sandbox.qml")))
+    return ([s for s in ORDER if s in found]
+            + [s for s in found if s not in ORDER])
+
 # Which kit each lab leans on, for the fact strip. Derived from the lab's
-# own imports rather than hardcoded.
-KIT_RE = re.compile(r'import\s+"\.\./kits/([a-z0-9_-]+)"')
+# own imports rather than hardcoded - the kit directory, or a file in it
+# (character-101 imports only the kit's strings.js).
+KIT_RE = re.compile(r'import\s+"\.\./kits/([a-z0-9_-]+)[/"]')
 
 
 def read(path):
@@ -171,7 +197,7 @@ def labs_using(kit):
     """Which labs import this kit, read off their sandboxes rather than listed
     here - a kit that gains a second user says so without an edit."""
     out = []
-    for slug in ORDER:
+    for slug in lab_slugs():
         if kit_of(os.path.join(LABS_DIR, slug)) == kit:
             out.append(slug)
     return out
@@ -254,7 +280,17 @@ def copy_figures(body, lab_dir, slug):
         shutil.copyfile(src, dst)
 
 
-def main():
+def main(argv=None):
+    ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
+    ap.add_argument("--labs", default=os.path.join(ROOT, "labs"),
+                    help="directory holding the labs (default: labs/)")
+    ap.add_argument("--out", default=os.path.join(ROOT, "docs"),
+                    help="site root the pages are written to (default: docs/)")
+    ap.add_argument("--check", action="store_true",
+                    help="exit 1 when a lab got no page")
+    args = ap.parse_args(argv)
+    configure(os.path.abspath(args.labs), os.path.abspath(args.out))
+
     if not os.path.isdir(LABS_DIR):
         print("no labs/ directory - nothing to import", file=sys.stderr)
         return 0
@@ -262,7 +298,8 @@ def main():
     os.makedirs(os.path.dirname(DATA_FILE), exist_ok=True)
 
     entries = []
-    for slug in ORDER:
+    slugs = lab_slugs()
+    for slug in slugs:
         lab_dir = os.path.join(LABS_DIR, slug)
         paper_path = os.path.join(lab_dir, "paper.md")
         if not os.path.exists(paper_path):
@@ -351,6 +388,12 @@ def main():
     print("wrote %s (%d labs)" % (os.path.relpath(DATA_FILE, ROOT), len(entries)))
 
     write_cards({e["slug"]: e["name"] for e in entries})
+
+    missing = [s for s in slugs if s not in {e["slug"] for e in entries}]
+    if missing:
+        print("labs without a page: %s" % ", ".join(missing), file=sys.stderr)
+        if args.check:
+            return 1
     return 0
 
 

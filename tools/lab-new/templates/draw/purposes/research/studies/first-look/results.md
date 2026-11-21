@@ -13,10 +13,10 @@ tools/lab-sweep/lab-sweep labs/{{slug}}/studies/first-look
 
 | rank | configuration | max(walked) | seed spread | mean(length) | runs |
 |---|---|---|---|---|---|
-| 1 | `intro` | 8.000 | 0.000 | 8.000 | 1 |
+| 1 | `intro` | 7.950 | 0.000 | 8.000 | 1 |
 
 ## Every run
 
 | record | configuration | seed | max(walked) | mean(length) |
 |---|---|---|---|---|
-| `intro-42.labrec` | `intro` | 42 | 8.000 | 8.000 |
+| `intro-42.labrec` | `intro` | 42 | 7.950 | 8.000 |
