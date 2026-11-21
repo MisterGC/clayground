@@ -55,6 +55,9 @@ per imported directory (`pitfalls.md`, *Publishing*). Tiers:
 2. Build targets are QML module names: `ClayLab`, never `clay_lab`. After
    touching **any** plugin QML, build everything — plugin QML is baked into
    the plugin's resources; a target build or a reload keeps the old file live.
+   The one exception is the lab kernel: started with `--lab-src`, the dojo,
+   the loader and `clayrender` load `Clayground.Lab` from `plugins/clay_lab`,
+   and a saved kernel edit is live on the next reload.
 3. `clayrender` needs a real GUI session (never `QT_QPA_PLATFORM=offscreen`);
    never start or kill a dojo the person may be sitting in front of.
 4. A new lab starts from the generator, never from a blank file or a copy:
