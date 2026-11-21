@@ -45,6 +45,8 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     
     // Create hot reload container
     m_container = new HotReloadContainer(this);
+    if (!m_liveLoader->labSrcDir().isEmpty())
+        m_container->addReloadDir(m_liveLoader->labSrcDir());
     layout->addWidget(m_container);
     
     // Connect hot reload container to live loader
@@ -275,6 +277,17 @@ void MainWindow::configureEngine(QQmlEngine* engine)
     QString sandboxDir = m_liveLoader->sandboxDir();
     if (!sandboxDir.isEmpty())
         engine->addImportPath(sandboxDir);
+    putLabSrcFirst(engine);
+}
+
+void MainWindow::putLabSrcFirst(QQmlEngine* engine)
+{
+    // After every other addImportPath on the engine, because the last path
+    // added is the first one searched - even one that was there already. An
+    // addImportPath(bin/qml) after this one put the compiled Clayground.Lab
+    // back in front for every import that came later (#570).
+    if (!m_liveLoader->labSrcImportDir().isEmpty())
+        engine->addImportPath(m_liveLoader->labSrcImportDir());
 }
 
 void MainWindow::onSandboxUrlChanged()
@@ -437,6 +450,7 @@ void MainWindow::createOverlays()
     // Ensure all required imports are available
     engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     engine->addImportPath("qml");
+    putLabSrcFirst(engine);
     
     // Create log overlay (MessageView)
     m_logOverlay = new QQuickWidget(engine, centralWidget());

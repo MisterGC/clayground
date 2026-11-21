@@ -24,10 +24,17 @@ import argparse
 import json
 import os
 import re
+import shutil
 import subprocess
 import sys
 
 FAILED_LOG = os.path.join("Testing", "Temporary", "LastTestsFailed.log")
+# Every test's output from the first run. A repeat is a ctest run of its own
+# and rewrites LastTest.log with the repeated tests alone, so a later step
+# that reads the suite's output from it - CI's lab records report (#535) -
+# would find the lab tests gone after any network repeat.
+TEST_LOG = os.path.join("Testing", "Temporary", "LastTest.log")
+FIRST_RUN_LOG = os.path.join("Testing", "Temporary", "FirstRunTest.log")
 
 
 def run_ctest(ctest, args):
@@ -106,6 +113,8 @@ def main():
     args = a.ctest_args[1:] if a.ctest_args[:1] == ["--"] else a.ctest_args
 
     code = run_ctest(a.ctest, args)
+    if os.path.isfile(TEST_LOG):
+        shutil.copyfile(TEST_LOG, FIRST_RUN_LOG)
     if code == 0:
         return 0
     failed = failed_tests()

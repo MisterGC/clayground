@@ -17,6 +17,8 @@ import struct
 import subprocess
 import sys
 import tempfile
+import urllib.parse
+import urllib.request
 import zlib
 
 CHECKS = []
@@ -712,6 +714,44 @@ Item {
           str(seen_by(["--prefs", store])))
     check("the opt-in store is the only one that got written",
           os.path.isdir(os.path.join(store, "Databases")), store)
+
+    # --lab-src (#570): Clayground.Lab from its source directory, so a kernel
+    # edit is live without a rebuild. The URL a kernel type was compiled from
+    # says which copy the engine took - the source file, not the resource.
+    write(os.path.join(tmp, "Kernel.qml"), """
+import QtQuick
+import Clayground.Lab
+Item { Parameter { id: p } }
+""")
+    kernel_src = os.path.realpath(os.path.join(
+        os.path.dirname(os.path.abspath(__file__)), "..", "..", "..",
+        "plugins", "clay_lab"))
+    url_of = 'Qt.createComponent("Clayground.Lab", "Parameter").url.toString()'
+    code, got, err = results_of([os.path.join(tmp, "Kernel.qml"), "--out",
+                                 os.path.join(tmp, "kernel.png"), "--size",
+                                 "60x40", "--lab-src", "--eval", url_of,
+                                 "--eval", "typeof Lab.runFlow"])
+    url = got[0]["value"] if got else ""
+    # file:///D:/a/... on Windows: a URL turns into a path through url2pathname,
+    # not by cutting the scheme off, and both sides are compared normalised.
+    parsed = urllib.parse.urlparse(url)
+    path = (urllib.request.url2pathname(parsed.path)
+            if parsed.scheme == "file" else url)
+    def same_file(a, b):
+        return (os.path.normcase(os.path.realpath(a))
+                == os.path.normcase(os.path.realpath(b)))
+    check("--lab-src loads Clayground.Lab from plugins/clay_lab",
+          code == 0 and parsed.scheme == "file"
+          and same_file(path, os.path.join(kernel_src, "Parameter.qml")),
+          f"exit {code}: {url or err.strip()[:160]}")
+    check("--lab-src keeps the kernel's singletons",
+          code == 0 and got and got[1]["value"] == "function", str(got)[:160])
+    code, got, err = results_of([os.path.join(tmp, "Kernel.qml"), "--out",
+                                 os.path.join(tmp, "kernel.png"), "--size",
+                                 "60x40", "--eval", url_of])
+    check("without --lab-src the kernel is the compiled copy",
+          code == 0 and got and got[0]["value"].startswith("qrc:"),
+          str(got)[:160] if got else err.strip()[:160])
 
     # Statelessness is the point: several renders at once must not interfere.
     procs = [subprocess.Popen(

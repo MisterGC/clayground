@@ -94,6 +94,12 @@ and the fix looks applied while the old file is still live. Build targets are
 named after the QML module, not the directory: `ClayCanvas3D`, `ClayLab` — not
 `clay_canvas3d`. When in doubt, `cmake --build build`.
 
+The lab kernel is the exception: `--lab-src` on the dojo, the loader and
+`clayrender` loads `Clayground.Lab` from `plugins/clay_lab` instead of the
+plugin (through `build/lab-src`, written by the default build), and the
+dojo and loader watch that directory, so a saved edit to a kernel file is
+live on the next reload — no rebuild, no restart.
+
 ## Architecture
 
 Layered: foundation plugins (`clay_common`, `clay_storage`, `clay_text`,

@@ -34,7 +34,7 @@ do is reachable through `eval` via the conventions below), **teaching-first**
 | purpose | owes, on top of the common base |
 |---|---|
 | **research** — you are measuring something | `studies/<slug>/study.md` + committed records + the answerability table; no flow, no DE, no board owed |
-| **teaching** — you are explaining it to someone | at least one flow with `expect`s, EN + DE narration, a storyboard `overview.grafli` — and a lesson that passes the checklist in `references/teaching.md`, which `lab-check` cannot see |
+| **teaching** — you are explaining it to someone | at least one flow, each with a learner `task` and an `expect`; EN + DE narration, every line at most 240 characters and none a `say` literal in the QML; a storyboard `overview.grafli` — and a lesson that passes the rest of the checklist in `references/teaching.md` — its top says which rules, in which references, `lab-check` checks and which are judgement |
 | **learning** — you are working it out | a `paper.md` study path and a concept-map `overview.grafli` |
 
 Common base, every tier — exactly what `lab-check` demands of every lab:
@@ -55,6 +55,9 @@ per imported directory (`pitfalls.md`, *Publishing*). Tiers:
 2. Build targets are QML module names: `ClayLab`, never `clay_lab`. After
    touching **any** plugin QML, build everything — plugin QML is baked into
    the plugin's resources; a target build or a reload keeps the old file live.
+   The one exception is the lab kernel: started with `--lab-src`, the dojo,
+   the loader and `clayrender` load `Clayground.Lab` from `plugins/clay_lab`,
+   and a saved kernel edit is live on the next reload.
 3. `clayrender` needs a real GUI session (never `QT_QPA_PLATFORM=offscreen`);
    never start or kill a dojo the person may be sitting in front of.
 4. A new lab starts from the generator, never from a blank file or a copy:
@@ -230,7 +233,7 @@ correctly under the inspector's `time` pause/step; (c) exposes `labInfo()`.
 looks at a picture. A red line: `references/check-failures.md`.
 
 ```bash
-tools/lab-check/lab-check labs/<slug>                    # load, determinism, flows, strings, records, tables, study, triad, remarks
+tools/lab-check/lab-check labs/<slug>                    # load, determinism, flows, strings, teaching, records, tables, study, triad, remarks
 tools/lab-check/lab-check labs/<slug> --only flows       # while you work
 tools/lab-sweep/lab-table labs/<slug> --check            # are the paper's tables current?
 ctest --preset default -R lab_check                       # every lab

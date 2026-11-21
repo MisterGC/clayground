@@ -10,6 +10,7 @@
 #include <clayscenequery.h>
 #include <claysettle.h>
 #include <claystorage.h>
+#include <utilityfunctions.h>
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -398,6 +399,7 @@ int main(int argc, char* argv[])
     QCommandLineOption cropPadOpt("crop-pad",
         "Grow the crop by this many pixels on every side, clipped to the "
         "viewport. A tight cut around a panel reads as cramped.", "px");
+    QCommandLineOption labSrcOpt(LAB_SRC_ARG, LAB_SRC_ARG_DESCR);
     QCommandLineOption scaleOpt("scale", "Scale the capture, e.g. 0.5.", "factor");
     QCommandLineOption widthOpt("width", "Scale the capture to this width.", "px");
 
@@ -405,7 +407,7 @@ int main(int argc, char* argv[])
                        scriptOpt, resultOpt, pausedOpt, waitForOpt, waitMsOpt,
                        traceOpt, traceOutOpt, framesOpt, settleOpt,
                        settleMsOpt, dumpOpt, projectOpt, pickOpt, anchorOpt,
-                       cropOpt, cropPadOpt, scaleOpt, widthOpt});
+                       cropOpt, cropPadOpt, scaleOpt, widthOpt, labSrcOpt});
     parser.process(app);
 
     const auto positional = parser.positionalArguments();
@@ -458,6 +460,13 @@ int main(int argc, char* argv[])
 
     RenderHost host;
     host.setPausedOnLoad(parser.isSet(pausedOpt));
+    if (parser.isSet(labSrcOpt)) {
+        QString error;
+        const QString importDir = labSourceImportDir(&error);
+        if (importDir.isEmpty())
+            return fail(error);
+        host.setFirstImportPath(importDir);
+    }
     if (!host.load(sandbox, size)) {
         for (const auto& e : host.errors())
             QTextStream(stderr) << "clayrender: " << e << "\n";

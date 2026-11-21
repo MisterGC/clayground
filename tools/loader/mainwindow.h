@@ -36,6 +36,7 @@ private slots:
     // import paths). Runs for the initial engine and for every reload
     // candidate, before it parses any QML.
     void configureEngine(QQmlEngine* engine);
+    void putLabSrcFirst(QQmlEngine* engine);
     void onSandboxUrlChanged();
     void onRestarted();
     void toggleLogOverlay();

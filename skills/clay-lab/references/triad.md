@@ -14,7 +14,12 @@ dependencies** — the lab never links against textli or grafli. If the
 the respective artifact; their conventions govern format details. This
 file covers what is lab-specific.
 
-Write the paper and board **last**, from measured numbers. The paper is
+Every rule here is marked: *checked* names the `lab-check` line that
+fails when it is broken (`check-failures.md`), *judgement* means no
+program tests it. `lab-check` sees whether a file exists, parses and
+regenerates; what the prose says is judgement throughout.
+
+Write the paper and board **last**, from measured numbers *(judgement)*. The paper is
 not documentation-after-the-fact in spirit — writing it is what forces
 the numbers to be right — but its results section can only be written
 after the verification runs exist.
@@ -22,7 +27,8 @@ after the verification runs exist.
 ## Purpose decides the structure
 
 Ask what the lab is *for* before writing a line of either artifact, and
-say so in the paper's opening. The three purposes want genuinely
+say so in the paper's opening *(checked: `config: lab-check.json declares
+a purpose`; saying so in the paper is judgement)*. The three purposes want genuinely
 different documents, and a paper written for the wrong one reads as
 padding — a lesson plan full of uncertainty budgets, or a lab report
 that keeps stopping to ask the reader a question.
@@ -34,6 +40,9 @@ that keeps stopping to ask the reader a question.
 | **research** | you or a reviewer, later | a lab report | a model diagram |
 
 ### learning — the lab is your study space
+
+*Checked: `triad: paper.md exists` and `triad: overview.grafli exists`.
+What the paper and the board hold is judgement.*
 
 1. **The question** and, before any answer, **what you expected** —
    writing the wrong prediction down is the whole point.
@@ -51,6 +60,11 @@ reconstruct later.
 
 ### teaching — someone else is the reader
 
+*Checked: the paper, the board, a flow (`flows: the lab has at least
+one`), German (`strings: the lab registers DE`) and the lesson rules
+under `teaching: …`. The five parts of the paper and a board that
+mirrors the flow are judgement.*
+
 1. **The misconception it targets**, stated as the belief a learner
    arrives with.
 2. **The demonstration sequence** — which scenario, what to change, what
@@ -67,6 +81,10 @@ the paper is its script, so prepared scenarios matter more than a wide
 parameter range — the reader is on rails on purpose.
 
 ### research — the lab is an instrument
+
+*Checked: `study: a research lab has at least one study` and `study:
+<name>` — a manifest that parses, committed records, an `## Answerability`
+section. The five parts of the paper are judgement.*
 
 1. **The question**, sharp enough to be answered by a number.
 2. **Method** — what is swept, what is held, how many runs.
@@ -90,7 +108,9 @@ one is a lie.
 #### Answerability — what a lab may be asked
 
 Before any run that is meant to answer a question, map **every quantity
-the question needs** onto one of three things:
+the question needs** onto one of three things *(judgement; `lab-check`
+fails a study with no Answerability section, and `lab-sweep --check`
+tests the parameter and probe rows)*:
 
 | the question needs… | it maps to | how you check |
 |---|---|---|
@@ -118,7 +138,8 @@ optional `figures/` with its own `make.sh`. `tools/lab-sweep/README.md`
 documents the manifest and the runner;
 `labs/street-network-101/studies/topology-four-houses/` is the reference.
 
-`study.md` is written **in this order, and the order is the point** — the
+`study.md` is written **in this order, and the order is the point**
+*(judgement)* — the
 validity argument is made before any number exists, so it cannot be
 written to fit the answer: the question (with what "better" means), the
 answerability mapping with what had to be reduced or added, the method and
@@ -131,12 +152,13 @@ everything above it without `records/` and `results.md`.
 
 A lab often starts as research and becomes teaching once you know the
 answer. When that happens, **re-cut the paper rather than appending to
-it** — a lab report with a lesson plan bolted on the end serves neither
+it** *(judgement)* — a lab report with a lesson plan bolted on the end serves neither
 reader, and the flow it needs is a different flow.
 
 ## paper.md
 
-Whatever the purpose, these hold. Structure that has worked (see
+Whatever the purpose, these hold *(checked: `triad: paper.md exists`;
+the six parts below are judgement)*. Structure that has worked (see
 `labs/electronics-101/paper.md` and `labs/sensor-fusion-101/paper.md`,
 both teaching labs):
 
@@ -175,9 +197,10 @@ this still true?" from an argument into a `diff`. Records live in
 `labs/<lab>/records/` and are committed; papers cite them by id.
 
 - **Every number in the results table names its record**, and the
-  regeneration command appears once in the section. If you cannot point
+  regeneration command appears once in the section *(judgement)*. If you cannot point
   at the record a number came out of, the number does not go in.
-- **A results table is rendered, never typed** (#209). It is declared
+- **A results table is rendered, never typed** (#209) *(checked:
+  `tables: <file> <study>/<name>`)*. It is declared
   under `tables` in a study manifest — rows are a varied parameter's
   levels, columns are expressions over record statistics, seeds are
   averaged — and written between `<!-- table: <study>/<name> -->` and
@@ -188,10 +211,12 @@ this still true?" from an argument into a `diff`. Records live in
   A table only a lab-level `records/` could feed stays hand-cited, with
   its record column, until that is worth a manifest of its own.
 - A number you cannot get out of a record is a **missing probe**, not a
-  licence to quote from the panel. Add the probe, re-record, then quote.
+  licence to quote from the panel *(judgement)*. Add the probe, re-record, then quote.
   (sensor-fusion probes the Kalman gain and each sensor's reported σ for
   exactly this reason — its central claim was otherwise unciteable.)
-- **Records must come from a stepped run, never a live one.** A frame is
+- **Records must come from a stepped run, never a live one**
+  *(checked: `determinism: <scenario>` and `records: <driver> regenerates
+  to the committed bytes`)*. A frame is
   a wall-clock interval, so a lab left to play itself samples wherever
   the last frame landed and two same-seed runs diverge from the first
   tick. Start the lab with `clayrender --paused`, which sets
@@ -202,20 +227,23 @@ this still true?" from an argument into a `diff`. Records live in
   that runs a scenario twice and `cmp`s the two files.
 - Any change to the model, sensors, RNG consumption pattern, or
   measurement weighting **invalidates the records** — re-run `make.sh`
-  and re-read the table off the new files in the same commit. The diff
+  and re-read the table off the new files in the same commit *(checked:
+  `records: <driver> regenerates to the committed bytes`; re-reading the
+  prose is judgement)*. The diff
   in the record is the review.
 - **A record above ~200 KB** has its sample table thinned automatically
   and says so in its header; the summaries stay over every sample, so a
   quoted number is never the thinned one.
 - Source-map line numbers drift with every edit — re-check them as the
-  last step before handover.
-- **The recording is stepped, by a committed driver.** `records/make.sh`
+  last step before handover *(judgement)*.
+- **The recording is stepped, by a committed driver** *(checked:
+  `records: make.sh regenerates`)*. `records/make.sh`
   (generated by `tools/lab-new`, sensor-fusion-101 has the reference) drives
   `clayrender --paused`, builds each record's `command` field out of its own
   path, and `--verify` runs each scenario twice and `cmp`s the files — that
   command *is* the determinism evidence.
 - The paper, the board, the hint bar and the flow narration must agree
-  on key bindings and on what things are called. (A board that says "R
+  on key bindings and on what things are called *(judgement)*. (A board that says "R
   records CSV" when `R` rotates and `Shift+R` records sends a learner
   destroying their layout.)
 
@@ -236,6 +264,8 @@ labs/<lab>/figures/            beside paper.md
 ```
 
 A study keeps its own `figures/` next to its `study.md`, same shape.
+
+*Judgement, all five — `lab-check` does not run `figures/make.sh`.*
 
 1. **Every figure is regenerated by `make.sh`, or it is not a figure.** A
    picture nobody can remake is a screenshot: it rots the first time the lab
@@ -264,6 +294,9 @@ a claim about. Decoration earns nothing. Reference:
 
 ## overview.grafli
 
+*Checked: `triad: overview.grafli exists` for a teaching or learning lab.
+Everything below is judgement.*
+
 - Concept topology, not a screenshot: the causal chain of the lab
   (build → solve → show; sensors → filter → estimate), with deep links
   into the paper's sections. Which topology depends on the purpose — a
@@ -282,11 +315,15 @@ a claim about. Decoration earns nothing. Reference:
 Not strictly a triad member but shipped alongside from the first
 commit: `{ en: {key: text}, de: {key: text} }` exported as `dict`. The
 kit owns part vocabulary in its own `strings.js`; the lab owns UI copy
-and flow narration; the lab may override kit keys. No bare user-visible
-literal in any QML file.
+and flow narration; the lab may override kit keys *(checked: `strings:
+the lab registers EN`, and DE parity once it exists)*. No bare
+user-visible literal in any QML file *(checked for a flow's narration:
+`teaching: no narration is written in the QML`; any other literal is
+judgement)*.
 
 ## Feedback loop
 
 CriticMarkup remarks in `paper.md` (`{>> like this <<}`) are the
-standing review channel — collect and address them on resume, same loop
+standing review channel *(counted by `remarks`, never a failure;
+addressing them is judgement)* — collect and address them on resume, same loop
 as groundwork review.

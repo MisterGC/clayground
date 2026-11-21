@@ -18,6 +18,7 @@ WHAT IS CHECKED, IN ORDER
   determinism   every scenario, two stepped runs, byte-identical records
   flows         every flow runs to its end, with its expects holding
   strings       EN and DE say the same set of things, flows included
+  teaching      a teaching lab's lessons keep the rules a program can test
   records       records/make.sh and studies/* regenerate the committed bytes
   tables        every <!-- table: --> block renders to the committed bytes
   study         a research lab has a study with records and answerability
@@ -26,7 +27,8 @@ WHAT IS CHECKED, IN ORDER
 
 WHAT THE PURPOSE DECIDES (#209). lab-check.json declares what the lab is FOR,
 and the gate asks for what that purpose owes and nothing more: a teaching lab
-owes a flow with expects, German, and a storyboard; a research lab owes a
+owes a flow with a learner task and an expect, German, and a storyboard; a
+research lab owes a
 study with committed records and an answerability table; a learning lab owes
 its paper and a concept board. Everything a lab HAS is still checked whatever
 the tier - a research lab that ships a flow has it run, one that ships German
@@ -34,8 +36,34 @@ has the parity checked - because a half-translated dictionary or a flow that
 no longer finishes is a defect however the lab is labelled. Only the
 "at least one" demands are tiered.
 
-Exit 0 when everything passed, 1 on any FAIL, 77 (the ctest SKIP_RETURN_CODE)
-when the machine cannot run the check at all - no clayliveloader built.
+WHAT A LESSON IS HELD TO (#542). The skill's teaching rules are mostly
+judgement - whether a step explains, whether a task needs the idea - and the
+skill marks which. The ones a program can test, the teaching check tests, for
+a teaching lab: every flow has a step the learner acts on and an expect;
+every line a flow can say, hints and answered variants included, fits in 240
+characters in every language once a script's *cues* are taken out; and no
+step's narration is a `say` literal in the QML instead of a strings.js key.
+
+Exit 0 when everything passed, 1 on any FAIL, 2 when the command line or the
+lab directory is wrong (no Sandbox.qml, an unknown check), 77 (the ctest
+SKIP_RETURN_CODE) when the machine cannot run the check at all - no
+clayliveloader built.
+
+WHY THE LOADER IS WATCHED (#536). Every wait on the inspector also asks
+whether the loader process is still there. One that ended - a crash, a
+module it could not load - fails the run it was serving at once, with its
+exit code and its last lines of output, instead of being polled for minutes
+by a check that cannot tell a dead process from a slow one. A lab that never
+gets ready fails after --ready-timeout (90 s by default, printed in the
+header), and the loader runs still to come are NOT RUN rather than each
+waiting out the same timeout again. Neither stops the checks that need no
+loader: records, tables, study, triad and remarks report either way.
+
+A check this machine cannot run - the records check without a clayrender that
+starts - is a NOT RUN line, never a PASS: the summary counts them apart
+("12/12 checks passed, 2 not run"), and `--strict` exits 1 when there is one,
+for a gate whose job is to regenerate the records rather than to skip them
+(#535).
 
 WHY THE LOADER AND NOT clayrender. Issue #208 proposed
 `clayrender --paused --result -`, which exists now (#207) and is the right
@@ -47,7 +75,7 @@ to remove. clayliveloader runs offscreen and its inspector protocol returns
 eval values, so the same questions get the same answers - the route
 tools/lab-new's boot tests already take. The records check is the one part that
 still shells out to clayrender (that is what the committed `command` field says
-regenerates a record); with no display it reports itself as not-run rather than
+regenerates a record); with no display it reports itself as NOT RUN rather than
 inventing a verdict.
 
 The flow check is `Lab.runFlow()` (#207) called through that protocol, not a
@@ -63,6 +91,7 @@ clock, the seeded RNG and every probe - and then advances sim time by hand in
 """
 
 import argparse
+import collections
 import json
 import os
 import re
@@ -70,15 +99,30 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 
 SKIP = 77
-CHECK_ORDER = ["load", "determinism", "flows", "strings", "records", "tables",
-               "study", "triad", "remarks"]
+CHECK_ORDER = ["load", "determinism", "flows", "strings", "teaching", "records",
+               "tables", "study", "triad", "remarks"]
 PURPOSES = ("learning", "teaching", "research")
 DEFAULT_STEPS = 600
 DEFAULT_MAX_FLOW_STEPS = 20000
+# The longest narration line a lesson may say, in characters, in any language
+# (#542): the skill's "one idea per step" made countable. A line longer than
+# this usually holds two ideas, and the German is longer than the English.
+MAX_NARRATION = 240
+# How long a loader gets to bring the lab to phase ready, per process. It used
+# to be 90 s per wait with nothing watching the process, so a loader that had
+# died was polled for the full time of every wait left (#536).
+DEFAULT_READY_TIMEOUT = 90
+# The lines of loader output a failure quotes.
+LOADER_TAIL = 12
+# What Shift+R writes in the dojo: a frame-driven scratch run, gitignored, never
+# regenerated by make.sh. Compared, it turned the check red for having
+# pressed a key (#535).
+SCRATCH_RECORDS = {"session.labrec"}
 
 # lab-sweep owns the study manifest, the record reader and the table renderer;
 # the study and tables checks are those modules asked about committed files.
@@ -98,11 +142,19 @@ class Report:
 
     def __init__(self):
         self.lines = []
+        self.skipped = []
 
     def check(self, name, ok, detail=""):
         self.lines.append((name, ok, detail))
         print(("PASS  " if ok else "FAIL  ") + name + (f"  ({detail})" if detail else ""))
         return ok
+
+    def not_run(self, name, why):
+        # A check this machine cannot run. Counted apart from the passes: a
+        # skipped check reported as passed is how "0/0 checks passed" came to
+        # mean "every record regenerates" (#535).
+        self.skipped.append((name, why))
+        print("NOT RUN  " + name + f"  ({why})")
 
     def note(self, text):
         # Not a check: something worth reading that cannot be red.
@@ -116,9 +168,42 @@ class Report:
 # the inspector protocol, minus everything this tool does not need
 
 
+class LoaderDied(Exception):
+    """The loader process ended while the check was waiting on it."""
+
+    def __init__(self, code, tail, waiting_for):
+        self.code = code
+        self.tail = tail
+        self.waiting_for = waiting_for
+        super().__init__(str(self))
+
+    def __str__(self):
+        how = describe_exit(self.code)
+        return f"the loader {how} while waiting for {self.waiting_for}"
+
+
+def describe_exit(code):
+    """An exit code the way a reader looks it up: a negative Popen code is a
+    signal on POSIX, and its name is what a crash report says."""
+    if code is not None and code < 0:
+        try:
+            import signal
+            return f"was killed by signal {-code} ({signal.Signals(-code).name})"
+        except (ValueError, ImportError):
+            return f"was killed by signal {-code}"
+    return f"ended with exit code {code}"
+
+
+class LoaderStalled(Exception):
+    """A loader that is still running never got its lab to phase ready."""
+
+
 class Inspect:
-    def __init__(self, inspect_dir):
+    def __init__(self, inspect_dir, alive=None):
         self.dir = inspect_dir
+        # Called on every poll with what is being waited for; raises
+        # LoaderDied once the process has ended (#536).
+        self.alive = alive or (lambda waiting_for: None)
         self.request_path = os.path.join(inspect_dir, "request.json")
         self.response_path = os.path.join(inspect_dir, "response.json")
 
@@ -134,6 +219,7 @@ class Inspect:
         while time.time() < deadline:
             if self.state().get("phase") == phase:
                 return True
+            self.alive(f"phase {phase}")
             time.sleep(0.1)
         return False
 
@@ -152,6 +238,7 @@ class Inspect:
                     return resp
             except (OSError, json.JSONDecodeError):
                 pass
+            self.alive(f"an answer to {payload.get('action')}")
             time.sleep(0.05)
         raise TimeoutError(f"no response for {payload.get('action')} ({rid})")
 
@@ -180,13 +267,17 @@ class Inspect:
 class Loader:
     """One clayliveloader process, driven offscreen through .clay/inspect."""
 
-    def __init__(self, loader, sandbox, quiet=True):
+    def __init__(self, loader, sandbox, quiet=True,
+                 ready_timeout=DEFAULT_READY_TIMEOUT):
         self.loader = loader
         self.sandbox = sandbox
         self.lab_dir = os.path.dirname(sandbox)
         self.quiet = quiet
+        self.ready_timeout = ready_timeout
         self.proc = None
         self.insp = None
+        self.tail = collections.deque(maxlen=LOADER_TAIL)
+        self.reader = None
 
     def __enter__(self):
         # A stale .clay from an earlier run would answer "ready" before this
@@ -199,14 +290,35 @@ class Loader:
         env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
         bindir = os.path.dirname(os.path.abspath(self.loader))
         env.setdefault("QML2_IMPORT_PATH", os.path.join(bindir, "qml"))
-        sink = subprocess.DEVNULL if self.quiet else None
         # The loader resolves Clayground plugins via a cwd-relative "qml"
-        # import path, so it runs from the binary's directory.
+        # import path, so it runs from the binary's directory. Its output is
+        # always read - shown with --verbose, kept as a tail without - because
+        # the last lines of a loader that died are the reason it died (#536).
         self.proc = subprocess.Popen(
             [self.loader, "--sbx", self.sandbox],
-            env=env, cwd=bindir, stdout=sink, stderr=sink)
-        self.insp = Inspect(os.path.join(self.lab_dir, ".clay", "inspect"))
+            env=env, cwd=bindir, stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT, stdin=subprocess.DEVNULL)
+        self.reader = threading.Thread(target=self._read_output, daemon=True)
+        self.reader.start()
+        self.insp = Inspect(os.path.join(self.lab_dir, ".clay", "inspect"),
+                            alive=self.check_alive)
         return self
+
+    def _read_output(self):
+        for raw in iter(self.proc.stdout.readline, b""):
+            line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+            self.tail.append(line)
+            if not self.quiet:
+                print(line, flush=True)
+
+    def check_alive(self, waiting_for):
+        if self.proc is None or self.proc.poll() is None:
+            return
+        # Let the reader take what the pipe still holds: a crash's last words
+        # are often still in flight when the exit is seen.
+        if self.reader:
+            self.reader.join(timeout=2)
+        raise LoaderDied(self.proc.returncode, list(self.tail), waiting_for)
 
     def __exit__(self, *exc):
         if self.proc:
@@ -215,12 +327,18 @@ class Loader:
                 self.proc.wait(timeout=5)
             except subprocess.TimeoutExpired:
                 self.proc.kill()
+                self.proc.wait()
+        if self.reader:
+            self.reader.join(timeout=2)
+        if self.proc and self.proc.stdout:
+            self.proc.stdout.close()
         return False
 
-    def ready(self, timeout=90.0):
-        return self.insp.wait_phase("ready", timeout=timeout)
+    def ready(self, timeout=None):
+        return self.insp.wait_phase(
+            "ready", timeout=self.ready_timeout if timeout is None else timeout)
 
-    def fresh_root(self, timeout=90.0):
+    def fresh_root(self, timeout=None):
         """A newly created root with the clock paused since before it existed.
 
         Pausing is a property of the loader, not of the scene, so it survives
@@ -243,14 +361,21 @@ class Loader:
         be worked around by resetting the outgoing clock between the pause
         and the reload; the loader now drops the view state itself.
         """
-        before = self.insp.request({"action": "time", "paused": True}) \
-                     .get("status", {}).get("generation", 0)
-        self.insp.request({"action": "reload", "fresh": True})
+        if timeout is None:
+            timeout = self.ready_timeout
         deadline = time.time() + timeout
+
+        def left():
+            return max(1.0, deadline - time.time())
+
+        before = self.insp.request({"action": "time", "paused": True},
+                                   timeout=left()) \
+                     .get("status", {}).get("generation", 0)
+        self.insp.request({"action": "reload", "fresh": True}, timeout=left())
         while time.time() < deadline:
             r = self.insp.request({"action": "waitForRoot",
-                                   "timeoutMs": int(timeout * 1000)},
-                                  timeout=timeout + 10)
+                                   "timeoutMs": int(left() * 1000)},
+                                  timeout=left() + 10)
             if r.get("status", {}).get("generation", 0) > before:
                 return r.get("phase") == "ready"
             time.sleep(0.05)
@@ -413,7 +538,8 @@ def classify_diagnostics(entries, repo):
 PROBE_JS = """
 (function () {
     var out = { scenarios: [], flows: [], flowsError: "", langs: [],
-                keys: {}, kernelKeys: {}, flowKeys: [] };
+                keys: {}, kernelKeys: {}, flowKeys: [], tasks: {},
+                literals: {}, narration: {} };
     try { out.scenarios = root.scenarios() } catch (e) { out.scenariosError = String(e) }
     try { out.flows = root.flows ? root.flows() : [] }
     catch (e) { out.flowsError = String(e) }
@@ -435,7 +561,7 @@ PROBE_JS = """
             var id = Lab.flowIds[fi];
             var f = Lab._flows[id];
             if (!f) continue;
-            var nExpect = 0;
+            var nExpect = 0, nTask = 0, literal = [];
             for (var i = 0; i < f.steps.length; ++i) {
                 var st = f.steps[i];
                 if (st.key) found.push("flow." + id + "." + st.key);
@@ -444,12 +570,33 @@ PROBE_JS = """
                 // a teaching flow owes at least one expect (#209): a lesson
                 // with no asserted number cannot break when the lab drifts
                 try { if (st.expect) ++nExpect } catch (e) {}
+                // ...and one step the learner acts on (#542): a question
+                // the panel takes and a wiring task are tasks as well
+                try { if (st.task) ++nTask } catch (e) {}
+                // a narration line typed into the QML rather than strings.js
+                // (#542): one language only, and invisible to the checks below
+                try {
+                    if (st.say && String(st.say).trim() !== "")
+                        literal.push(st.key ? st.key : "step " + i);
+                } catch (e) {}
             }
             out.expects[id] = nExpect;
+            out.tasks[id] = nTask;
+            out.literals[id] = literal;
             if (f.titleKey) found.push(String(f.titleKey));
         }
         out.flowKeys = found;
         out.registered = Lab.flowIds.slice();
+        // The text of every line a flow can say, in every language: the
+        // lab's flow.* keys - answered variants and scripts included, which
+        // no step names until it runs - and the hints the steps name.
+        for (var l in LabLang._dicts) {
+            var d = LabLang._dicts[l], said = {};
+            for (var k in d)
+                if (k.indexOf("flow.") === 0 || found.indexOf(k) >= 0)
+                    said[k] = String(d[k]);
+            out.narration[l] = said;
+        }
     } catch (e) { out.flowKeysError = String(e) }
     return out;
 })()
@@ -513,10 +660,11 @@ def check_load(rep, session):
     """Whether the lab came up. A lab that came up and logged something of its
     own fails the load and still gets every other check: the scene answers
     questions, and one FAIL line hides less than a verdict cut short."""
-    ok = session.insp.wait_phase("ready", timeout=90)
+    ok = session.ready()
     st = session.insp.state()
     if not rep.check("load: the lab reaches phase ready", ok,
-                     f"phase={st.get('phase')}"):
+                     f"phase={st.get('phase')}" if ok else
+                     never_ready(session)):
         return False
     snap = session.insp.request({"action": "snapshot"})
     env = snap.get("status", {})
@@ -535,7 +683,54 @@ def check_load(rep, session):
     return True
 
 
-def one_run(spawn, lab_dir, lab_id, scenario, steps, dest):
+def never_ready(session):
+    return (f"the lab never reached phase ready within "
+            f"{session.ready_timeout:g} s (phase={session.insp.state().get('phase')})")
+
+
+def report_died(rep, name, died):
+    """A run whose loader ended: the FAIL line says how, and the loader's last
+    lines follow it - the reason is in them, not in the check (#536)."""
+    rep.check(name, False, str(died))
+    if died.tail:
+        rep.note("the loader's last output:")
+        for line in died.tail:
+            rep.note("  " + line)
+    else:
+        rep.note("the loader printed nothing")
+
+
+def in_fresh_loader(rep, spawn, name, body):
+    """body(session) in a loader of its own, on a fresh paused root; its value,
+    or None once a FAIL or NOT RUN line under `name` has said why not.
+
+    A loader that never gets the lab ready is a property of the lab or the
+    machine, not of the one run, and the next process would wait out the
+    same timeout for the same answer - which is how six scenarios became
+    fifteen minutes (#353). So the first such run fails, and every one after
+    it is NOT RUN (#536)."""
+    stalled = getattr(spawn, "stalled", None)
+    if stalled:
+        rep.not_run(name, stalled)
+        return None
+    try:
+        with spawn() as session:
+            if not session.ready():
+                rep.check(name, False, never_ready(session))
+            elif not session.fresh_root():
+                rep.check(name, False, "the lab did not come back from a reload "
+                          f"within {session.ready_timeout:g} s")
+            else:
+                return body(session)
+            spawn.stalled = (f"an earlier run's loader did not get the lab ready "
+                             f"within {session.ready_timeout:g} s")
+            return None
+    except LoaderDied as died:
+        report_died(rep, name, died)
+        return None
+
+
+def one_run(session, lab_dir, lab_id, scenario, steps, dest):
     """One stepped run of one scenario, in a process of its own.
 
     A process of its own is the whole point. Two runs sharing a loader share
@@ -548,18 +743,13 @@ def one_run(spawn, lab_dir, lab_id, scenario, steps, dest):
     determinism failure that says nothing about determinism. `make.sh` runs
     each record in its own process for the same reason.
     """
-    with spawn() as session:
-        if not session.ready():
-            return {"__error__": "the lab never reached phase ready"}
-        if not session.fresh_root():
-            return {"__error__": "the lab did not come back from a reload"}
-        return session.insp.eval_json(RUN_JS % {
-            "scenario": js_str(scenario),
-            "steps": steps,
-            "lab": js_str(lab_id),
-            "dest": js_str(dest),
-            "command": js_str(f"tools/lab-check/lab-check {lab_dir}"),
-        }, timeout=300)
+    return session.insp.eval_json(RUN_JS % {
+        "scenario": js_str(scenario),
+        "steps": steps,
+        "lab": js_str(lab_id),
+        "dest": js_str(dest),
+        "command": js_str(f"tools/lab-check/lab-check {lab_dir}"),
+    }, timeout=300)
 
 
 def check_determinism(rep, spawn, lab_dir, lab_id, scenarios, steps, workdir):
@@ -567,9 +757,16 @@ def check_determinism(rep, spawn, lab_dir, lab_id, scenarios, steps, workdir):
     for scenario in scenarios:
         paths = []
         broke = None
+        name = f"determinism: {scenario}"
         for rep_no in ("a", "b"):
             dest = os.path.join(workdir, f"{scenario}-{rep_no}.labrec")
-            res = one_run(spawn, lab_dir, lab_id, scenario, steps, dest)
+            res = in_fresh_loader(
+                rep, spawn, name,
+                lambda s: one_run(s, lab_dir, lab_id, scenario, steps, dest))
+            if res is None:
+                # in_fresh_loader has written this scenario's line already
+                all_ok = False
+                break
             if res.get("__error__") or res.get("error"):
                 broke = res.get("__error__") or res.get("error")
                 break
@@ -578,7 +775,9 @@ def check_determinism(rep, spawn, lab_dir, lab_id, scenarios, steps, workdir):
                 break
             paths.append((dest, res))
         if broke:
-            all_ok = rep.check(f"determinism: {scenario}", False, broke) and all_ok
+            all_ok = rep.check(name, False, broke) and all_ok
+            continue
+        if len(paths) < 2:
             continue
         a, b = paths[0][0], paths[1][0]
         same = open(a, "rb").read() == open(b, "rb").read()
@@ -606,13 +805,12 @@ def first_difference(a, b):
 
 
 def check_flows(rep, spawn, flows, require, expects, max_steps):
-    """Run every published flow; a teaching lab must also HAVE one, with an
-    expect in it.
+    """Run every published flow; a teaching lab must also HAVE one.
 
     `require` is whether the purpose owes a flow (teaching). `expects` maps a
     flow id to how many of its steps carry an `expect`, read from the kernel's
-    registry - a teaching flow with none asserts nothing and cannot go red
-    when the lab drifts, which is the one property that makes a flow a test.
+    registry, for the PASS line; whether a lesson has enough of them is the
+    teaching check's question, not whether it runs (#542).
     """
     if not flows:
         if require:
@@ -624,14 +822,14 @@ def check_flows(rep, spawn, flows, require, expects, max_steps):
     for flow_id in flows:
         # A flow builds a board and leaves it there; the next flow has to
         # start where a learner starts, which is a lab nobody has touched.
-        with spawn() as session:
-            if not (session.ready() and session.fresh_root()):
-                all_ok = rep.check(f"flows: {flow_id}", False,
-                                   "the lab did not come up for this run")
-                continue
-            res = session.insp.eval_json(
+        res = in_fresh_loader(
+            rep, spawn, f"flows: {flow_id}",
+            lambda s: s.insp.eval_json(
                 FLOW_JS % {"flow": js_str(flow_id), "maxSteps": max_steps},
-                timeout=600)
+                timeout=600))
+        if res is None:
+            all_ok = False
+            continue
         if res.get("__error__"):
             all_ok = rep.check(f"flows: {flow_id}", False, res["__error__"]) and all_ok
             continue
@@ -649,9 +847,6 @@ def check_flows(rep, spawn, flows, require, expects, max_steps):
         if not res.get("finished"):
             problems.append("finished: false")
         n_expect = (expects or {}).get(flow_id, 0)
-        if require and not n_expect:
-            problems.append("no step carries an expect - a teaching flow "
-                            "asserts at least one measured value")
         detail = "; ".join(problems) if problems else \
             f"{res.get('steps')} sim frames, {n_expect} expect(s)"
         all_ok = rep.check(f"flows: {flow_id}", not problems, detail) and all_ok
@@ -706,13 +901,85 @@ def check_strings(rep, probe, require_de=True):
     return parity and flow_ok
 
 
+# A performance script's stage directions - *point at the battery* - are not
+# said, so they do not count towards a line's length.
+CUE = re.compile(r"\*[^*\n]*\*")
+
+
+def spoken(text):
+    """What a narration line says: its cues taken out, its spaces folded."""
+    return " ".join(CUE.sub(" ", str(text)).split())
+
+
+def check_teaching(rep, probe, flows, purpose, limit=MAX_NARRATION):
+    """The rules of teaching.md and flows.md that a program can test (#542).
+
+    Per flow: at least one step the learner acts on (a task - a question the
+    lab takes an answer to and a wiring task are tasks too) and at least one
+    expect. For the lab: every line a flow can say fits in `limit`
+    characters in every language, and no step's narration is a `say`
+    literal in the QML. Everything else teaching.md asks is judgement and
+    marked so there.
+    """
+    if purpose != "teaching":
+        return rep.check("teaching: no lesson rules owed by this purpose", True,
+                         purpose)
+    all_ok = True
+    tasks = probe.get("tasks", {})
+    expects = probe.get("expects", {})
+    for flow_id in flows:
+        problems = []
+        n_task, n_expect = tasks.get(flow_id, 0), expects.get(flow_id, 0)
+        if not n_task:
+            problems.append("no step is a task - a lesson has the learner act "
+                            "at least once")
+        if not n_expect:
+            problems.append("no step carries an expect - a lesson asserts at "
+                            "least one measured value")
+        all_ok = rep.check(
+            f"teaching: {flow_id} has a learner task and an expect", not problems,
+            "; ".join(problems) if problems
+            else f"{n_task} task(s), {n_expect} expect(s)") and all_ok
+
+    prefixes = tuple(f"flow.{f}." for f in flows)
+    hints = set(probe.get("flowKeys", []))
+    long_lines, counted = [], 0
+    for lang, said in sorted(probe.get("narration", {}).items()):
+        for key, text in sorted(said.items()):
+            if not (key.startswith(prefixes) or key in hints):
+                continue
+            counted += 1
+            n = len(spoken(text))
+            if n > limit:
+                long_lines.append(f"{key} [{lang}] {n}")
+    all_ok = rep.check(
+        f"teaching: every narration line fits in {limit} characters",
+        not long_lines,
+        f"{len(long_lines)} longer: " + ", ".join(long_lines[:4]) if long_lines
+        else f"{counted} line(s)") and all_ok
+
+    literal = [f"{f}.{k}" for f in flows for k in probe.get("literals", {}).get(f, [])]
+    all_ok = rep.check(
+        "teaching: no narration is written in the QML", not literal,
+        f"{len(literal)} step(s) with a say literal: " + ", ".join(literal[:4])
+        + " - move the line to strings.js as flow.<flowId>.<key>"
+        if literal else "") and all_ok
+    return all_ok
+
+
 def check_records(rep, lab_dir, workdir, render):
     """Regenerate what is committed and compare, without touching the tree.
 
     The record's own `command` field says what regenerates it, so that is what
     runs here - `records/make.sh` for a lab's own records, `lab-sweep` for a
     study's. Both drive clayrender, which needs a real graphics session; with
-    none, this reports that it did not run rather than inventing a verdict.
+    none, each job is a NOT RUN line rather than an invented verdict.
+
+    Both are handed `render`, the clayrender this check was given: make.sh as
+    $CLAYRENDER, lab-sweep as --clayrender. Each used to look for
+    build/bin/clayrender itself, so a build folder of another name, or a lab
+    outside the checkout, regenerated nothing whatever --clayrender said
+    (#535).
     """
     jobs = []
     make = os.path.join(lab_dir, "records", "make.sh")
@@ -728,14 +995,17 @@ def check_records(rep, lab_dir, workdir, render):
                 # the lab's checkout, which for a lab generated into a temp
                 # tree has no tools/ (#531)
                 sweep = os.path.join(SWEEP_DIR, "lab_sweep.py")
-                jobs.append((f"studies/{name}", [sys.executable, sweep, study, "--records-dir"],
+                jobs.append((f"studies/{name}",
+                             [sys.executable, sweep, study, "--clayrender",
+                              render or "", "--records-dir"],
                              os.path.join(study, "records")))
     if not jobs:
         return rep.check("records: nothing committed to regenerate", True,
                          "no records/make.sh and no studies/*/records")
     if not render or not os.path.isfile(render):
-        rep.note("records: NOT RUN - clayrender is not built, so the "
-                 "committed records were not regenerated")
+        for label, _cmd, _committed in jobs:
+            rep.not_run(f"records: {label} regenerates",
+                        f"no clayrender at {render}")
         return True
 
     all_ok = True
@@ -744,6 +1014,7 @@ def check_records(rep, lab_dir, workdir, render):
         os.makedirs(out, exist_ok=True)
         env = dict(os.environ)
         env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
+        env["CLAYRENDER"] = render
         # Forward slashes: make.sh puts the path into a JS string, where a
         # Windows backslash starts an escape
         proc = subprocess.run(cmd + [out.replace(os.sep, "/")],
@@ -761,9 +1032,9 @@ def check_records(rep, lab_dir, workdir, render):
             missing = ("graphics session", "render control",
                        "clayrender not found", "build clayrender")
             if any(any(m in l for m in missing) for l in tail):
-                rep.note(f"records: {label} NOT RUN - "
-                         + next(l.strip() for l in tail
-                                if any(m in l for m in missing))[:100])
+                rep.not_run(f"records: {label} regenerates",
+                            next(l.strip() for l in tail
+                                 if any(m in l for m in missing))[:100])
                 continue
             all_ok = rep.check(f"records: {label} regenerates", False,
                                f"exit {proc.returncode}: "
@@ -771,9 +1042,11 @@ def check_records(rep, lab_dir, workdir, render):
             continue
         drifted = []
         first_diff = None
+        compared = 0
         for name in sorted(os.listdir(committed)):
-            if not name.endswith(".labrec"):
+            if not name.endswith(".labrec") or name in SCRATCH_RECORDS:
                 continue
+            compared += 1
             fresh = os.path.join(out, name)
             if not os.path.isfile(fresh):
                 drifted.append(name + " (not regenerated)")
@@ -782,10 +1055,15 @@ def check_records(rep, lab_dir, workdir, render):
             if open(fresh, "rb").read() != open(kept, "rb").read():
                 drifted.append(name)
                 first_diff = first_diff or f"{name} {first_difference(kept, fresh)}"
+        # The count is what was COMPARED: the files the run wrote said
+        # "(2 records)" for a lab with none committed (#535)
+        written = len([n for n in os.listdir(out) if n.endswith(".labrec")])
         all_ok = rep.check(
             f"records: {label} regenerates to the committed bytes", not drifted,
             ", ".join(drifted[:4]) if drifted
-            else f"{len(os.listdir(out))} records") and all_ok
+            else (f"{compared} records" if compared else
+                  f"no committed records to compare; the run wrote {written}")) \
+            and all_ok
         if first_diff:
             rep.note(f"records: first difference in {first_diff}")
     return all_ok
@@ -983,7 +1261,13 @@ def main():
                     help="comma-separated subset of: " + ",".join(CHECK_ORDER))
     ap.add_argument("--steps", type=int, default=None,
                     help="override the stepped-run length (lab-check.json wins otherwise)")
+    ap.add_argument("--ready-timeout", type=float, default=DEFAULT_READY_TIMEOUT,
+                    help="seconds one loader gets to bring the lab to phase "
+                         f"ready (default {DEFAULT_READY_TIMEOUT})")
     ap.add_argument("--keep", action="store_true", help="keep the temp workdir")
+    ap.add_argument("--strict", action="store_true",
+                    help="exit 1 when a check did not run (records without a "
+                         "clayrender that starts), not only when one failed")
     ap.add_argument("--verbose", action="store_true",
                     help="let the loader write to this terminal")
     args = ap.parse_args()
@@ -1016,9 +1300,11 @@ def main():
     steps = args.steps or int(cfg.get("steps", DEFAULT_STEPS))
     max_flow_steps = int(cfg.get("maxFlowSteps", DEFAULT_MAX_FLOW_STEPS))
 
-    print(f"lab-check {lab_id}  ({purpose}, steps={steps}, checks={','.join(wanted)})")
+    print(f"lab-check {lab_id}  ({purpose}, steps={steps}, "
+          f"ready within {args.ready_timeout:g} s, checks={','.join(wanted)})")
 
-    needs_scene = any(c in wanted for c in ("load", "determinism", "flows", "strings"))
+    needs_scene = any(c in wanted for c in ("load", "determinism", "flows",
+                                            "strings", "teaching"))
     if needs_scene and not (os.path.isfile(loader) and os.access(loader, os.X_OK)):
         print(f"SKIP  {loader} does not exist - build it with "
               "`cmake --build build --target clayliveloader`")
@@ -1028,9 +1314,17 @@ def main():
     try:
         if needs_scene:
             def spawn():
-                return Loader(loader, sandbox, quiet=not args.verbose)
-            run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id,
-                             steps, max_flow_steps, workdir)
+                return Loader(loader, sandbox, quiet=not args.verbose,
+                              ready_timeout=args.ready_timeout)
+            spawn.stalled = None
+            try:
+                run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir,
+                                 lab_id, steps, max_flow_steps, workdir)
+            except TimeoutError as e:
+                # A loader that is up and no longer answers. The scene checks
+                # left cannot ask it anything; the checks below never needed
+                # it, and one hang used to cost them their lines too (#536).
+                rep.check(f"protocol: {e}", False)
         if "records" in wanted:
             check_records(rep, lab_dir, workdir, render)
         if "tables" in wanted:
@@ -1041,8 +1335,6 @@ def main():
             check_triad(rep, lab_dir, purpose)
         if "remarks" in wanted:
             check_remarks(rep, lab_dir)
-    except TimeoutError as e:
-        rep.check(f"protocol: {e}", False)
     finally:
         if args.keep:
             print(f"workdir kept: {workdir}")
@@ -1051,11 +1343,18 @@ def main():
         shutil.rmtree(os.path.join(lab_dir, ".clay"), ignore_errors=True)
 
     failed = rep.failed()
-    print(f"\n{len(rep.lines) - len(failed)}/{len(rep.lines)} checks passed "
-          f"({lab_id})")
+    print(f"\n{len(rep.lines) - len(failed)}/{len(rep.lines)} checks passed, "
+          f"{len(rep.skipped)} not run ({lab_id})")
     for name in failed:
         print("  FAILED  " + name)
-    return 1 if failed else 0
+    for name, _why in rep.skipped:
+        print("  NOT RUN  " + name)
+    if failed:
+        return 1
+    if rep.skipped and args.strict:
+        print("  --strict: a check that did not run is not a pass")
+        return 1
+    return 0
 
 
 def flows_to_run(cfg, published):
@@ -1077,15 +1376,20 @@ def run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id, steps,
     # One session answers everything that is a QUESTION about the lab - does
     # it load, what does it call its scenarios, what does it say in German.
     # The runs that are EXPERIMENTS each get their own process further down.
-    with spawn() as session:
-        loaded = check_load(rep, session) if "load" in wanted else session.ready()
-        if not loaded:
-            # Nothing after this can mean anything: every other check asks the
-            # lab a question, and a lab that did not load answers nonsense.
-            rep.check("load: the lab came up", False,
-                      "phase=" + str(session.insp.state().get("phase")))
-            return
-        probe = session.insp.eval_json(PROBE_JS)
+    try:
+        with spawn() as session:
+            loaded = check_load(rep, session) if "load" in wanted else session.ready()
+            if not loaded:
+                # Nothing after this can mean anything: every other check asks
+                # the lab a question, and a lab that did not load answers
+                # nonsense.
+                rep.check("load: the lab came up", False, never_ready(session))
+                return
+            probe = session.insp.eval_json(PROBE_JS)
+    except LoaderDied as died:
+        report_died(rep, "load: the loader keeps running", died)
+        rep.check("load: the lab came up", False, "the loader is gone")
+        return
 
     if probe.get("__error__"):
         rep.check("contract: the lab answers scenarios()/flows()", False,
@@ -1109,6 +1413,10 @@ def run_scene_checks(rep, spawn, cfg, purpose, wanted, lab_dir, lab_id, steps,
 
     if "strings" in wanted:
         check_strings(rep, probe, require_de=(purpose == "teaching"))
+
+    if "teaching" in wanted:
+        check_teaching(rep, probe, flows_to_run(cfg, probe.get("flows", [])),
+                       purpose)
 
 
 if __name__ == "__main__":

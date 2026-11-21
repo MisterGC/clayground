@@ -299,6 +299,19 @@ Node {
     property real shadowMapFar: Math.max(200, workRadius * 3.5)
 
     /*!
+        \qmlproperty int LabStage3D::shadowSplits
+        \brief How many times the shadow volume is split into cascades.
+
+        Each split adds one more shadow map, and every shadow-casting model is
+        drawn once into each of them: at the default 2 there are three maps,
+        and a small board spent three of every four draw calls on them (#576).
+        Splits buy shadow detail near the camera when \l shadowMapFar is long.
+        A lab whose whole scene fits a short shadowMapFar sets 0 and draws its
+        casters once.
+    */
+    property int shadowSplits: 2
+
+    /*!
         \qmlproperty real LabStage3D::keyBrightness
         \brief Strength of the shadow-casting key light.
     */
@@ -422,7 +435,7 @@ Node {
         shadowFactor: LabTheme.shadowFactor
         shadowMapQuality: Light.ShadowMapQualityVeryHigh
         shadowMapFar: root.shadowMapFar
-        csmNumSplits: 2
+        csmNumSplits: root.shadowSplits
         shadowBias: 3
         softShadowQuality: Light.PCF4
         pcfFactor: 1

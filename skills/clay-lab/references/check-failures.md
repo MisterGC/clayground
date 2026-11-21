@@ -1,8 +1,9 @@
 # When lab-check is red
 
-`tools/lab-check/lab-check labs/<slug>` prints one `PASS` or `FAIL` line per
-check, then `n/m checks passed` and a `FAILED` line for each red one. Exit 0
-is green, 1 is any FAIL, 2 is a usage error (no `Sandbox.qml` in that
+`tools/lab-check/lab-check labs/<slug>` prints one `PASS`, `FAIL` or `NOT RUN`
+line per check, then `n/m checks passed, k not run` and a `FAILED` or `NOT RUN`
+line for each that is not a pass. Exit 0 is green, 1 is any FAIL - or, with
+`--strict`, any NOT RUN - 2 is a usage error (no `Sandbox.qml` in that
 directory, or an unknown name after `--only`), 77 is a skip: the machine has
 no `build/bin/clayliveloader`. The text in brackets after a FAIL line is the
 detail; it names what to look at. The checks and the purpose table:
@@ -24,10 +25,11 @@ temporary directory with the determinism runs' records.
 
 | line | what to do |
 |---|---|
-| `load: the lab reaches phase ready` | the scene never finished loading. Open it with `--verbose`, or in the dojo, and read the first QML error |
+| `load: the lab reaches phase ready` | the detail is `the lab never reached phase ready within <n> s`: the loader stayed up and the scene never finished loading. Open it with `--verbose`, or in the dojo, and read the first QML error. Only a lab that is slow on purpose needs a longer `--ready-timeout` |
+| `load: the loader keeps running` | the loader ended before the check was done with it; the detail gives its exit code (or the signal that killed it) and what the check was waiting for, and the loader's last output follows. A plugin or module it could not load is named there; a signal is a crash — rerun with `--verbose`, and if it reproduces, it is a loader bug, not the lab's |
 | `load: a root object exists` | the load ended without a live root; usually the same first error as above |
 | `load: the lab logged no qml warning or error` | the detail quotes up to four warnings from files of this lab. Fix each — a binding loop or an undefined property is a warning here, and a warning fails. Lines marked `(environment, not the lab)` do not count |
-| `load: the lab came up` | the load failed, so no other check ran. Fix the load first |
+| `load: the lab came up` | the load failed, so no other scene check ran (records, tables, study, triad and remarks still do). Fix the load first |
 | `contract: the lab answers scenarios()/flows()` | the gate evaluates in the root's context: the root needs `id: root` and both functions |
 | `contract: scenarios() answers with a non-empty list` | every lab has at least one scenario, and it cold-opens into it |
 
@@ -43,7 +45,10 @@ temporary directory with the determinism runs' records.
   header lists under `samples.columns`. `pitfalls.md`, *Determinism*,
   has every case that has happened so far. `--keep` leaves both records to
   diff in full.
-- **an error** (`the lab never reached phase ready`, `no record written`,
+- **the loader ended** (`the loader ended with exit code <n>` or `was killed
+  by signal <n>`), with its last output after the line: see `load: the loader
+  keeps running`. The next run is still tried.
+- **an error** (`the lab never reached phase ready within <n> s`, `no record written`,
   a script error from `applyScenario`): the scenario's `script` throws, or
   the lab does not come back from a reload. Run the scenario by hand:
   `clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png --paused --result -
@@ -59,8 +64,9 @@ temporary directory with the determinism runs' records.
 | `expect failed: <step>` | the measured value is not the one the step claims. Either the lab changed (fix the narration and the expect together) or the expect reads an interpolant: read a goal (`spread`, `focus`), never a `…Now` value |
 | `finished: false` | the flow stopped before its last step — often `maxFlowSteps` in `lab-check.json` (default 20000 sim frames) is shorter than the flow's waits |
 | `flows() does not publish this id` | `lab-check.json` lists an id that `flows()` does not return |
-| `no step carries an expect` | a teaching flow asserts at least one measured value; add an `expect` to the step that states one |
-| `the lab did not come up for this run` | a fresh lab for this flow failed to load; see *Load* |
+| `the lab never reached phase ready within <n> s` or `the lab did not come back from a reload within <n> s` | a fresh lab for this flow failed to load; see *Load* |
+| `the loader ended with exit code <n>` | the loader died during this flow; its last output follows. See `load: the loader keeps running` |
+| `NOT RUN  flows: <id>` or `NOT RUN  determinism: <scenario>` | an earlier run's loader never got the lab ready, so this run was not started: one timeout, not one per run. Fix the run that failed first |
 
 One flow by hand: `clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png
 --paused --result - --eval 'Lab.runFlow("<id>")'` (`flows.md`).
@@ -74,19 +80,32 @@ One flow by hand: `clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png
 | `strings: EN and DE carry the same keys` | the detail lists the first keys only in one language; add the missing translations, never delete a key to pass |
 | `strings: every key a FlowStep needs exists in EN and DE` | a step's narration key `flow.<flowId>.<stepKey>` is missing in one dictionary |
 
+## Teaching
+
+A teaching lab only (#542). The rules behind these lines: `teaching.md`,
+rules 2 and 4, and `flows.md`, *Narration and i18n*.
+
+| line | what to do |
+|---|---|
+| `teaching: <id> has a learner task and an expect` with `no step is a task` | the flow never hands the learner anything to do. Give one step a `task` whose `until` reads lab state the learner has to produce — a question the lab takes an answer to and a `"wiring": true` task count |
+| `teaching: <id> has a learner task and an expect` with `no step carries an expect` | a lesson asserts at least one measured value; add an `expect` to the step that states one |
+| `teaching: every narration line fits in 240 characters` | the detail names each line as `<key> [<lang>] <length>`. A line that long usually holds two ideas: split the step in two, each with its own key, rather than trimming words. A script is measured without its `*cues*`; a German line is often the one over |
+| `teaching: no narration is written in the QML` | the detail names `<flowId>.<stepKey>` for each step with a `say:` literal. Move the text to `strings.js` as `flow.<flowId>.<stepKey>`, EN and DE, and delete the `say:` |
+| `teaching: no lesson rules owed by this purpose` | a pass: a learning or research lab is not held to these rules |
+
 ## Records, tables, study, board
 
 | line | what to do |
 |---|---|
 | `records: <driver> regenerates` with `exit <n>` | the driver itself failed. Run it: `labs/<slug>/records/make.sh`, or `tools/lab-sweep/lab-sweep labs/<slug>/studies/<study>` |
 | `records: <driver> regenerates to the committed bytes` | the model, a sensor or the RNG use changed. Rerun the driver, commit the new records, and re-read every number the paper quotes from them in the same commit. A note after the line gives the first difference |
-| `records: … NOT RUN` (a note, not a FAIL) | `clayrender` is missing or there is no graphics session; the records were not compared. Run the check again on a machine with a display before you call them current |
+| `NOT RUN  records: <driver> regenerates` | `clayrender` is missing or there is no graphics session; the records were not compared. Pass the one you built with `--clayrender <path>`, and run with `--strict` on a machine with a display before you call them current |
 | `tables: <file> <study>/<name>` with `differs from the records` | run `tools/lab-sweep/lab-table labs/<slug>` and commit what it writes; the lines between the markers are never typed |
 | `study: a research lab has at least one study` | add `studies/<slug>/study.md` (`tools/lab-sweep/README.md`) |
 | `study: <name>` | the detail says which part is missing: a manifest that does not parse, no committed `records/*.labrec`, or no `## Answerability` section |
 | `triad: paper.md exists` | every lab has a `paper.md` |
 | `triad: overview.grafli exists` | a teaching or learning lab owes the board (`triad.md`) |
-| `protocol: no response for <action>` | the loader stopped answering the inspector — it crashed or hung. Rerun with `--verbose` and read its last lines |
+| `protocol: no response for <action>` | the loader is still running and stopped answering the inspector — it hung. The scene checks after it did not run; the others did. Rerun with `--verbose` and read its last lines (a loader that crashed is `load: the loader keeps running` or a run's `the loader ended …` instead) |
 
 `remarks` is never red: it counts the open CriticMarkup marks in the paper
 and the studies, so you see them before you cite the prose.

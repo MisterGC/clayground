@@ -67,6 +67,9 @@ public:
     // running by its own Component.onCompleted, and a flag flipped afterwards
     // has already let sim time move. Call it before load() or not at all.
     void setPausedOnLoad(bool paused) { m_pauseOnLoad = paused; }
+    // An import directory searched before every other one, set before load():
+    // --lab-src's, which shadows the compiled Clayground.Lab (#570).
+    void setFirstImportPath(const QString& dir) { m_firstImportPath = dir; }
 
     // Applies "<expression>=<value>" assignments in the root's own context, so
     // ids, dotted paths and JS values all work. Returns false on the first
@@ -129,5 +132,6 @@ private:
     QStringList m_errors;
     bool m_initialized = false;
     bool m_pauseOnLoad = false;
+    QString m_firstImportPath;
     std::function<void()> m_frameRendered;
 };

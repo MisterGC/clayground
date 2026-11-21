@@ -85,6 +85,9 @@ bool RenderHost::load(const QString& sandboxFile, const QSize& size)
     // clayrender is meant to be run from anywhere.
     m_engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     m_engine->addImportPath(fi.absolutePath());
+    // Last, because the last path added is the first one searched.
+    if (!m_firstImportPath.isEmpty())
+        m_engine->addImportPath(m_firstImportPath);
     // Where anything the sandbox persists goes. Isolated by default (main
     // points CLAY_STORAGE_DIR at a throwaway directory), the person's real
     // store only when they asked for it with --prefs user.

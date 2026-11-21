@@ -12,6 +12,8 @@
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
+#include <QScopeGuard>
+#include <QUrl>
 
 class TestInspectorDojo : public QObject
 {
@@ -34,10 +36,13 @@ private slots:
     void testTreeAction();
     void testTreeDepthLimit();
     void testSnapshotScreenshot();
+    void kernelIsTheCompiledCopyWithoutLabSrc();
+    void labSrcLoadsKernelFromSource();
 
 private:
     bool writeRequest(const QJsonObject& request);
     QJsonObject waitForResponse(int timeoutMs = 5000);
+    QString kernelUrl();
 
     QProcess* m_loader = nullptr;
     QString m_sandboxDir;
@@ -526,6 +531,78 @@ void TestInspectorDojo::testSnapshotScreenshot()
     // Even if screenshot didn't work, the rest of the snapshot should be valid
     QVERIFY(resp.contains("rootProperties"));
     QVERIFY(resp.contains("logTail"));
+}
+
+// The URL a kernel type was compiled from says which copy of Clayground.Lab
+// the loader's engine took: the plugin's resources, or plugins/clay_lab under
+// --lab-src (#570).
+QString TestInspectorDojo::kernelUrl()
+{
+    const QString expr =
+        QStringLiteral("Qt.createComponent(\"Clayground.Lab\", \"Parameter\").url.toString()");
+    QJsonObject req;
+    req["action"] = "eval";
+    req["eval"] = QJsonArray({expr});
+    if (!writeRequest(req))
+        return QStringLiteral("<cannot write request>");
+    auto resp = waitForResponse();
+    if (resp.isEmpty())
+        return QStringLiteral("<no response>");
+    return resp["eval"].toObject()[expr].toString();
+}
+
+void TestInspectorDojo::kernelIsTheCompiledCopyWithoutLabSrc()
+{
+    const QString url = kernelUrl();
+    QVERIFY2(url.startsWith("qrc:"), qPrintable("kernel came from " + url));
+}
+
+void TestInspectorDojo::labSrcLoadsKernelFromSource()
+{
+    // A loader of its own, on a sandbox directory of its own: the inspector
+    // protocol is per sandbox directory.
+    const QString sandboxDir = QCoreApplication::applicationDirPath()
+                               + "/test_sandbox_labsrc";
+    QDir(sandboxDir).removeRecursively();
+    QVERIFY(QDir().mkpath(sandboxDir));
+    const QString sandbox = sandboxDir + "/Sandbox.qml";
+    QVERIFY(QFile::copy(QString(SRCDIR) + "/TestSandbox.qml", sandbox));
+
+    QProcess loader;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("QT_QPA_PLATFORM", "offscreen");
+    loader.setProcessEnvironment(env);
+    loader.setProcessChannelMode(QProcess::ForwardedChannels);
+    loader.start(m_loaderBin, {"--sbx", sandbox, "--lab-src"});
+    QVERIFY2(loader.waitForStarted(5000), "clayliveloader --lab-src failed to start");
+
+    const QString mainInspectDir = m_inspectDir;
+    const QString mainLastTs = m_lastResponseTs;
+    m_inspectDir = sandboxDir + "/.clay/inspect";
+    m_lastResponseTs.clear();
+    auto restore = qScopeGuard([&] {
+        m_inspectDir = mainInspectDir;
+        m_lastResponseTs = mainLastTs;
+        loader.terminate();
+        if (!loader.waitForFinished(3000))
+            loader.kill();
+    });
+
+    bool ready = false;
+    for (int i = 0; i < 50 && !ready; ++i) {
+        ready = QFile::exists(m_inspectDir + "/request.json");
+        if (!ready)
+            QTest::qWait(200);
+    }
+    QVERIFY2(ready, "the --lab-src loader's inspector did not start within 10 seconds");
+    QTest::qWait(500);
+
+    const QString url = kernelUrl();
+    const QString expected = QFileInfo(QString(SRCDIR)
+        + "/../../../plugins/clay_lab/Parameter.qml").canonicalFilePath();
+    const QString got = QFileInfo(QUrl(url).toLocalFile()).canonicalFilePath();
+    QVERIFY2(!expected.isEmpty() && got == expected,
+             qPrintable("kernel came from " + url + ", expected " + expected));
 }
 
 QTEST_MAIN(TestInspectorDojo)

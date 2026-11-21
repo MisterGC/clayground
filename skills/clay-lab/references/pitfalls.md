@@ -206,7 +206,9 @@ until you publish.
 ## Loader / reload semantics
 
 - **Plugin QML is baked into the plugin (rcc): kernel changes need a
-  loader RESTART**, not a reload.
+  rebuild and a loader RESTART**, not a reload — unless the dojo or loader
+  runs with `--lab-src`, which loads `Clayground.Lab` from `plugins/clay_lab`
+  and watches it, so a kernel edit is an ordinary reload.
 - **The loader watches only the sandbox dir** — after kit-file edits,
   request an inspector `reload` explicitly.
 - Scenario is applied **before** `applyViewState` on restore (it resets
