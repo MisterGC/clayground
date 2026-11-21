@@ -16,7 +16,8 @@
 //   resistor   value ohms
 //   bulb       RBULB ohms, brightness = dissipated power
 //   diode      off: open; on: I = (V - VF_DIODE) / RDIODE, terminal 0 = anode
-//   led        the same diode with a higher knee, and it glows
+//   led        the same diode with a higher knee, and it glows - and above
+//              its maximum current it burns out (see burnOut below)
 //   switch     closed: RCLOSED, open: ROPEN
 //   transistor NPN, three terminals: 0 = collector, 1 = base, 2 = emitter
 //   gate       logic package, five terminals: 0 = VCC, 1 = A, 2 = B,
@@ -26,7 +27,9 @@
 //
 // solve() returns { ok, perElement: {id: {v, i, on, power}}, netCount,
 //                   wireCurrent: {id: amps|null}, batteries: {id: {...}},
-//                   shorted, overloaded, iterations } - all numbers finite.
+//                   shorted, overloaded, overRated, iterations } - all
+//                   numbers finite.
+// An LED's entry carries {imax, blown, overRated} on top of that.
 // A transistor's entry carries {mode, ib, ic, vbe, vce} on top of that, and
 // its v/i are its collector-emitter pair so the generic readouts still work.
 // A gate's entry carries {func, vcc, a, b, y, powered} plus a `term` array of
@@ -48,6 +51,9 @@ var RVOLT   = 1e7;     // voltmeter input impedance (ohm)
 var RBULB   = 6.0;     // incandescent bulb filament (ohm)
 var RLED    = 15.0;    // LED series resistance when conducting (ohm)
 var VF_LED  = 2.0;     // LED forward voltage (volt)
+var I_MAX_LED = 0.030; // the most an LED is made to carry (A) - a 5 mm
+                       // indicator LED's absolute maximum; above it the
+                       // junction heats faster than it sheds heat and dies
 var RDIODE  = 10.0;    // small-signal silicon diode, conducting (ohm)
 var VF_DIODE = 0.7;    // silicon forward voltage (volt)
 var GLEAK   = 1e-9;    // per-net leak to ground keeps islands solvable
@@ -146,10 +152,12 @@ function terminalCount(type) {
     return TERMINALS[type] !== undefined ? TERMINALS[type] : 2;
 }
 
-// The diode family, by knee and slope. An LED is a diode you can see.
+// The diode family, by knee, slope and the most current it survives. An LED
+// is a diode you can see - and one you can burn out; the plain diode has no
+// limit here (imax 0 = none), it is a signal diode in logic, never pushed.
 var DIODES = {
-    "led":   { vf: VF_LED,   r: RLED },
-    "diode": { vf: VF_DIODE, r: RDIODE }
+    "led":   { vf: VF_LED,   r: RLED,   imax: I_MAX_LED },
+    "diode": { vf: VF_DIODE, r: RDIODE, imax: 0 }
 };
 function diodeSpec(type) {
     return DIODES[type] !== undefined ? DIODES[type] : null;
@@ -228,7 +236,8 @@ function conductanceOf(el, onState) {
     case "junction":  return 1 / RCLOSED;
     case "ammeter":   return 1 / RSHUNT;
     case "voltmeter": return 1 / RVOLT;
-    case "led":       return onState ? 1 / RLED : 1 / ROPEN;
+    // a burnt-out LED is an open junction for good, whatever it is offered
+    case "led":       return onState && !el.blown ? 1 / RLED : 1 / ROPEN;
     case "diode":     return onState ? 1 / RDIODE : 1 / ROPEN;
     case "transistor": return 1 / ROPEN;
     case "gate":      return 1 / ROPEN;
@@ -315,7 +324,7 @@ function stampNetwork(elements, nets, n, state) {
         }
 
         var spec = diodeSpec(el.type);
-        var on = spec ? !!state[el.id] : false;
+        var on = spec ? !!state[el.id] && !el.blown : false;
         pair(t0, t1, conductanceOf(el, on));
         if (el.type === "battery") {
             // Norton: source V/RINT flowing into the + terminal (0).
@@ -344,6 +353,7 @@ function gateLevels(el, volts, nets) {
 function stateFrom(el, volts, nets, was) {
     var spec = diodeSpec(el.type);
     if (spec) {
+        if (el.blown) return false;
         var v = volts[nets.netOf[termKey(el.id, 0)]]
               - volts[nets.netOf[termKey(el.id, 1)]];
         // Conducting until the current actually reverses - NOT until it falls
@@ -383,7 +393,8 @@ function solve(elements, wires) {
     var nets = buildNets(elements, wires);
     var n = nets.count;
     var result = { ok: true, perElement: {}, batteries: {}, netCount: n,
-                   shorted: false, overloaded: false, iterations: 0 };
+                   shorted: false, overloaded: false, overRated: [],
+                   iterations: 0 };
     if (n === 0) { result.wireCurrent = {}; return result; }
 
     var i, el, v;
@@ -516,7 +527,15 @@ function solve(elements, wires) {
         if (!isFinite(v)) v = 0;
         if (!isFinite(cur)) cur = 0;
         entry = { v: v, i: cur, on: false, power: Math.abs(v * cur) };
-        if (spD) entry.on = state[el.id] && cur > 1e-5;
+        if (spD) {
+            entry.on = state[el.id] && !el.blown && cur > 1e-5;
+            // over its maximum is a fact about this operating point; that it
+            // BURNS is burnOut's business, because burning changes the board
+            entry.imax = spD.imax;
+            entry.blown = !!el.blown;
+            entry.overRated = !el.blown && spD.imax > 0 && cur > spD.imax;
+            if (entry.overRated) result.overRated.push(el.id);
+        }
         if (el.type === "bulb") entry.on = entry.power > 0.005;
         if (el.type === "switch") entry.on = !!el.on;
         if (el.type === "battery") {
@@ -540,6 +559,47 @@ function solve(elements, wires) {
     }
     result.wireCurrent = attributeWireCurrents(elements, wires, result.perElement);
     return result;
+}
+
+// ---- burning out ------------------------------------------------------------
+//
+// solve() is a pure operating point: it reports an LED over its maximum
+// (`overRated`) but does not change the board, because a burnt LED is a part
+// in a different state, and that state outlives the solve - turn the current
+// back down and the LED stays dark until it is replaced. burnOut() is the one
+// step that does change it, on copies: solve, burn the LED that is furthest
+// over its rating, solve again with it open, repeat until nothing is over.
+//
+// One at a time, worst first, because an LED that fails goes open and takes
+// its current with it: two LEDs in series both over 30 mA do not both die -
+// the first to go leaves the second with nothing to burn on. Ties go to the
+// element listed first, so the answer is deterministic.
+//
+// Returns { result, burnt: [ids] } - `result` is the solve of the board with
+// every burnt LED open, `burnt` the LEDs that burnt in THIS call, in order.
+// The caller marks them `blown` on its own parts to make it stick.
+function burnOut(elements, wires) {
+    var els = elements.slice(), burnt = [], i;
+    var result = solve(els, wires);
+    while (result.ok && result.overRated.length > 0) {
+        var worst = -1, worstRatio = 0;
+        for (i = 0; i < els.length; ++i) {
+            var e = result.perElement[els[i].id];
+            if (!e || !e.overRated) continue;
+            var ratio = e.i / e.imax;
+            // a tie is a tie to float noise too: two LEDs in one series loop
+            // carry the same current, give or take the last bit
+            if (ratio > worstRatio * (1 + 1e-9)) { worstRatio = ratio; worst = i; }
+        }
+        if (worst < 0) break;
+        var copy = {};
+        for (var k in els[worst]) copy[k] = els[worst][k];
+        copy.blown = true;
+        els[worst] = copy;
+        burnt.push(copy.id);
+        result = solve(els, wires);
+    }
+    return { result: result, burnt: burnt };
 }
 
 // ---- per-wire current ------------------------------------------------------
