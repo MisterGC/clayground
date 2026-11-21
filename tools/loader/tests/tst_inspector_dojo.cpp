@@ -37,11 +37,13 @@ private slots:
     void testSnapshotScreenshot();
     void kernelIsTheCompiledCopyWithoutLabSrc();
     void labSrcLoadsKernelFromSource();
+    void pausedStartsWithTheClockPaused();
 
 private:
     bool writeRequest(const QJsonObject& request);
     QJsonObject waitForResponse(int timeoutMs = 5000);
     QString kernelUrl();
+    QJsonObject request(const QJsonObject& req);
 
     QProcess* m_loader = nullptr;
     QString m_sandboxDir;
@@ -548,6 +550,74 @@ void TestInspectorDojo::labSrcLoadsKernelFromSource()
     const QString got = QFileInfo(QUrl(url).toLocalFile()).canonicalFilePath();
     QVERIFY2(!expected.isEmpty() && got == expected,
              qPrintable("kernel came from " + url + ", expected " + expected));
+}
+
+QJsonObject TestInspectorDojo::request(const QJsonObject& req)
+{
+    if (!writeRequest(req))
+        return {};
+    return waitForResponse();
+}
+
+// --paused (#572): the time control is paused before the root exists, so the
+// scene's first answer already sees Clayground.paused - no request had to
+// pause it, and no wall-clock frame ran in between.
+void TestInspectorDojo::pausedStartsWithTheClockPaused()
+{
+    const QString sandboxDir = QCoreApplication::applicationDirPath()
+                               + "/test_sandbox_paused";
+    QDir(sandboxDir).removeRecursively();
+    QVERIFY(QDir().mkpath(sandboxDir));
+    const QString sandbox = sandboxDir + "/Sandbox.qml";
+    QVERIFY(QFile::copy(QString(SRCDIR) + "/TestSandbox.qml", sandbox));
+
+    // The shared loader was started without the flag and runs.
+    QJsonObject timeReq;
+    timeReq["action"] = "time";
+    auto running = request(timeReq);
+    QCOMPARE(running["paused"].toBool(true), false);
+
+    QProcess loader;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("QT_QPA_PLATFORM", "offscreen");
+    loader.setProcessEnvironment(env);
+    loader.setProcessChannelMode(QProcess::ForwardedChannels);
+    loader.start(m_loaderBin, {"--sbx", sandbox, "--paused"});
+    QVERIFY2(loader.waitForStarted(5000), "clayliveloader --paused failed to start");
+
+    const QString mainInspectDir = m_inspectDir;
+    const QString mainLastTs = m_lastResponseTs;
+    m_inspectDir = sandboxDir + "/.clay/inspect";
+    m_lastResponseTs.clear();
+    auto restore = qScopeGuard([&] {
+        m_inspectDir = mainInspectDir;
+        m_lastResponseTs = mainLastTs;
+        loader.terminate();
+        if (!loader.waitForFinished(3000))
+            loader.kill();
+    });
+
+    bool ready = false;
+    for (int i = 0; i < 50 && !ready; ++i) {
+        ready = QFile::exists(m_inspectDir + "/request.json");
+        if (!ready)
+            QTest::qWait(200);
+    }
+    QVERIFY2(ready, "the --paused loader's inspector did not start within 10 seconds");
+    QTest::qWait(500);
+
+    const QString expr = QStringLiteral(
+        "Qt.createQmlObject('import Clayground.Common; import QtQuick; "
+        "QtObject { property bool p: Clayground.paused }', root).p");
+    QJsonObject evalReq;
+    evalReq["action"] = "eval";
+    evalReq["eval"] = QJsonArray({expr});
+    auto seen = request(evalReq);
+    QVERIFY2(seen["eval"].toObject()[expr].toBool(false),
+             qPrintable("the scene saw Clayground.paused = "
+                        + QJsonDocument(seen).toJson(QJsonDocument::Compact)));
+    auto paused = request(timeReq);
+    QCOMPARE(paused["paused"].toBool(false), true);
 }
 
 QTEST_MAIN(TestInspectorDojo)
