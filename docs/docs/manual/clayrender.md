@@ -178,11 +178,11 @@ clayrender labs/electronics-101/Sandbox.qml --stats 300
 ```
 
 ```json
-{"cpuInstructions":{"max":11259348,"mean":7843981.767,"median":7149151,"min":6959024},
- "cpuMs":{"max":3.607,"mean":1.426,"median":1.304,"min":0.947},
- "drawCalls":{"max":105,"median":105,"min":105},"frames":300,
- "renderMs":{"max":7.579,"mean":2.872,"median":2.818,"min":1.189},
- "rendered":300,"seconds":5.002,
+{"cpuInstructions":{"max":11493559,"mean":7817855.287,"median":7130260.5,"min":6942224},
+ "cpuMs":{"max":4.365,"mean":1.307,"median":1.199,"min":0.853},
+ "drawCalls":{"max":105,"median":105,"min":105},"frames":300,"loadAverage":12.52,
+ "renderMs":{"max":4.688,"mean":2.129,"median":2.081,"min":1.1},
+ "rendered":300,"seconds":5.003,
  "vertices":{"max":549654,"median":549654,"min":549654},"views3d":1}
 ```
 
@@ -192,6 +192,7 @@ clayrender labs/electronics-101/Sandbox.qml --stats 300
 | `rendered` | frames the window really drew in them, counted on its `afterRendering` signal |
 | `seconds` | wall time of the measurement |
 | `cpuMs` | CPU time of the whole process per slot — everything the frame cost, from timers and bindings to the graphics driver's threads. On Windows, whose process clock counts in 15.6 ms ticks, a slot's cycles turned into ms by the process's own ratio of CPU time to cycles |
+| `loadAverage` | the machine's one-minute load average at the end of the measurement, `null` on Windows — CPU time moves with it, so read the two together |
 | `cpuInstructions` | instructions the whole process retired per slot; macOS only, `null` elsewhere |
 | `renderMs` | wall time to draw one frame, over the drawn frames; includes waiting for the GPU |
 | `drawCalls`, `vertices` | per drawn frame, summed over every `View3D` (`renderStats` with extended data) |
@@ -228,7 +229,7 @@ within 2 %. CPU time is what the work costs on this machine at this moment,
 so it moves with what else the machine runs — up to a quarter between runs
 at that load. Compare `cpuInstructions` to see whether a change made a frame
 cheaper; read `cpuMs` and `renderMs` to see what it costs here, and on a loaded
-machine take three runs and compare medians.
+machine take three runs and compare medians, each beside its `loadAverage`.
 
 ## Starting paused
 
