@@ -34,6 +34,11 @@ public:
     QString instanceName() const;
     void setInstanceName(const QString &name);
     int numRestarts() const;
+    // --lab-src (#570): the directory put first on every engine's import path
+    // and the kernel source directory watched for edits; empty when not set.
+    void setLabSource(const QString& importDir, const QString& sourceDir);
+    QString labSrcImportDir() const { return labSrcImportDir_; }
+    QString labSrcDir() const { return labSrcDir_; }
     void postMessage(const QString& message);
 
 public slots:
@@ -76,4 +81,6 @@ private:
     QString altMessage_;
     QString instanceName_;
     int numRestarts_ = 0;
+    QString labSrcImportDir_;
+    QString labSrcDir_;
 };

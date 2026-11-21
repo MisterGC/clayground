@@ -13,6 +13,11 @@ add_library (${PROJECT_NAME} STATIC
 )
 
 target_include_directories(${PROJECT_NAME} PUBLIC .)
+# Where --lab-src finds the kernel (#570). On this one file only: the paths
+# are absolute, and ccache keys a file on its definitions, so the other files
+# stay shared between worktrees.
+set_source_files_properties(utilityfunctions.cpp PROPERTIES COMPILE_DEFINITIONS
+    "CLAY_LAB_SRC_IMPORT_DIR=\"${CLAY_LAB_SRC_IMPORT_DIR}\";CLAY_LAB_SRC_DIR=\"${CMAKE_SOURCE_DIR}/plugins/clay_lab\"")
 target_compile_features(${PROJECT_NAME} PUBLIC cxx_std_17)
 target_link_libraries(${PROJECT_NAME}
 PUBLIC

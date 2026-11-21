@@ -45,6 +45,8 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     
     // Create hot reload container
     m_container = new HotReloadContainer(this);
+    if (!m_liveLoader->labSrcDir().isEmpty())
+        m_container->addReloadDir(m_liveLoader->labSrcDir());
     layout->addWidget(m_container);
     
     // Connect hot reload container to live loader
@@ -271,6 +273,10 @@ void MainWindow::configureEngine(QQmlEngine* engine)
     QString sandboxDir = m_liveLoader->sandboxDir();
     if (!sandboxDir.isEmpty())
         engine->addImportPath(sandboxDir);
+    // Last, because the last path added is the first one searched: before
+    // bin/qml, whose Clayground.Lab is the compiled copy (#570).
+    if (!m_liveLoader->labSrcImportDir().isEmpty())
+        engine->addImportPath(m_liveLoader->labSrcImportDir());
 }
 
 void MainWindow::onSandboxUrlChanged()
