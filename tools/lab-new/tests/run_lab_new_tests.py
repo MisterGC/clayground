@@ -166,6 +166,20 @@ class TestGeneratedSet(unittest.TestCase):
             for purpose in PURPOSES:
                 yield kind, purpose
 
+    def test_lf_line_endings(self):
+        # A generated lab is LF on every platform: on Windows lab-new wrote
+        # CRLF, so its committed records never matched the LF ones its
+        # make.sh and lab-sweep regenerate (#535)
+        for kind, purpose in self.each():
+            with self.subTest(kind=kind, purpose=purpose), \
+                    TempLab(kind, purpose) as lab:
+                crlf = []
+                for rel in sorted(lab.files()):
+                    with open(os.path.join(lab.dir, rel), "rb") as f:
+                        if b"\r\n" in f.read():
+                            crlf.append(rel)
+                self.assertEqual(crlf, [], "written with CRLF")
+
     def test_file_set(self):
         for kind, purpose in self.each():
             with self.subTest(kind=kind, purpose=purpose), \
