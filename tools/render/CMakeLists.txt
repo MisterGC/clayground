@@ -15,6 +15,8 @@ set(CMAKE_AUTOMOC ON)
 find_package(Qt6 REQUIRED COMPONENTS Core Gui GuiPrivate Qml Quick)
 
 add_executable(${PROJECT_NAME}
+    framestats.cpp
+    framestats.h
     main.cpp
     renderhost.cpp
     renderhost.h
