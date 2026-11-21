@@ -139,4 +139,20 @@ if(Python3_FOUND)
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_SOUND_MUTE=1"
         TIMEOUT 180
     )
+
+    # A loader kept running carries no state from one question to the next
+    # when the reload asks to start fresh: the scenario it names, sim time 0,
+    # declared parameters, and two such runs of 600 steps write the same
+    # bytes (#566). It reads a lab and its kits, so a change under labs/ runs
+    # it too.
+    add_test(NAME loader_fresh_reload
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload/run_fresh_reload_test.py
+                --loader $<TARGET_FILE:clayliveloader>
+                --lab ${CMAKE_SOURCE_DIR}/labs/sensor-fusion-101
+    )
+    set_tests_properties(loader_fresh_reload PROPERTIES
+        LABELS "inspector;integration;labs"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_SOUND_MUTE=1"
+        TIMEOUT 180
+    )
 endif()
