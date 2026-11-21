@@ -72,8 +72,12 @@ Item {
         \qmlproperty var LabKeys::lab
         \brief The sandbox root - supplies \c scenarios(), \c applyScenario()
         and the framing functions.
+
+        Also becomes \c Lab.host, so \c Lab.run() can apply a scenario.
     */
     property var lab: null
+    onLabChanged: if (lab) Lab.host = lab
+    Component.onDestruction: if (lab && Lab.host === lab) Lab.host = null
 
     /*!
         \qmlproperty var LabKeys::camera

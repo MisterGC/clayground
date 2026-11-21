@@ -2186,12 +2186,12 @@ Item {
         FlowStep {
             key: "lit"
             demo: [["watch", "led", true]]
-            expect: (n) => Math.abs(root.simOf(n("led")).i - 0.00515) < 5e-5
+            expect: (n, saw) => Math.abs(saw("led.i", root.simOf(n("led")).i) - 0.00515) < 5e-5
         }
         FlowStep {
             key: "current"
             // "and the plot draws it" - the LED's current, not its power
-            expect: (n) => monitor.quantity === "I" && monitor.isWatched(n("led"))
+            expect: (n, saw) => saw("plot", monitor.quantity) === "I" && monitor.isWatched(n("led"))
         }
         FlowStep {
             key: "values"
@@ -2206,13 +2206,13 @@ Item {
         FlowStep {
             key: "ohm"
             // the law the line names, on the numbers it quotes
-            expect: (n) => Math.abs(root.simOf(n("res")).v / 470 - root.simOf(n("res")).i) < 1e-6
+            expect: (n, saw) => Math.abs(saw("res.v", root.simOf(n("res")).v) / 470 - saw("res.i", root.simOf(n("res")).i)) < 1e-6
         }
         FlowStep {
             key: "power"
             demo: [["plot", "P"]]
             // "2.1 V times 5.1 mA, about 11 mW"
-            expect: (n) => Math.abs(root.simOf(n("led")).power - 0.011) < 0.0006
+            expect: (n, saw) => Math.abs(saw("led.power", root.simOf(n("led")).power) - 0.011) < 0.0006
         }
         // The handoff: the lesson lends the learner the one control it has
         // been talking about and asks them to find the limit the resistor
@@ -2238,9 +2238,10 @@ Item {
         FlowStep {
             key: "burnt"
             demo: [["select", "led"], ["frame", "selection"]]
-            expect: (n) => { const e = root.elemAt(n("led"))
-                             return e && !!e.blown && !root.simOf(n("led")).on
-                                 && Math.abs(root.simOf(n("led")).i) < 1e-6 }
+            expect: (n, saw) => { const e = root.elemAt(n("led"))
+                                  return e && !!saw("led.blown", e.blown)
+                                      && !saw("led.on", root.simOf(n("led")).on)
+                                      && Math.abs(saw("led.i", root.simOf(n("led")).i)) < 1e-6 }
         }
     }
     // --- flow: two bulbs, in series and in parallel -----------------------
@@ -2279,7 +2280,7 @@ Item {
                    ["flipSwitch", "sw"], ["watch", "b1", true],
                    ["showValues", true], ["frame", "setup"]]
             // "690 mA": 4.5 V over 6 ohm and the cell's 0.5
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.6912) < 5e-4
+            expect: (n, saw) => Math.abs(Math.abs(saw("b1.i", root.simOf(n("b1")).i)) - 0.6912) < 5e-4
         }
         // The prediction. The board stays the flow's; the answer is taken by
         // the question panel, and "show me" answers "skip" - the learner who
@@ -2304,14 +2305,14 @@ Item {
                    ["flipSwitch", "sw"], ["watch", "b2", true],
                    ["showValues", true], ["frame", "setup"]]
             // "360 mA instead of 690"
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.3597) < 5e-4
-                        && Math.abs(Math.abs(root.simOf(n("b2")).i) - 0.3597) < 5e-4
+            expect: (n, saw) => Math.abs(Math.abs(saw("b1.i", root.simOf(n("b1")).i)) - 0.3597) < 5e-4
+                        && Math.abs(Math.abs(saw("b2.i", root.simOf(n("b2")).i)) - 0.3597) < 5e-4
         }
         // one loop, one current: the cell, the switch and both bulbs
         FlowStep {
             key: "same"
-            expect: (n) => {
-                const i = Math.abs(root.simOf(n("bat")).i)
+            expect: (n, saw) => {
+                const i = Math.abs(saw("bat.i", root.simOf(n("bat")).i))
                 return Math.abs(i - 0.3597) < 5e-4
                     && ["sw", "b1", "b2"].every(p => Math.abs(Math.abs(root.simOf(n(p)).i) - i) < 1e-6)
             }
@@ -2322,9 +2323,9 @@ Item {
             key: "split"
             demo: [["showValues", "V"]]
             // "about a quarter of the light": 0.78 W each against 2.87 W alone
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).v) - 2.158) < 0.005
-                        && Math.abs(Math.abs(root.simOf(n("b2")).v) - 2.158) < 0.005
-                        && Math.abs(root.simOf(n("b1")).power / 2.866 - 0.25) < 0.03
+            expect: (n, saw) => Math.abs(Math.abs(saw("b1.v", root.simOf(n("b1")).v)) - 2.158) < 0.005
+                        && Math.abs(Math.abs(saw("b2.v", root.simOf(n("b2")).v)) - 2.158) < 0.005
+                        && Math.abs(saw("b1.power", root.simOf(n("b1")).power) / 2.866 - 0.25) < 0.03
         }
         // The learner's turn, and the circuit is what changes: the single bulb
         // again, a second one beside it, and the pads and wires lent out.
@@ -2342,8 +2343,8 @@ Item {
                    ["let", "b2", "addPart", "bulb", 23, 5],
                    ["flipSwitch", "sw"], ["watch", "b1", true], ["watch", "b2", true],
                    ["frame", "setup"]]
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.6912) < 5e-4
-                        && Math.abs(root.simOf(n("b2")).i) < 1e-6
+            expect: (n, saw) => Math.abs(Math.abs(saw("b1.i", root.simOf(n("b1")).i)) - 0.6912) < 5e-4
+                        && Math.abs(saw("b2.i", root.simOf(n("b2")).i)) < 1e-6
         }
         // Read off the circuit, never off a click: both bulbs nearly as bright
         // as one alone, which in series (360 mA each) they cannot be. A
@@ -2369,46 +2370,46 @@ Item {
                    ["let", "b2", "part", "bulb", 1],
                    ["flipSwitch", "sw"], ["watch", "b2", true],
                    ["showValues", true], ["frame", "setup"]]
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.6410) < 5e-4
-                        && Math.abs(Math.abs(root.simOf(n("b2")).i) - 0.6410) < 5e-4
+            expect: (n, saw) => Math.abs(Math.abs(saw("b1.i", root.simOf(n("b1")).i)) - 0.6410) < 5e-4
+                        && Math.abs(Math.abs(saw("b2.i", root.simOf(n("b2")).i)) - 0.6410) < 5e-4
         }
         // "640 mA each, 1.28 A from the cell": the currents add
         FlowStep {
             key: "add"
-            expect: (n) => {
-                const ib = Math.abs(root.simOf(n("bat")).i)
+            expect: (n, saw) => {
+                const ib = Math.abs(saw("bat.i", root.simOf(n("bat")).i))
                 return Math.abs(ib - 1.2821) < 5e-4
-                    && Math.abs(ib - Math.abs(root.simOf(n("b1")).i)
-                                   - Math.abs(root.simOf(n("b2")).i)) < 1e-6
+                    && Math.abs(ib - Math.abs(saw("b1.i", root.simOf(n("b1")).i))
+                                   - Math.abs(saw("b2.i", root.simOf(n("b2")).i))) < 1e-6
             }
         }
         // "3.8 V across each": the whole push, less what the cell loses inside
         FlowStep {
             key: "push"
             demo: [["showValues", "V"]]
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("b1")).v) - 3.846) < 0.005
-                        && Math.abs(Math.abs(root.simOf(n("b2")).v) - 3.846) < 0.005
+            expect: (n, saw) => Math.abs(Math.abs(saw("b1.v", root.simOf(n("b1")).v)) - 3.846) < 0.005
+                        && Math.abs(Math.abs(saw("b2.v", root.simOf(n("b2")).v)) - 3.846) < 0.005
         }
         // The short, on purpose: a bare wire from one pad of the upper bulb
         // to the other - its pads sit on the two rails.
         FlowStep {
             key: "short"
             demo: [["showValues", true], ["wire", "b1", 0, "b1", 1]]
-            expect: () => root.sim.shorted
+            expect: (n, saw) => saw("shorted", root.sim.shorted)
         }
         // what the banner says: nearly 9 A, the bulbs dark, the cell hot
         FlowStep {
             key: "banner"
-            expect: (n) => root.sim.shorted
-                        && Math.abs(root.simOf(n("bat")).i) > 8.5
-                        && Math.abs(root.simOf(n("b1")).i) < 1e-3
-                        && Math.abs(root.simOf(n("b2")).i) < 1e-3
+            expect: (n, saw) => saw("shorted", root.sim.shorted)
+                        && Math.abs(saw("bat.i", root.simOf(n("bat")).i)) > 8.5
+                        && Math.abs(saw("b1.i", root.simOf(n("b1")).i)) < 1e-3
+                        && Math.abs(saw("b2.i", root.simOf(n("b2")).i)) < 1e-3
         }
         FlowStep {
             key: "fix"
             demo: [["unwire", "b1", 0, "b1", 1]]
-            expect: (n) => !root.sim.shorted
-                        && Math.abs(Math.abs(root.simOf(n("b1")).i) - 0.6410) < 5e-4
+            expect: (n, saw) => !saw("shorted", root.sim.shorted)
+                        && Math.abs(Math.abs(saw("b1.i", root.simOf(n("b1")).i)) - 0.6410) < 5e-4
         }
         // Metering: an ammeter in the loop, a voltmeter across the LED. The
         // values come off, so the meters are the only place to read.
@@ -2422,16 +2423,16 @@ Item {
                    ["let", "res", "part", "resistor", 0],
                    ["let", "volt", "part", "voltmeter", 0],
                    ["flipSwitch", "sw"], ["showValues", false], ["frame", "setup"]]
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("amp")).i) - 0.00515) < 5e-5
+            expect: (n, saw) => Math.abs(Math.abs(saw("amp.i", root.simOf(n("amp")).i)) - 0.00515) < 5e-5
                         // the voltmeter beside the LED takes 0.2 uA of it
-                        && Math.abs(Math.abs(root.simOf(n("amp")).i)
-                                    - Math.abs(root.simOf(n("led")).i)) < 1e-6
+                        && Math.abs(Math.abs(saw("amp.i", root.simOf(n("amp")).i))
+                                    - Math.abs(saw("led.i", root.simOf(n("led")).i))) < 1e-6
         }
         FlowStep {
             key: "voltmeter"
             mark: ["voltmeter"]
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("volt")).v)
-                                    - Math.abs(root.simOf(n("led")).v)) < 1e-3
+            expect: (n, saw) => Math.abs(Math.abs(saw("volt.v", root.simOf(n("volt")).v))
+                                    - Math.abs(saw("led.v", root.simOf(n("led")).v))) < 1e-3
         }
         // A question only the meter answers: its choices are currents worked
         // out from the ammeter's reading.
@@ -2448,9 +2449,9 @@ Item {
         FlowStep {
             key: root.answeredKey("told", "ask")
             demo: [["showValues", true]]
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("res")).i) - 0.00515) < 5e-5
-                        && Math.abs(Math.abs(root.simOf(n("res")).i)
-                                    - Math.abs(root.simOf(n("amp")).i)) < 1e-6
+            expect: (n, saw) => Math.abs(Math.abs(saw("res.i", root.simOf(n("res")).i)) - 0.00515) < 5e-5
+                        && Math.abs(Math.abs(saw("res.i", root.simOf(n("res")).i))
+                                    - Math.abs(saw("amp.i", root.simOf(n("amp")).i))) < 1e-6
         }
         // The closing task, the idea used where the lesson did not show it:
         // a voltmeter goes across the part it reads, so moving it means
@@ -2475,9 +2476,9 @@ Item {
         FlowStep {
             key: "moved"
             demo: [["showValues", "V"]]
-            expect: (n) => Math.abs(Math.abs(root.simOf(n("volt")).v) - 2.42) < 0.01
-                        && Math.abs(Math.abs(root.simOf(n("res")).v)
-                                    + Math.abs(root.simOf(n("led")).v) - 4.497) < 0.01
+            expect: (n, saw) => Math.abs(Math.abs(saw("volt.v", root.simOf(n("volt")).v)) - 2.42) < 0.01
+                        && Math.abs(Math.abs(saw("res.v", root.simOf(n("res")).v))
+                                    + Math.abs(saw("led.v", root.simOf(n("led")).v)) - 4.497) < 0.01
         }
         FlowStep { key: "yours" }
     }
@@ -2535,16 +2536,18 @@ Item {
                      "allow": () => root.logicInputs,
                      "solve": [["setInputs", 3]] })
             // the gate is what the preset claims it is, or this step fails
-            expect: () => {
+            expect: (n, saw) => {
                 const t = root.truthTable()
+                saw("out", t.map(r => r.out))
                 return t.length === 4 && !t[0].out && !t[1].out && !t[2].out && t[3].out
             }
         }
         FlowStep {
             key: "or"
             demo: [["scenario", "logic-or"], ["setInputs", 1], ["frame", "setup"]]
-            expect: () => {
+            expect: (n, saw) => {
                 const t = root.truthTable()
+                saw("out", t.map(r => r.out))
                 return t.length === 4 && !t[0].out && t[1].out && t[2].out && t[3].out
             }
         }
@@ -2564,8 +2567,9 @@ Item {
                      "hintAfter": 8,
                      "allow": () => root.logicInputs,
                      "solve": [["setInputs", 1]] })
-            expect: () => {
+            expect: (n, saw) => {
                 const t = root.truthTable()
+                saw("out", t.map(r => r.out))
                 return t.length === 4 && !t[0].out && t[1].out && t[2].out && !t[3].out
             }
         }
@@ -2592,24 +2596,27 @@ Item {
                      "allow": () => root.logicInputs,
                      "solve": [["setInputs", 1]] })
             // the package answers the same as the five transistors did
-            expect: () => {
+            expect: (n, saw) => {
                 const t = root.truthTable()
+                saw("out", t.map(r => r.out))
                 return t.length === 4 && !t[0].out && t[1].out && t[2].out && !t[3].out
             }
         }
         FlowStep {
             key: "switchit"
             demo: [["gateFunc", "nand"], ["setInputs", 3]]
-            expect: () => {
+            expect: (n, saw) => {
                 const t = root.truthTable()
+                saw("out", t.map(r => r.out))
                 return t.length === 4 && t[0].out && t[1].out && t[2].out && !t[3].out
             }
         }
         FlowStep {
             key: "adder"
             demo: [["scenario", "half-adder"], ["setInputs", 3], ["frame", "setup"]]
-            expect: () => {
+            expect: (n, saw) => {
                 const t = root.truthTable()
+                saw("outs", t.map(r => r.outs))
                 if (t.length !== 4) return false
                 // SUM = A xor B, CARRY = A and B
                 const sum = t.map(r => r.outs[0]), carry = t.map(r => r.outs[1])

@@ -7,7 +7,10 @@ interactive, deterministic, agent-verifiable experimentation space.
 
 - **Lab** (singleton) — registry connecting everything; agents read/write
   parameters via `Lab.p(name)` / `Lab.set(name, value)` and fetch
-  `Lab.labInfo()` through the inspector's eval action.
+  `Lab.labInfo()` through the inspector's eval action. `Lab.schema()` says
+  what a lab can be asked and `Lab.run(opts)` runs one experiment in fixed
+  steps and returns its probes' summaries (`docs/docs/manual/clayrender.md`,
+  "Running an experiment").
 - **Parameter** — named, ranged tunable; bind your system to `value`.
 - **Probe** — named observable sampled on a fixed sim-time grid.
 - **SimClock** — seeded deterministic clock; with a `world` attached, sim

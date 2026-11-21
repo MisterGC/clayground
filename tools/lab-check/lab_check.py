@@ -856,14 +856,20 @@ def check_flows(rep, spawn, flows, require, expects, max_steps):
 def step_of(entry):
     """Name a runFlow failure by its step key, with the index as a fallback.
 
-    runFlow reports {index, step} (plus `error` when an expect threw). The
-    key is what the author reads; the index is what is left when a step has
-    no key, which is legal.
+    runFlow reports {index, step} (plus `error` when an expect threw, and
+    `saw` with what an expect looked at, #567). The key is what the author
+    reads; the index is what is left when a step has no key, which is legal.
     """
     if not isinstance(entry, dict):
         return str(entry)
     name = entry.get("step") or f"step {entry.get('index')}"
-    return f"{name} ({entry['error']})" if entry.get("error") else name
+    if entry.get("error"):
+        name = f"{name} ({entry['error']})"
+    if entry.get("saw"):
+        name += " - saw " + ", ".join(
+            f"{k}={json.dumps(v, ensure_ascii=False)}"
+            for k, v in entry["saw"].items())
+    return name
 
 
 def check_strings(rep, probe, require_de=True):
