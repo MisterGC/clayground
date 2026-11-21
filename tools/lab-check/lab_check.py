@@ -234,6 +234,48 @@ class LoaderStalled(Exception):
     """A loader that is still running never got its lab to phase ready."""
 
 
+def open_shared(path):
+    """A binary file object reading `path`, which the loader may replace
+    while it is open.
+
+    The inspector replaces state.json and response.json by renaming a new
+    file over them (QSaveFile). On Windows that rename fails while a reader
+    holds the file without FILE_SHARE_DELETE - which Python's open() never
+    grants - and the inspector retries and logs "replacing ... took 2
+    attempts", a warning the load check fails on. With runs side by side and
+    a 10 ms poll lab-check held the files open often enough to hit that
+    (#572). Opened with every share mode, the rename goes through whatever
+    this read is doing, and a read that caught a half-written file is simply
+    retried by the next poll.
+    """
+    if os.name != "nt":
+        return open(path, "rb")
+    import ctypes
+    import msvcrt
+    from ctypes import wintypes
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateFileW.restype = wintypes.HANDLE
+    k32.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD,
+                                wintypes.LPVOID, wintypes.DWORD, wintypes.DWORD,
+                                wintypes.HANDLE]
+    generic_read = 0x80000000
+    share_all = 0x1 | 0x2 | 0x4          # read, write, delete
+    open_existing, normal = 3, 0x80
+    handle = k32.CreateFileW(path, generic_read, share_all, None, open_existing,
+                             normal, None)
+    if handle is None or handle == wintypes.HANDLE(-1).value:
+        err = ctypes.get_last_error()
+        raise OSError(err, ctypes.FormatError(err), path)
+    fd = msvcrt.open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
+    return os.fdopen(fd, "rb")
+
+
+def read_json(path):
+    """The JSON in `path`, read in one go through open_shared()."""
+    with open_shared(path) as f:
+        return json.loads(f.read().decode("utf-8"))
+
+
 class Inspect:
     def __init__(self, inspect_dir, alive=None):
         self.dir = inspect_dir
@@ -245,9 +287,8 @@ class Inspect:
 
     def state(self):
         try:
-            with open(os.path.join(self.dir, "state.json")) as f:
-                return json.load(f)
-        except (OSError, json.JSONDecodeError):
+            return read_json(os.path.join(self.dir, "state.json"))
+        except (OSError, ValueError):
             return {}
 
     def wait_phase(self, phase, timeout=60.0):
@@ -268,11 +309,10 @@ class Inspect:
         deadline = time.time() + timeout
         while time.time() < deadline:
             try:
-                with open(self.response_path) as f:
-                    resp = json.load(f)
+                resp = read_json(self.response_path)
                 if resp.get("requestId") == rid:
                     return resp
-            except (OSError, json.JSONDecodeError):
+            except (OSError, ValueError):
                 pass
             self.alive(f"an answer to {payload.get('action')}")
             time.sleep(POLL)
