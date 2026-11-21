@@ -788,6 +788,14 @@ Item {
           and moving["vertices"]["median"] > 0
           and moving["cpuMs"]["median"] > 0
           and moving["renderMs"]["median"] > 0, str(moving)[:200])
+    instr = moving and moving.get("cpuInstructions")
+    if sys.platform == "darwin":
+        check("--stats counts the instructions a slot retires (macOS)",
+              instr is not None and instr["median"] > 0, str(instr))
+    else:
+        check("--stats has no instruction count off macOS - null, not 0",
+              moving and "cpuInstructions" in moving and instr is None,
+              str(instr))
     other = runs[1][1]
     keys = ("rendered", "drawCalls", "vertices")
     check("two --stats runs of one scene draw the same",
