@@ -133,12 +133,12 @@ records each row was read from; nothing here was typed.
 <!-- table: capacity -->
 | demand | cars asked | cars held | speed (u/s) | waiting (%) | throughput (car·u/s) | seed spread | records |
 |---|---|---|---|---|---|---|---|
-| 0.5 | 24 | 23.7 | 11.44 | 5.7 | 272 | 15 | `0.5-11`, `0.5-23`, `0.5-42` |
-| 1.0 | 47 | 46.3 | 8.15 | 17.7 | 378 | 31 | `1.0-11`, `1.0-23`, `1.0-42` |
-| 1.5 | 71 | 68.0 | 6.17 | 26.4 | 418 | 50 | `1.5-11`, `1.5-23`, `1.5-42` |
-| 2.0 | 94 | 76.0 | 5.67 | 28.7 | 425 | 37 | `2.0-11`, `2.0-23`, `2.0-42` |
-| 2.5 | 118 | 76.0 | 5.67 | 28.7 | 425 | 37 | `2.5-11`, `2.5-23`, `2.5-42` |
-| 3.0 | 140 | 76.0 | 5.67 | 28.7 | 425 | 37 | `3.0-11`, `3.0-23`, `3.0-42` |
+| 0.5 | 24 | 23.7 | 11.44 | 5.7 | 271 | 15 | `0.5-11`, `0.5-23`, `0.5-42` |
+| 1.0 | 47 | 46.3 | 8.15 | 17.6 | 378 | 31 | `1.0-11`, `1.0-23`, `1.0-42` |
+| 1.5 | 71 | 68.0 | 6.17 | 26.5 | 418 | 51 | `1.5-11`, `1.5-23`, `1.5-42` |
+| 2.0 | 94 | 76.1 | 5.67 | 28.7 | 425 | 37 | `2.0-11`, `2.0-23`, `2.0-42` |
+| 2.5 | 118 | 76.1 | 5.67 | 28.7 | 425 | 37 | `2.5-11`, `2.5-23`, `2.5-42` |
+| 3.0 | 140 | 76.1 | 5.67 | 28.7 | 425 | 37 | `3.0-11`, `3.0-23`, `3.0-42` |
 <!-- /table -->
 
 **Up to demand 1.5 the grid holds what it is asked to**, within a few cars:
@@ -149,7 +149,7 @@ three seeds: once the network is full the spawn rule finds the same gaps
 whatever the demand says, and the run no longer depends on the number that
 was asked for.
 
-Throughput climbs from 272 to 418 car·u/s over the first three levels and
+Throughput climbs from 271 to 418 car·u/s over the first three levels and
 then flattens at 425, while mean speed halves (11.4 to 5.7 u/s) and the
 waiting share quintuples (5.7 % to 28.7 %). The network does more driving in
 total by doing it more slowly, up to the point where it cannot fit another

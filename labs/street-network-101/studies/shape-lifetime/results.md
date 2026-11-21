@@ -13,24 +13,24 @@ tools/lab-sweep/lab-sweep labs/street-network-101/studies/shape-lifetime
 
 | rank | configuration | last(lifetime) | seed spread | mean(cars) | mean(meanSpeed) | mean(lost) | mean(waiting) | runs |
 |---|---|---|---|---|---|---|---|---|
-| 1 | `ring` | 20.022 | 3.380 | 11.957 | 13.690 | 22.097 | 1.088 | 3 |
-| 2 | `grid` | 9.081 | 0.622 | 18.773 | 12.245 | 106.263 | 3.982 | 3 |
-| 3 | `cul-de-sac` | 6.341 | 0.251 | 8.883 | 13.330 | 74.143 | 0.885 | 3 |
-| 4 | `crossroads` | 6.231 | 0.605 | 5.910 | 13.018 | 52.373 | 1.244 | 3 |
+| 1 | `ring` | 20.022 | 3.380 | 11.963 | 13.689 | 22.085 | 1.114 | 3 |
+| 2 | `grid` | 9.081 | 0.622 | 18.772 | 12.247 | 106.255 | 4.024 | 3 |
+| 3 | `cul-de-sac` | 6.341 | 0.251 | 8.882 | 13.333 | 74.145 | 0.848 | 3 |
+| 4 | `crossroads` | 6.231 | 0.605 | 5.907 | 13.017 | 52.395 | 1.217 | 3 |
 
 ## Every run
 
 | record | configuration | seed | last(lifetime) | mean(cars) | mean(meanSpeed) | mean(lost) | mean(waiting) |
 |---|---|---|---|---|---|---|---|
-| `ring-11.labrec` | `ring` | 11 | 20.433 | 11.960 | 13.885 | 22.381 | 0.833 |
-| `ring-23.labrec` | `ring` | 23 | 18.127 | 11.960 | 13.949 | 21.590 | 0.966 |
-| `ring-42.labrec` | `ring` | 42 | 21.507 | 11.950 | 13.236 | 22.321 | 1.466 |
-| `grid-11.labrec` | `grid` | 11 | 8.878 | 18.770 | 12.352 | 108.703 | 3.068 |
-| `grid-23.labrec` | `grid` | 23 | 8.872 | 18.805 | 12.354 | 107.026 | 3.538 |
-| `grid-42.labrec` | `grid` | 42 | 9.494 | 18.745 | 12.031 | 103.059 | 5.339 |
-| `cul-de-sac-11.labrec` | `cul-de-sac` | 11 | 6.425 | 8.885 | 13.274 | 73.924 | 0.847 |
-| `cul-de-sac-23.labrec` | `cul-de-sac` | 23 | 6.425 | 8.890 | 13.241 | 71.654 | 0.896 |
-| `cul-de-sac-42.labrec` | `cul-de-sac` | 42 | 6.174 | 8.875 | 13.476 | 76.851 | 0.912 |
-| `crossroads-11.labrec` | `crossroads` | 11 | 6.463 | 5.900 | 13.199 | 50.264 | 1.033 |
-| `crossroads-23.labrec` | `crossroads` | 23 | 5.858 | 5.910 | 13.247 | 53.947 | 0.767 |
-| `crossroads-42.labrec` | `crossroads` | 42 | 6.372 | 5.920 | 12.608 | 52.908 | 1.933 |
+| `ring-11.labrec` | `ring` | 11 | 20.433 | 11.955 | 13.883 | 22.402 | 0.917 |
+| `ring-23.labrec` | `ring` | 23 | 18.127 | 11.970 | 13.949 | 21.561 | 0.958 |
+| `ring-42.labrec` | `ring` | 42 | 21.507 | 11.965 | 13.233 | 22.291 | 1.466 |
+| `grid-11.labrec` | `grid` | 11 | 8.878 | 18.775 | 12.358 | 108.635 | 3.166 |
+| `grid-23.labrec` | `grid` | 23 | 8.872 | 18.795 | 12.357 | 107.034 | 3.567 |
+| `grid-42.labrec` | `grid` | 42 | 9.494 | 18.745 | 12.027 | 103.097 | 5.338 |
+| `cul-de-sac-11.labrec` | `cul-de-sac` | 11 | 6.425 | 8.895 | 13.268 | 73.926 | 0.743 |
+| `cul-de-sac-23.labrec` | `cul-de-sac` | 23 | 6.425 | 8.900 | 13.246 | 71.585 | 0.889 |
+| `cul-de-sac-42.labrec` | `cul-de-sac` | 42 | 6.174 | 8.850 | 13.485 | 76.924 | 0.912 |
+| `crossroads-11.labrec` | `crossroads` | 11 | 6.463 | 5.890 | 13.210 | 50.272 | 0.950 |
+| `crossroads-23.labrec` | `crossroads` | 23 | 5.858 | 5.895 | 13.247 | 54.001 | 0.767 |
+| `crossroads-42.labrec` | `crossroads` | 42 | 6.372 | 5.935 | 12.595 | 52.913 | 1.933 |
