@@ -10,6 +10,12 @@
 left →︎ right: build →︎ solve →︎ show
 colours mark pipeline stages
 """ ~small
+@ note lessons 1440,50 """
+guided lessons - T starts the one its preset belongs to
+LED basics - why the LED lights, and where it burns out
+series + parallel - predict, wire a bulb in, short it, read meters
+transistor to XOR - what a gate does
+""" ~small &link:./paper.md#measured-results
 
 # ── pipeline (build → solve) ──
 @ box parts "palette / parts\nbattery · switch · resistor\nLED · bulb · diode · transistor\nlogic gate · ammeter · voltmeter" 60,300 266x150 %teal &link:./paper.md#stated-simplifications
