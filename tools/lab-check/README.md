@@ -149,3 +149,13 @@ afterwards; nothing else in the tree is written. Records regenerate into a
 temporary directory (`records/make.sh --out-dir`, `lab-sweep --records-dir`) and
 are compared from there; tables render in memory (`lab-table --check`) and are
 compared against the committed prose.
+
+## Pages that are not labs
+
+`load_check.py <Sandbox.qml>` is the load stage alone, for a page with no
+paper, flows or records to judge: the kernel's demo page
+(`ctest -R lab_kernel_demo_load`) and the professor kit's sandbox
+(`ctest -R kit_professor_load`). It fails on any warning raised from QML or JS
+— the kernel's files count as much as the page's — and ignores what the
+offscreen environment logs about itself (Qt Quick 3D without an RHI, the font
+alias cache). Exit 0 clean, 1 a warning or no load, 77 no loader built.
