@@ -461,8 +461,14 @@ still restores the user's place. Each step is recorded in `events.jsonl` as a
 `view_state_captured` and a `view_state_restored` (`{"ok": bool}`) event.
 A `reload` with `fresh: true` skips both and drops a capture still held.
 
+A lab's view state also carries a `snapshot` — `Lab.snapshot()`, every probe
+sample and the model's state — which is how its reload restores the run
+instead of replaying it.
+
 `snapshot` responses carry a `viewState` key when the root implements it, and
-flag bundles (`Ctrl+F` flags and auto-flags) include the same key. The effect:
+flag bundles (`Ctrl+F` flags and auto-flags) include the same key — without
+a lab's `snapshot` in it: hundreds of KB that are for the reload, not for
+reading. Ask the lab for one with `eval` `JSON.stringify(Lab.snapshot())`. The effect:
 the user keeps their camera, zoom, and place while an agent edits and reloads
 files underneath them.
 

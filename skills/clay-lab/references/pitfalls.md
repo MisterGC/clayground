@@ -250,9 +250,10 @@ until you publish.
   property an initial value that is the state at `t = 0` rather than empty.
 - **A reload is not a fresh start.** The loader captures `viewState()` from
   the outgoing root and re-applies it to the new one, and
-  `Lab.applyViewState` re-steps a world-less clock to the recorded sim
-  time — so a reloaded lab arrives having replayed the run you just
-  finished. Reset the outgoing clock *after* pausing and before asking for
+  `Lab.applyViewState` restores the `Lab.snapshot()` it carries — or, in a
+  lab whose model offers no state, re-steps a world-less clock to the
+  recorded sim time — so a reloaded lab arrives where the run you just
+  finished stood. Reset the outgoing clock *after* pausing and before asking for
   the reload, or take a new process. (Reset before pausing and the ticker
   fills the gap, which is why the first run of a session was the only one
   that differed.)

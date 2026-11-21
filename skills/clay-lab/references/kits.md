@@ -14,6 +14,27 @@ before you change it.
 | character | `labs/kits/character/README.md` — one kit scene per aspect | character-101 |
 | professor | `labs/kits/professor/README.md` — the teacher who flies to a part, points and says a line | electronics-101 |
 
+## Snapshots — what a kit offers
+
+`Lab.snapshot()` holds the clock, the parameters, the probes and a recording
+in progress by itself. What a kit's model builds up while time runs it hands
+over through a `ModelState` (kernel README, *Snapshots*):
+
+- one per object whose state changes with time, inside the kit's own QML
+  type where there is one (`GpsSensor`, `OdometrySensor`, `LidarSensor`
+  each carry theirs, named by a `stateName` a lab can change);
+- `target` + `properties` for state that is a few assigned properties;
+  `save` + `load` for a model in one plain object, or one whose `load` has
+  to rebuild something derived (the traffic kit's lane model, from the plan);
+- plain data only, and properties the model assigns, never bound ones;
+- nothing for a part of the model that is a pure function of `clock.time`
+  and the parameters — the hydro and circuit solvers keep nothing over
+  time, so their labs offer the board alone.
+
+Check it the way `tools/lab-sweep/tests/run_snapshot_test.py` does: a run
+restored half-way and finished writes the record a straight run writes,
+byte for byte.
+
 ## The professor
 
 A lab that wants someone to teach its flow drops a `Professor` into its

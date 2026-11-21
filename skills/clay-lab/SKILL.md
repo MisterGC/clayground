@@ -148,6 +148,14 @@ template is a lab that ctest boots (`lab_new_boot_<kind>`), so it cannot rot.
   (resets clock + RNG), then `applyViewState`; the user's own state wins over
   the preset. A reload is therefore not a fresh start (`pitfalls.md`,
   *Determinism*).
+- **What the model builds up over time is offered to `Lab.snapshot()`**
+  through a `ModelState` per object that keeps it — a kit's own objects
+  carry theirs (the sensor kit's sensors do), the lab adds its bookkeeping.
+  Then an agent can run 600 steps once and try variants from there
+  (`Lab.restore`), and a reload restores instead of replaying. A model held
+  in properties nobody assigns — a pure function of `clock.time` and the
+  parameters — needs none. What a kit has to offer: `references/kits.md`,
+  *Snapshots*.
 - **A part's state is set on its selection card**; operating it in the
   scene is a shortcut gated on selection.
 - `labInfo()` stays language-neutral: ids and types, never display labels.

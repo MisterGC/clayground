@@ -11,8 +11,12 @@ interactive, deterministic, agent-verifiable experimentation space.
   what a lab can be asked and `Lab.run(opts)` runs one experiment in fixed
   steps and returns its probes' summaries (`docs/docs/manual/clayrender.md`,
   "Running an experiment").
+  `Lab.snapshot()` / `Lab.restore()` save a running lab at a point in time
+  and put it back (see *Snapshots* below).
 - **Parameter** — named, ranged tunable; bind your system to `value`.
 - **Probe** — named observable sampled on a fixed sim-time grid.
+- **ModelState** — hands what a model builds up over time to
+  `Lab.snapshot()`: a `target` and its `properties`, or `save`/`load`.
 - **SimClock** — seeded deterministic clock; with a `world` attached, sim
   time advances with the physics steps (exact under the inspector's
   `time`/`step` action); seeded `random()`/`randomRange()` are the only
@@ -329,6 +333,63 @@ Every lab must (a) derive all randomness from `SimClock` (seeded),
 (b) run correctly under the inspector's `time` pause/step actions,
 (c) expose `labInfo()` — typically just `return Lab.labInfo()`.
 Same seed + same stepped frames ⇒ identical probe series.
+
+## Snapshots — what a kit offers
+
+`Lab.snapshot()` returns a running lab as plain data and `Lab.restore(snap)`
+puts it back; a restored run goes on exactly as the uninterrupted one would
+have. `Lab.writeSnapshot(path)` and `Lab.readSnapshot(path)` (or
+`Lab.restore(path)`) take it to a file and into another process.
+
+The kernel holds by itself: the clock's seed and its five values (time,
+random state, next sample, step remainder, last step time), the scenario
+name, every parameter, the parameter log (values at the last reset and
+every change since, with its sim time), each probe's samples, and a
+`DataRecorder` that is recording — so a record finished after a restore
+holds the whole run. Not in it: how the frame ticker is paced
+(`timeScale`, `Clayground.paused`, a clock left resting or woken), the
+camera and what the sandbox shows. Pacing decides when time moves, not what
+the run is, which is why it stays out.
+
+What only the model knows - what it has built up while time ran - it hands
+over through a `ModelState` per object that keeps such state:
+
+```qml
+// a model in one plain object (the traffic kit)
+ModelState {
+    name: "traffic"
+    save: () => ({ plan: root.planState(), sim: root.simState })
+    load: (s) => { root.loadPlan(s.plan); root.simState = s.sim }
+}
+// state spread over an object's own properties (each sensor of the sensor kit)
+ModelState { name: "odometry"; target: odo; properties: ["estX", "estY", "headingErr", "_lastT", "_lastTrue"] }
+```
+
+So a kit offers, for each object of its that changes while time runs:
+
+- **plain data** — numbers, strings, booleans, null, arrays and objects of
+  them. The snapshot copies it, so `save` may return the live object; NaN
+  and the infinities survive the file (`{"$num": "NaN"}`);
+- **assigned, not bound** properties when it uses `properties` — a restore
+  assigns them, which would cut a binding;
+- **a `load` that rebuilds what is derived**, when something is derived
+  from the state (the traffic kit derives its lane model from the plan:
+  `load` derives it, then hands the cars back);
+- **one name per state**, overridable when a lab has two of the same
+  (the sensor kit's `stateName`).
+
+What a lab adds is its own bookkeeping: sensor-fusion-101 one hook for the
+Kalman filter and one for the weighing and the sky; a build lab its board
+(`board.state()` / `board.load()`), because its solver keeps nothing over
+time.
+
+A lab that registers no `ModelState` offers no state: `Lab.snapshot()` says
+so (`{error}`), `Lab.schema().modelStates` is empty, and a reload replays its
+run from the last reset, applying every parameter change at the sim time it
+was made. A lab that does offers its snapshot in `Lab.viewState()`, so a
+reload restores it instead: about 0.1 s at 60 sim seconds of
+sensor-fusion-101, where the replay took 3 to 5 s and grew with every
+second the lab ran.
 
 ## Minimal lab skeleton
 
