@@ -22,6 +22,11 @@ by file and line, because the labs were written before these rules;
 where a shipped line breaks a rule, the example says so and gives the
 rewrite.
 
+The same two marks are on every rule in `flows.md` and `triad.md`, the
+other two references that hold rules. The rest hold none: `pitfalls.md`
+is traps, `kits.md` a procedure, `catalog.md` a generated list and
+`check-failures.md` the lookup for a red line.
+
 ## 1. A term is defined before it is used
 
 *Judgement — no program checks this.*
