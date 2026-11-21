@@ -45,6 +45,17 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 LABS_DIR = KITS_DIR = OUT_DIR = CARD_DIR = DATA_FILE = CARD_DATA_FILE = SHOT_DIR = None
 
 
+
+def shown(path):
+    """`path` as the log prints it: relative to the repository, or as it is
+    when it lies on another drive - on Windows `--out` may point at a temp
+    folder on C: while the checkout is on D:, and `os.path.relpath` raises
+    there."""
+    try:
+        return os.path.relpath(path, ROOT)
+    except ValueError:
+        return path
+
 def configure(labs_dir, site_dir):
     """labs_dir holds the labs, site_dir is the Jekyll root the pages go to."""
     global LABS_DIR, KITS_DIR, OUT_DIR, CARD_DIR, DATA_FILE, CARD_DATA_FILE, SHOT_DIR
@@ -248,7 +259,7 @@ def write_cards(lab_names):
         out_path = os.path.join(CARD_DIR, kit + ".md")
         with open(out_path, "w", encoding="utf-8") as f:
             f.write("\n".join(l for l in page if l is not None))
-        print("wrote %s" % os.path.relpath(out_path, ROOT))
+        print("wrote %s" % shown(out_path))
         entries.append({"slug": kit, "name": name, "tagline": tagline,
                         "labs": users})
 
@@ -259,7 +270,7 @@ def write_cards(lab_names):
             f.write("  name: %s\n" % yaml_quote(e["name"]))
             f.write("  tagline: %s\n" % yaml_quote(e["tagline"]))
             f.write("  labs: [%s]\n" % ", ".join(e["labs"]))
-    print("wrote %s (%d cards)" % (os.path.relpath(CARD_DATA_FILE, ROOT),
+    print("wrote %s (%d cards)" % (shown(CARD_DATA_FILE),
                                    len(entries)))
     return entries
 
@@ -370,7 +381,7 @@ def main(argv=None):
         out_path = os.path.join(OUT_DIR, slug + ".md")
         with open(out_path, "w", encoding="utf-8") as f:
             f.write("\n".join(l for l in page if l is not None))
-        print("wrote %s" % os.path.relpath(out_path, ROOT))
+        print("wrote %s" % shown(out_path))
 
         entries.append({"slug": slug, "name": name, "tagline": tagline,
                         "kit": kit, "scenarios": len(scen),
@@ -385,7 +396,7 @@ def main(argv=None):
             f.write("  kit: %s\n" % yaml_quote(e["kit"]))
             f.write("  scenarios: %d\n" % e["scenarios"])
             f.write("  shot: %s\n" % ("true" if e["shot"] else "false"))
-    print("wrote %s (%d labs)" % (os.path.relpath(DATA_FILE, ROOT), len(entries)))
+    print("wrote %s (%d labs)" % (shown(DATA_FILE), len(entries)))
 
     write_cards({e["slug"]: e["name"] for e in entries})
 
