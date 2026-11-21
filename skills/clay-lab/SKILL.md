@@ -110,7 +110,10 @@ Work in this order; each step has a verification before the next.
 
 1. **World + clock.** `SimClock { seed; sampleInterval }` is the only source
    of time and randomness. Step per frame (`fixedStep` + `onStepped`), never
-   in lumps.
+   in lumps. A lab with nothing moving draws nothing: bind `resting` to "no
+   current/flow, no lesson, no recording", call `wake()` when the solve
+   changes at rest, and read `clock.time` in a binding only while the thing
+   it animates moves - every such binding is a frame (#575).
 2. **Domain model** in the kit as pure JS; its node suite now, not later.
 3. **Kernel wiring.** `Parameter` only for owner-less globals (noise sigma,
    sim speed); anything an object owns gets a control on its selection card.
@@ -283,6 +286,22 @@ Its options: `docs/docs/manual/clayrender.md`.
   sensors or RNG use invalidates them: rerun, re-read the table, one commit.
 - Figures come only from `figures/make.sh`, cropped by `objectName`, never
   downscaled, and no number is read off one.
+- **A one-off question is one call.** `Lab.schema()` says what the lab can
+  be asked (parameters with range, unit and description; probes with unit;
+  scenarios; flows); `Lab.run()` runs seed → scenario → parameters → reset
+  → warm-up → recorded steps and returns each probe's summary over the
+  recorded steps only (`series: true` adds the samples):
+
+  ```bash
+  clayrender labs/<slug>/Sandbox.qml --out /tmp/x.png --paused --result - \
+      --eval 'Lab.schema()' \
+      --eval 'Lab.run({ scenario: "grid", seed: 11, params: { demand: 1.5 },
+                        warmupSteps: 1200, steps: 3000, probes: ["cars"] })'
+  ```
+
+  Its means are what a record of the same run holds; an option it cannot
+  honour (a value out of range, an unknown probe) runs nothing and answers
+  `{error}`. A result worth quoting still becomes a study and a record.
 - A question asked of a lab is a **study**: answerability first
   (`Parameter` / `Probe` / model-card claim, or a reduced question), then
   `tools/lab-sweep/lab-sweep <study-dir> --check`, `--dry-run`, run. Manifest

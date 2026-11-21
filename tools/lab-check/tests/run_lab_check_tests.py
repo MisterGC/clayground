@@ -595,6 +595,9 @@ def test_step_of():
     check("runFlow: an expect that threw carries what it threw",
           L.step_of({"index": 3, "step": "lit", "error": "TypeError"})
           == "lit (TypeError)")
+    check("runFlow: a failed expect says what it saw (#567)",
+          L.step_of({"index": 3, "step": "lit", "saw": {"I": 0.0049, "on": False}})
+          == "lit - saw I=0.0049, on=false")
 
 
 # -- what a load may log (#534) ----------------------------------------------
