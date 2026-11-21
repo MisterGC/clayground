@@ -2,6 +2,7 @@
 //
 // clayrender - one sandbox, one picture, no session (issue #164).
 
+#include "framestats.h"
 #include "renderhost.h"
 
 #include <clayanchor.h>
@@ -378,6 +379,15 @@ int main(int argc, char* argv[])
         "how the state was not reached. Required with --trace.", "file|-");
     QCommandLineOption framesOpt("frames",
         "Render this many frames before capturing.", "n", "2");
+    QCommandLineOption statsOpt("stats",
+        "What a frame costs: run n frame slots of 1/60 s after the setup "
+        "(--set/--eval/--script, --frames, --wait-for, --settle), draw a frame "
+        "only when the scene asks for one, as a window does, and print one "
+        "JSON line - frames, rendered (frames really drawn), seconds, cpuMs "
+        "(process CPU time per slot), renderMs (wall time to draw a frame), "
+        "drawCalls and vertices (summed over every View3D), views3d. Each is "
+        "{median, mean, min, max}, or null when nothing was drawn. Waiting for "
+        "the next slot is in none of them.", "n");
     QCommandLineOption settleOpt("settle",
         "Capture once the picture stops changing (or the timeout expires).");
     QCommandLineOption settleMsOpt("settle-timeout",
@@ -412,7 +422,7 @@ int main(int argc, char* argv[])
 
     parser.addOptions({sbxOpt, prefsOpt, outOpt, sizeOpt, setOpt, evalOpt,
                        scriptOpt, resultOpt, pausedOpt, waitForOpt, waitMsOpt,
-                       traceOpt, traceOutOpt, framesOpt, settleOpt,
+                       traceOpt, traceOutOpt, framesOpt, statsOpt, settleOpt,
                        settleMsOpt, dumpOpt, projectOpt, pickOpt, anchorOpt,
                        cropOpt, cropPadOpt, scaleOpt, widthOpt, labSrcOpt});
     parser.process(app);
@@ -464,6 +474,14 @@ int main(int argc, char* argv[])
                     "(a file, or - for stdout)");
     if (traced.isEmpty() && parser.isSet(traceOutOpt))
         return fail("--trace-out without --trace: nothing to write");
+
+    int statsSlots = 0;
+    if (parser.isSet(statsOpt)) {
+        statsSlots = parser.value(statsOpt).toInt(&ok);
+        if (!ok || statsSlots < 1)
+            return fail(QString("--stats wants a frame count, got '%1'")
+                            .arg(parser.value(statsOpt)));
+    }
 
     RenderHost host;
     host.setPausedOnLoad(parser.isSet(pausedOpt));
@@ -585,6 +603,15 @@ int main(int argc, char* argv[])
                 << " ms (" << settled.lastDelta * 100.0
                 << "% of pixels changing) - captured anyway\n";
         }
+    }
+
+    // After the setup, so what is measured is the state it reached; before the
+    // queries and the capture, so they describe the last measured frame.
+    if (statsSlots > 0) {
+        const QJsonObject stats = FrameStats::measure(host, statsSlots);
+        QTextStream(stdout)
+            << QString::fromUtf8(QJsonDocument(stats).toJson(QJsonDocument::Compact))
+            << "\n";
     }
 
     // Scene queries before the capture, so a dump describes the same frame the
