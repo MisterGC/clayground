@@ -40,6 +40,12 @@ lab="{{slug}}"
 # $CLAYRENDER when it is set - lab-check passes the one it was given, so a
 # build folder of another name is the one that renders (#535)
 render="${CLAYRENDER:-$root/build/bin/clayrender}"
+# Absolute before the cd into the lab below: a relative $CLAYRENDER was checked
+# from the caller's directory and then run from the lab's (#535)
+case "$render" in
+    /*|[A-Za-z]:*) ;;
+    *) render="$PWD/$render" ;;
+esac
 # how this script is spelled inside a record - repo-relative, so it reads the
 # same on any machine
 self="labs/$lab/records/make.sh"
