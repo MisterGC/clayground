@@ -203,15 +203,26 @@ QtObject {
         \qmlproperty var Board::routes
         \brief Every wire's drawn path, \c {{ wireId: [{x, z}, ...] }}, from the \l router.
 
-        Routing is GEOMETRY: it follows \l layoutRev and never the solve or
-        a field, so a search over candidate paths cannot end up inside the
-        solve loop, and a flipped switch routes nothing again.
+        Routing is GEOMETRY: it is redone with \l layoutRev and never for the
+        solve or a field, so a search over candidate paths cannot end up
+        inside the solve loop, and a flipped switch routes nothing again.
+
+        Set by the board when it publishes, right before \l layoutRev moves,
+        rather than bound: a binding read \l parts, \l wires and
+        \l layoutRev, and a preset that changes all three routed the whole
+        board three times (#577).
     */
-    readonly property var routes: {
-        layoutRev
-        if (!router || !router.all) return ({})
-        return router.all(B.linksOf(spec, geom, parts, wires), B.obstaclesOf(spec, geom, parts), lane)
+    readonly property var routes: _routes
+    property var _routes: ({})
+    function _route() {
+        _routes = router && router.all
+                ? router.all(B.linksOf(spec, geom, parts, wires), B.obstaclesOf(spec, geom, parts), lane)
+                : ({})
     }
+    onRouterChanged: _route()
+    onLaneChanged: _route()
+    onGeomChanged: _route()
+    onSpecChanged: _route()
 
     /*! \qmlmethod var Board::wirePath(var wire) \brief The drawn path as \c {[{x, z}]}; the straight line when unrouted. */
     function wirePath(w) {
@@ -273,6 +284,7 @@ QtObject {
         _layoutDirty = true
         _revDirty = true
         if (batchDepth === 0) {
+            _route()
             ++layoutRev; ++rev
             _layoutDirty = false; _revDirty = false
             changed("view")
@@ -281,7 +293,7 @@ QtObject {
     function _flush() {
         if (_partsDirty) { parts = parts.slice(); _partsDirty = false }
         if (_wiresDirty) { wires = wires.slice(); _wiresDirty = false }
-        if (_layoutDirty) { ++layoutRev; _layoutDirty = false }
+        if (_layoutDirty) { _route(); ++layoutRev; _layoutDirty = false }
         if (_revDirty) { ++rev; _revDirty = false }
         changed("solve")
     }
@@ -421,6 +433,7 @@ QtObject {
         nextId = r.nextId
         wiringFrom = null
         selectedId = -1
+        _route()
         ++layoutRev
         ++rev
         changed("solve")
