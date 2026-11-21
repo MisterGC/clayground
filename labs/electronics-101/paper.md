@@ -99,6 +99,25 @@ That iteration *is* the lesson made mechanical: current does not flow
 because a wire exists, it flows because the node voltages, solved all at
 once, leave a forward drop across a part that will pass it.
 
+An LED also has a **maximum current**, $I_\mathrm{max} = 30\,\mathrm{mA}$
+— a 5 mm indicator LED's absolute rating, and the LED's row in the kit's
+part table. Past it the LED **burns out**: it goes dark, becomes an open
+junction, and stays that way when the current comes back down, until its
+card puts a new one in or the scenario is loaded again. The solve itself
+only reports that an LED is over its maximum; burning is the one step
+that changes the board, one LED at a time and the worst first, because an
+LED that dies goes open and takes its current with it. On the 4.5 V loop
+the lesson builds, the line falls between two neighbouring E12 values:
+
+| resistor | LED current | LED |
+|---|---|---|
+| 68 Ω | 29.9 mA | lit |
+| 56 Ω | 35.0 mA | burnt out |
+
+That is the resistor's job made into a consequence: the guided flow's last
+task is to turn it down until the LED gives up, and the step after it says
+why it did.
+
 The plain **diode** is the same model with a lower knee
 ($V_F = 0.7\,\mathrm{V}$, $R = 10\,\Omega$) and no light. It is in the kit
 because "the LED is a diode that glows" is a sentence worth being able to
@@ -514,6 +533,9 @@ same picture that shows the fault.
   slope ($15\,\Omega$ for an LED, $10\,\Omega$ for a plain diode), not the
   smooth Shockley $I = I_S(e^{V/nV_T}-1)$. Reverse breakdown is not
   modeled — a reversed diode is simply open.
+- **An LED's limit is a line, not a thermal model.** Below 30 mA it lasts
+  forever, above it it dies at once: no time to failure, no heating, no
+  derating, no pulse rating. The plain diode has no limit at all.
 - **The transistor is a switch with a gain, not a device model.** $\beta$
   is a constant 100: it does not fall off at high current, does not vary
   with temperature and does not differ between two parts. There is no
@@ -652,11 +674,13 @@ with voltage.
 
 ## Things to try
 
-- **Push the LED to its ceiling.** Set the resistor to 100 Ω and drag the
-  battery's own slider up to 12 V. The current climbs but the LED clamps near its
-  $V_F$ knee — most of the extra volts now burn in the resistor, not the
-  diode. Put the LED and the resistor on the plot, switch it to *voltage*,
-  and watch the LED's curve flatten while the resistor's climbs.
+- **Push the LED to its ceiling.** Set the resistor to 470 Ω and drag the
+  battery's own slider up towards 12 V. Put the LED and the resistor on
+  the plot, switch it to *voltage*, and watch the LED's curve stay close to
+  2 V while the resistor's climbs — most of the extra volts land on the
+  resistor, which is why the LED survives: at 12 V it carries 20.6 mA, under
+  its 30 mA. Do the same with 100 Ω and it does not: at 5.5 V it is over
+  30 mA and burns out, and stays dark when you turn the cell back down.
 - **Read series and parallel off one plot.** Both presets seed the monitor
   with the cell and one bulb. In `series` the two current curves lie on top
   of each other (one current everywhere) while *voltage* shows the cell's
