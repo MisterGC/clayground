@@ -12,7 +12,8 @@
 // to each wire.
 const K = require('../kitcheck.js')
 
-const C = K.load(__dirname, 'circuit.js', ['solve', 'buildNets', 'terminalCount'])
+const C = K.load(__dirname, 'circuit.js', ['solve', 'buildNets', 'terminalCount',
+                                           'burnOut', 'diodeSpec', 'I_MAX_LED'])
 
 // --- builders ---------------------------------------------------------------
 // Same shapes the lab passes in: elements {id, type, value, on},
@@ -164,6 +165,91 @@ K.section('switch and LED behaviour')
     loop(b, bat, [led, r])
     const s = run(b)
     K.ok('1.5 V is under the forward voltage: dark', !s.perElement[led].on)
+}
+
+// ------------------------------------------------------------ burning out
+// The LED's maximum is 30 mA, from its row in the part table. On the flow's
+// 4.5 V loop that puts the limit between two neighbouring E12 values: 68 ohm
+// is 29.9 mA and survives, 56 ohm is 35 mA and burns - both sides pinned,
+// because the lesson's last task is finding exactly that edge (#539).
+K.section('an LED burns out above its maximum')
+function ledLoop(volts, ohms) {
+    const b = board()
+    const bat = el(b, 'battery', volts)
+    const sw = el(b, 'switch', 0, true)
+    const led = el(b, 'led', 0)
+    const r = el(b, 'resistor', ohms)
+    loop(b, bat, [sw, led, r])
+    return { b: b, led: led, r: r }
+}
+{
+    K.eq('the maximum is in the part table: 30 mA', C.diodeSpec('led').imax, 0.030)
+    K.eq('and is the constant the kit exports', C.I_MAX_LED, 0.030)
+    K.eq('a plain diode has no limit', C.diodeSpec('diode').imax, 0)
+}
+{
+    const c = ledLoop(4.5, 68)
+    const s = run(c.b)
+    K.near('68 ohm on 4.5 V: 29.9 mA', s.perElement[c.led].i, 0.02994, 5e-5)
+    K.ok('just under the maximum: not over-rated', !s.perElement[c.led].overRated)
+    const bo = C.burnOut(c.b.els, c.b.wires)
+    K.eq('and nothing burns', bo.burnt.length, 0)
+    K.ok('it stays lit', bo.result.perElement[c.led].on)
+}
+{
+    const c = ledLoop(4.5, 56)
+    const s = run(c.b)
+    K.near('56 ohm on 4.5 V: 35 mA', s.perElement[c.led].i, 0.0349, 1e-4)
+    K.ok('over the maximum: the solve says so', s.perElement[c.led].overRated
+         && s.overRated.length === 1 && s.overRated[0] === c.led)
+    K.ok('but solve alone changes nothing: still lit', s.perElement[c.led].on)
+    const bo = C.burnOut(c.b.els, c.b.wires)
+    K.ok('burnOut burns it', bo.burnt.length === 1 && bo.burnt[0] === c.led)
+    const e = bo.result.perElement[c.led]
+    K.ok('a burnt LED goes dark', !e.on && e.blown)
+    K.ok('and carries nothing', Math.abs(e.i) < 1e-6)
+    K.ok('the caller\'s parts are not touched', !c.b.els.some(x => x.blown))
+}
+{
+    // the issue's own case: 100 ohm on 12 V is 86.6 mA, no longer lit
+    const c = ledLoop(12, 100)
+    const bo = C.burnOut(c.b.els, c.b.wires)
+    K.ok('100 ohm on 12 V burns the LED', bo.burnt.length === 1 && !bo.result.perElement[c.led].on)
+}
+{
+    // the paper's "push the LED to its ceiling": 470 ohm survives 12 V,
+    // 100 ohm survives 5 V and not 5.5 V
+    const at = (v, r) => { const c = ledLoop(v, r); return { c: c, bo: C.burnOut(c.b.els, c.b.wires) } }
+    const a = at(12, 470)
+    K.near('470 ohm on 12 V: 20.6 mA', a.bo.result.perElement[a.c.led].i, 0.0206, 1e-4)
+    K.eq('and it survives', a.bo.burnt.length, 0)
+    K.eq('100 ohm on 5 V (26 mA) survives', at(5, 100).bo.burnt.length, 0)
+    K.eq('100 ohm on 5.5 V (30.3 mA) burns', at(5.5, 100).bo.burnt.length, 1)
+}
+{
+    // it stays burnt: back to the safe 470 ohm, a blown LED is still dark
+    const c = ledLoop(4.5, 470)
+    c.b.els.find(x => x.id === c.led).blown = true
+    const s = run(c.b)
+    K.ok('a blown LED stays dark at a safe 470 ohm', !s.perElement[c.led].on
+         && Math.abs(s.perElement[c.led].i) < 1e-6 && s.perElement[c.led].blown)
+    K.ok('and is never reported over-rated again', s.overRated.length === 0)
+    c.b.els.find(x => x.id === c.led).blown = false
+    K.near('replaced, it lights at 5.15 mA again', run(c.b).perElement[c.led].i, 0.00515, 5e-5)
+}
+{
+    // two LEDs in series, no resistor: both over, but only the first to go
+    // burns - it opens, and the second has nothing left to burn on
+    const b = board()
+    const bat = el(b, 'battery', 6)
+    const l1 = el(b, 'led', 0)
+    const l2 = el(b, 'led', 0)
+    loop(b, bat, [l1, l2])
+    K.ok('two LEDs straight on 6 V are both over', run(b).overRated.length === 2)
+    const bo = C.burnOut(b.els, b.wires)
+    K.ok('one burns, the first listed on a tie', bo.burnt.length === 1 && bo.burnt[0] === l1)
+    K.ok('the other survives, dark for want of current',
+         !bo.result.perElement[l2].on && !bo.result.perElement[l2].blown)
 }
 
 // ------------------------------------------------------ short vs overload
@@ -829,8 +915,10 @@ K.ok('every part carries value, on and func', Object.keys(Parts.spec).every(t =>
 }))
 K.ok('defaults: 470 ohm, 4.5 V, a gate answers AND', Parts.spec.resistor.fields.value === 470
      && Parts.spec.battery.fields.value === Parts.DEFAULT_VOLTS && Parts.spec.gate.fields.func === 'and')
-K.ok('card rows: state / func / value', Parts.spec.switch.rows[0] === 'state' && Parts.spec.gate.rows[0] === 'func'
-     && Parts.spec.resistor.rows[0] === 'value' && Parts.spec.battery.rows[0] === 'value' && Parts.spec.led.rows.length === 0)
+K.ok('card rows: state / func / value / replace', Parts.spec.switch.rows[0] === 'state' && Parts.spec.gate.rows[0] === 'func'
+     && Parts.spec.resistor.rows[0] === 'value' && Parts.spec.battery.rows[0] === 'value' && Parts.spec.led.rows[0] === 'replace')
+K.ok('an LED starts intact, and only an LED can burn', Parts.spec.led.fields.blown === false
+     && Object.keys(Parts.spec).every(t => t === 'led' || !('blown' in Parts.spec[t].fields)))
 K.ok('the junction takes no plot', Parts.spec.junction.watch === false)
 
 process.exit(K.report('circuit kit'))
