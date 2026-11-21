@@ -14,7 +14,7 @@ turns each of those into a named PASS/FAIL line and a non-zero exit.
 
 WHAT IS CHECKED, IN ORDER
 
-  load          the lab boots and logs nothing of its own
+  load          the lab boots and logs nothing but the named environment
   determinism   every scenario, two stepped runs, byte-identical records
   flows         every flow runs to its end, with its expects holding
   strings       EN and DE say the same set of things, flows included
@@ -261,32 +261,131 @@ class Loader:
 
     def diagnostics(self):
         """Warnings and errors the loader streamed, split into the lab's own
-        and the environment's.
-
-        Split by the file a diagnostic names, not by its category: offscreen
-        has no RHI, so Qt Quick 3D warns about every View3D on every headless
-        run whatever the scene is. A QML diagnostic from the sandbox always
-        carries `<file>:<line>:<col>`, so naming the lab directory is exactly
-        the test for "this one is ours".
-        """
-        ours, other = [], []
+        and the environment's - see classify_diagnostics()."""
+        entries = []
         path = os.path.join(self.insp.dir, "log.jsonl")
         try:
             with open(path) as f:
                 for line in f:
                     try:
-                        entry = json.loads(line)
+                        entries.append(json.loads(line))
                     except json.JSONDecodeError:
                         continue
-                    if entry.get("level") not in ("warning", "error"):
-                        continue
-                    body = entry.get("text", "")
-                    cat = entry.get("category", "default")
-                    text = f"[{entry.get('level')}/{cat}] {body}"
-                    (ours if self.lab_dir in body else other).append(text)
         except OSError:
             pass
-        return ours, other
+        return classify_diagnostics(entries, repo_root(self.lab_dir))
+
+
+# --------------------------------------------------------------------------
+# what a load may log
+#
+# The ENVIRONMENT is a short list of named messages, and nothing else is
+# (#534). The check used to file a message as the lab's only when it named a
+# file inside the lab's own folder, so a TypeError thrown by a kit under
+# labs/kits/ or by the kernel in plugins/clay_lab/ - code the lab runs and
+# cannot run without - was "environment, not the lab", and the gate passed a
+# lab that threw while loading. Inverting the test is the fix: a message is
+# the environment's only when it is one of these, by name, and the README's
+# "What counts as the environment" lists the same entries. A new one belongs
+# on the list only when it comes from the machine whatever the lab is.
+
+ENVIRONMENT = [
+    # Offscreen has no RHI, so Qt Quick 3D refuses every View3D on every
+    # headless run, whatever the scene is.
+    ("qtquick3d-no-rhi",
+     re.compile(r"^The Qt Quick scene is using a rendering method that is not "
+                r"based on QRhi and a 3D graphics API\.")),
+    # The same refusal, as the soft assert Qt Quick 3D logs right after it.
+    ("qtquick3d-no-rhi-assert",
+     re.compile(r'^Unexpected condition met: '
+                r'"QSGRendererInterface::isApiRhiBased\(')),
+    # Under QT_QPA_PLATFORM=offscreen on macOS Qt asks for its own default
+    # family, "Sans Serif", which the system does not have, and says so once.
+    ("offscreen-default-font",
+     re.compile(r"^Populating font family aliases took \d+ ms\. Replace uses "
+                r'of missing font family "Sans Serif"')),
+]
+
+# A QML or JS location as Qt prints it at the start of a diagnostic:
+# file:///.../X.qml:12:5, qrc:/qt/qml/Clayground/Lab/X.qml:12, /abs/x.js:3.
+QML_LOCATION = re.compile(r"^((?:file:|qrc:)?/\S*?\.(?:qml|m?js))((?::\d+){0,2})")
+
+
+def environment_name(text):
+    """The ENVIRONMENT entry a message is, or None when it is not one."""
+    for name, pattern in ENVIRONMENT:
+        if pattern.search(text):
+            return name
+    return None
+
+
+def source_file(text, repo):
+    """The file a diagnostic names, as a path a reader can open, or None.
+
+    A kit or lab file arrives as a file:// URL and is shown relative to the
+    repository; a plugin's QML is compiled into its resources and arrives as
+    qrc:/qt/qml/Clayground/<Module>/<path>, which is shown as the source file
+    plugins/clay_<module>/<path> when that exists, the URL otherwise.
+    """
+    m = QML_LOCATION.match(text)
+    if not m:
+        return None
+    url, where = m.group(1), m.group(2)
+    path = url
+    if url.startswith("file:"):
+        path = url[len("file:"):]
+        # file:///Users/x is /Users/x; file:///C:/x is C:/x on Windows
+        while path.startswith("//"):
+            path = path[1:]
+        if re.match(r"^/[A-Za-z]:/", path):
+            path = path[1:]
+    elif url.startswith("qrc:"):
+        parts = url[len("qrc:"):].lstrip("/").split("/")
+        if len(parts) > 4 and parts[:3] == ["qt", "qml", "Clayground"]:
+            src = os.path.join(repo, "plugins", "clay_" + parts[3].lower(), *parts[4:])
+            if os.path.isfile(src):
+                path = src
+    if os.path.isabs(path):
+        try:
+            rel = os.path.relpath(path, repo)
+            if not rel.startswith(".."):
+                path = rel
+        except ValueError:
+            pass
+    return path.replace(os.sep, "/") + where
+
+
+def classify_diagnostics(entries, repo):
+    """(ours, environment) from log.jsonl entries.
+
+    ours is every warning or error that is not on the ENVIRONMENT list, as one
+    line per distinct message that starts with the file it names - or with
+    "(names no file)", which fails the load as well: a console.warn or a Qt
+    warning raised for the scene carries no location and is still something
+    the lab made happen. environment is one line per ENVIRONMENT entry seen.
+    """
+    ours, counts, env = [], {}, {}
+    for entry in entries:
+        level = entry.get("level")
+        if level not in ("warning", "error"):
+            continue
+        body = entry.get("text", "").strip()
+        name = environment_name(body)
+        if name:
+            env[name] = env.get(name, 0) + 1
+            continue
+        cat = entry.get("category", "default")
+        where = source_file(body, repo)
+        if where:
+            body = body[QML_LOCATION.match(body).end():].lstrip(":").strip()
+        text = f"{where or '(names no file)'}: [{level}/{cat}] {body}"
+        if text not in counts:
+            ours.append(text)
+            counts[text] = 0
+        counts[text] += 1
+    ours = [t + (f"  (x{counts[t]})" if counts[t] > 1 else "") for t in ours]
+    other = [f"{name} (x{n})" for name, n in env.items()]
+    return ours, other
 
 
 # --------------------------------------------------------------------------
@@ -395,6 +494,9 @@ def js_str(text):
 
 
 def check_load(rep, session):
+    """Whether the lab came up. A lab that came up and logged something of its
+    own fails the load and still gets every other check: the scene answers
+    questions, and one FAIL line hides less than a verdict cut short."""
     ok = session.insp.wait_phase("ready", timeout=90)
     st = session.insp.state()
     if not rep.check("load: the lab reaches phase ready", ok,
@@ -406,10 +508,15 @@ def check_load(rep, session):
               env.get("rootLoaded") is True and env.get("alive") is True,
               f"alive={env.get('alive')} rootLoaded={env.get('rootLoaded')}")
     ours, other = session.diagnostics()
-    for line in other[:4]:
-        rep.note("(environment, not the lab) " + line)
-    return rep.check("load: the lab logged no qml warning or error", not ours,
-                     "; ".join(ours[:4]))
+    for line in other:
+        rep.note("(environment, see the README's list) " + line)
+    for line in ours[:8]:
+        rep.note(line)
+    if len(ours) > 8:
+        rep.note(f"... and {len(ours) - 8} more")
+    rep.check("load: nothing but the environment logged a warning or error",
+              not ours, f"{len(ours)} message(s), first: {ours[0]}" if ours else "")
+    return True
 
 
 def one_run(spawn, lab_dir, lab_id, scenario, steps, dest):
