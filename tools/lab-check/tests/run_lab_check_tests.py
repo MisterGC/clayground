@@ -40,14 +40,14 @@ def check(name, ok, detail=""):
 class Recorder(L.Report):
     """A Report that keeps quiet, so a test can assert on what it collected."""
 
-    def check(self, name, ok, detail=""):
+    def check(self, name, ok, detail="", seconds=None):
         self.lines.append((name, ok, detail))
         return ok
 
     def note(self, text):
         pass
 
-    def not_run(self, name, why):
+    def not_run(self, name, why, seconds=None):
         self.skipped.append((name, why))
 
     def detail(self, needle):
@@ -912,7 +912,7 @@ def test_loader_watch(tmp):
           took < 15, f"{took:.1f} s")
 
 
-# -- a lab outside the checkout, every language (#573) ------------------------
+# -- a lab outside the checkout, every language, --json (#573) ----------------
 
 
 def test_default_binary(tmp):
@@ -978,6 +978,79 @@ def test_every_language(tmp):
           str(stores))
 
 
+def run_json(cmd, mode="serve"):
+    """(exit code, the parsed stdout or None, stdout) of a --json run."""
+    env = dict(os.environ, STAND_IN_MODE=mode)
+    proc = subprocess.run(cmd, env=env, stdout=subprocess.PIPE,
+                          stderr=subprocess.PIPE, text=True, timeout=120)
+    try:
+        doc = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        doc = None
+    return proc.returncode, doc, proc.stdout
+
+
+def test_json(tmp):
+    lab = stand_in_lab(tmp, "json-101")
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--loader",
+                               STAND_IN, "--only", "load,triad", "--json"])
+    check("json: stdout is one JSON document and nothing else",
+          doc is not None, raw[:200])
+    if doc is None:
+        return
+    check("json: it carries the exit code the process ended with",
+          doc.get("exit") == code == 0, f"exit {code}, json {doc.get('exit')}")
+    check("json: it names the lab and its purpose",
+          doc.get("lab") == "json-101" and doc.get("purpose") == "learning",
+          f"{doc.get('lab')} {doc.get('purpose')}")
+    checks = doc.get("checks", [])
+    keys = {"name", "check", "status", "passed", "detail", "seconds"}
+    check("json: every check has name, status, passed, detail and seconds",
+          checks and all(keys <= set(c) for c in checks),
+          str(checks[:1]))
+    check("json: seconds are numbers, none negative",
+          all(isinstance(c["seconds"], (int, float)) and c["seconds"] >= 0
+              for c in checks), str([c["seconds"] for c in checks]))
+    names = [c["name"] for c in checks]
+    check("json: the checks are the lines, in their order",
+          names[:1] == ["load: the lab reaches phase ready"]
+          and "triad: paper.md exists" in names, str(names))
+    check("json: the counts add up",
+          doc.get("passed") + doc.get("failed") + doc.get("notRun") == len(checks)
+          and doc.get("failed") == 0, str({k: doc.get(k) for k in
+                                           ("passed", "failed", "notRun")}))
+
+    # a failing run: exit 1, the failing check passed: false with its detail
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--loader",
+                               STAND_IN, "--only", "load", "--json"], "crash")
+    failed = [c for c in (doc or {}).get("checks", []) if c["status"] == "fail"]
+    check("json: a failing run says exit 1 and which check failed",
+          code == 1 and doc and doc["exit"] == 1 and failed
+          and failed[0]["passed"] is False
+          and "exit code 3" in failed[0]["detail"], raw[:300])
+
+    # nothing checked: exit 2 and 77 still print a document with the reason
+    empty = os.path.join(tmp, "not-a-lab")
+    os.makedirs(empty)
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, empty, "--json"])
+    check("json: a directory with no Sandbox.qml is exit 2 with the reason",
+          code == 2 and doc and doc["exit"] == 2 and doc["checks"] == []
+          and "Sandbox.qml" in (doc["error"] or ""), raw[:300])
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--json",
+                               "--only", "nonsense"])
+    check("json: an unknown check is exit 2 with the reason",
+          code == 2 and doc and "nonsense" in (doc["error"] or ""), raw[:300])
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--json",
+                               "--no-such-option"])
+    check("json: a wrong option is exit 2, still a document",
+          code == 2 and doc and doc["exit"] == 2, raw[:300])
+    code, doc, raw = run_json([sys.executable, LAB_CHECK, lab, "--json",
+                               "--loader", os.path.join(tmp, "no-loader")])
+    check("json: no loader is exit 77 with the reason",
+          code == L.SKIP and doc and doc["exit"] == L.SKIP
+          and "does not exist" in (doc["error"] or ""), raw[:300])
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
@@ -1004,6 +1077,7 @@ def main():
             # the stand-in loader is started as an executable script
             test_loader_watch(tmp)
             test_every_language(tmp)
+            test_json(tmp)
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

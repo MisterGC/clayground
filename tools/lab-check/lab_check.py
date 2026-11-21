@@ -48,7 +48,9 @@ step's narration is a `say` literal in the QML instead of a strings.js key.
 Exit 0 when everything passed, 1 on any FAIL, 2 when the command line or the
 lab directory is wrong (no Sandbox.qml, an unknown check), 77 (the ctest
 SKIP_RETURN_CODE) when the machine cannot run the check at all - no
-clayliveloader built.
+clayliveloader built. With --json stdout carries one JSON document with every
+line's name, status, detail and seconds, whatever the exit code, and the
+lines go to stderr (#573; the README's "Reading the result from a program").
 
 WHY THE LOADER IS WATCHED (#536). Every wait on the inspector also asks
 whether the loader process is still there. One that ended - a crash, a
@@ -150,26 +152,48 @@ import record as R             # noqa: E402
 
 
 class Report:
-    """Every line this tool prints, and the verdict it adds up to."""
+    """Every line this tool prints, and the verdict it adds up to.
+
+    `entries` keeps every PASS, FAIL and NOT RUN line in the order printed,
+    with the seconds the work behind it took, for --json (#573). A line whose
+    caller passes no seconds is timed from the last begin(): the check's own
+    work in this process.
+    """
 
     def __init__(self):
         self.lines = []
         self.skipped = []
+        self.entries = []
+        self.notes = []
+        self.begin()
 
-    def check(self, name, ok, detail=""):
+    def begin(self):
+        self.started = time.monotonic()
+
+    def _seconds(self, seconds):
+        return round(time.monotonic() - self.started if seconds is None
+                     else seconds, 3)
+
+    def check(self, name, ok, detail="", seconds=None):
         self.lines.append((name, ok, detail))
+        self.entries.append({"name": name, "status": "pass" if ok else "fail",
+                             "detail": detail,
+                             "seconds": self._seconds(seconds)})
         print(("PASS  " if ok else "FAIL  ") + name + (f"  ({detail})" if detail else ""))
         return ok
 
-    def not_run(self, name, why):
+    def not_run(self, name, why, seconds=None):
         # A check this machine cannot run. Counted apart from the passes: a
         # skipped check reported as passed is how "0/0 checks passed" came to
         # mean "every record regenerates" (#535).
         self.skipped.append((name, why))
+        self.entries.append({"name": name, "status": "not run", "detail": why,
+                             "seconds": self._seconds(seconds)})
         print("NOT RUN  " + name + f"  ({why})")
 
     def note(self, text):
         # Not a check: something worth reading that cannot be red.
+        self.notes.append(text)
         print("      " + text)
 
     def failed(self):
@@ -711,10 +735,10 @@ def never_ready(session):
             f"{session.ready_timeout:g} s (phase={session.insp.state().get('phase')})")
 
 
-def report_died(rep, name, died):
+def report_died(rep, name, died, seconds=None):
     """A run whose loader ended: the FAIL line says how, and the loader's last
     lines follow it - the reason is in them, not in the check (#536)."""
-    rep.check(name, False, str(died))
+    rep.check(name, False, str(died), seconds)
     if died.tail:
         rep.note("the loader's last output:")
         for line in died.tail:
@@ -734,11 +758,13 @@ class Outcome:
     always printed, so the output does not depend on which run ended first.
     """
 
-    def __init__(self, kind, value=None, detail="", died=None):
+    def __init__(self, kind, value=None, detail="", died=None, seconds=0.0):
         self.kind = kind
         self.value = value
         self.detail = detail
         self.died = died
+        # from the loader's start to the run's answer, the process's own time
+        self.seconds = seconds
 
 
 def run_fresh(spawn, body):
@@ -752,6 +778,7 @@ def run_fresh(spawn, body):
     stalled ones is the FAIL line."""
     if spawn.stalled:
         return Outcome("skipped", detail=spawn.stalled)
+    start = time.monotonic()
     try:
         with spawn() as session:
             if not session.ready():
@@ -759,12 +786,15 @@ def run_fresh(spawn, body):
             elif not session.paused_root():
                 detail = "the loader did not start with its clock paused (--paused)"
             else:
-                return Outcome("value", value=body(session))
+                value = body(session)
+                return Outcome("value", value=value,
+                               seconds=time.monotonic() - start)
             spawn.stalled = (f"an earlier run's loader did not get the lab ready "
                              f"within {session.ready_timeout:g} s")
-            return Outcome("stalled", detail=detail)
+            return Outcome("stalled", detail=detail,
+                           seconds=time.monotonic() - start)
     except LoaderDied as died:
-        return Outcome("died", died=died)
+        return Outcome("died", died=died, seconds=time.monotonic() - start)
 
 
 def report_run(rep, spawn, name, outcome):
@@ -774,12 +804,12 @@ def report_run(rep, spawn, name, outcome):
     if outcome.kind == "value":
         return outcome.value
     if outcome.kind == "died":
-        report_died(rep, name, outcome.died)
+        report_died(rep, name, outcome.died, outcome.seconds)
     elif outcome.kind == "stalled" and not spawn.stall_reported:
         spawn.stall_reported = True
-        rep.check(name, False, outcome.detail)
+        rep.check(name, False, outcome.detail, outcome.seconds)
     else:
-        rep.not_run(name, spawn.stalled or outcome.detail)
+        rep.not_run(name, spawn.stalled or outcome.detail, outcome.seconds)
     return None
 
 
@@ -839,10 +869,14 @@ def check_determinism(rep, spawn, runs):
         paths = []
         broke = None
         name = f"determinism: {scenario}"
+        # the line's seconds are both runs' together: each is a process
+        seconds = 0.0
         for dest, fut in pair:
             # A run after a failed one says nothing more: its outcome is
             # dropped, as it was never started when the runs went in turn
-            res = report_run(rep, spawn, name, fut.result())
+            outcome = fut.result()
+            seconds += outcome.seconds
+            res = report_run(rep, spawn, name, outcome)
             if res is None:
                 # report_run has written this scenario's line already
                 all_ok = False
@@ -855,7 +889,7 @@ def check_determinism(rep, spawn, runs):
                 break
             paths.append((dest, res))
         if broke:
-            all_ok = rep.check(name, False, broke) and all_ok
+            all_ok = rep.check(name, False, broke, seconds) and all_ok
             continue
         if len(paths) < 2:
             continue
@@ -864,7 +898,8 @@ def check_determinism(rep, spawn, runs):
         detail = f"{paths[0][1].get('rows')} sampled ticks, {os.path.getsize(a)} bytes"
         if not same:
             detail = first_difference(a, b)
-        all_ok = rep.check(f"determinism: {scenario}", same, detail) and all_ok
+        all_ok = rep.check(f"determinism: {scenario}", same, detail,
+                           seconds) and all_ok
     return all_ok
 
 
@@ -931,7 +966,8 @@ def check_flows(rep, spawn, flows, require, expects, runs):
             all_ok = False
             continue
         if res.get("__error__"):
-            all_ok = rep.check(name, False, res["__error__"]) and all_ok
+            all_ok = rep.check(name, False, res["__error__"],
+                               outcome.seconds) and all_ok
             continue
         problems = []
         if res.get("error"):
@@ -949,7 +985,7 @@ def check_flows(rep, spawn, flows, require, expects, runs):
         n_expect = (expects or {}).get(flow_id, 0)
         detail = "; ".join(problems) if problems else \
             f"{res.get('steps')} sim frames, {n_expect} expect(s)"
-        all_ok = rep.check(name, not problems, detail) and all_ok
+        all_ok = rep.check(name, not problems, detail, outcome.seconds) and all_ok
     return all_ok
 
 
@@ -1089,7 +1125,11 @@ def record_scenarios(committed):
 
 
 def run_command(cmd, cwd, env):
-    return subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+    """The finished process, with the seconds it ran as `seconds`."""
+    start = time.monotonic()
+    proc = subprocess.run(cmd, cwd=cwd, env=env, capture_output=True, text=True)
+    proc.seconds = time.monotonic() - start
+    return proc
 
 
 def start_records(pool, lab_dir, workdir, render, jobs=DEFAULT_JOBS):
@@ -1172,6 +1212,8 @@ def check_records(rep, lab_dir, workdir, render, started=None):
     all_ok = True
     for label, committed, out, futs in jobs:
         procs = [f.result() for f in futs]
+        # the line's seconds are its regenerating runs' together
+        seconds = sum(getattr(p, "seconds", 0.0) for p in procs)
         proc = next((p for p in procs if p.returncode != 0), None)
         if proc is not None:
             # Both streams: make.sh reports on stderr, lab-sweep echoes
@@ -1187,11 +1229,13 @@ def check_records(rep, lab_dir, workdir, render, started=None):
             if any(any(m in l for m in missing) for l in tail):
                 rep.not_run(f"records: {label} regenerates",
                             next(l.strip() for l in tail
-                                 if any(m in l for m in missing))[:100])
+                                 if any(m in l for m in missing))[:100],
+                            seconds)
                 continue
             all_ok = rep.check(f"records: {label} regenerates", False,
                                f"exit {proc.returncode}: "
-                               + (tail[-1][:120] if tail else "")) and all_ok
+                               + (tail[-1][:120] if tail else ""),
+                               seconds) and all_ok
             continue
         drifted = []
         first_diff = None
@@ -1215,8 +1259,8 @@ def check_records(rep, lab_dir, workdir, render, started=None):
             f"records: {label} regenerates to the committed bytes", not drifted,
             ", ".join(drifted[:4]) if drifted
             else (f"{compared} records" if compared else
-                  f"no committed records to compare; the run wrote {written}")) \
-            and all_ok
+                  f"no committed records to compare; the run wrote {written}"),
+            seconds) and all_ok
         if first_diff:
             rep.note(f"records: first difference in {first_diff}")
     return all_ok
@@ -1426,6 +1470,60 @@ def purpose_of(cfg, rep):
 
 
 def main():
+    """Exit code of one check; with --json the lines go to stderr and stdout
+    carries one JSON document, whatever the exit code (#573)."""
+    as_json = "--json" in sys.argv[1:]
+    out = sys.stdout
+    if as_json:
+        sys.stdout = sys.stderr
+    rep = Report()
+    info = {"lab": None, "path": None, "purpose": None, "error": None}
+    start = time.monotonic()
+    try:
+        code = check_lab(rep, info)
+    except SystemExit as e:
+        # argparse's verdict on a wrong command line: exit 2, nothing checked
+        code = e.code if isinstance(e.code, int) else 2
+        info["error"] = info["error"] or "the command line is wrong"
+    finally:
+        sys.stdout = out
+    if as_json:
+        json.dump(json_result(rep, info, code, time.monotonic() - start),
+                  out, indent=2)
+        out.write("\n")
+    return code
+
+
+def json_result(rep, info, code, seconds):
+    """The document --json prints: the README's "Reading the result from a
+    program" is its contract."""
+    checks = []
+    for e in rep.entries:
+        checks.append({
+            "name": e["name"],
+            "check": e["name"].split(":", 1)[0],
+            "status": e["status"],
+            "passed": {"pass": True, "fail": False}.get(e["status"]),
+            "detail": e["detail"],
+            "seconds": e["seconds"],
+        })
+    count = collections.Counter(c["status"] for c in checks)
+    return {
+        "lab": info["lab"],
+        "path": info["path"],
+        "purpose": info["purpose"],
+        "exit": code,
+        "error": info["error"],
+        "seconds": round(seconds, 3),
+        "passed": count["pass"],
+        "failed": count["fail"],
+        "notRun": count["not run"],
+        "checks": checks,
+        "notes": list(rep.notes),
+    }
+
+
+def check_lab(rep, info):
     ap = argparse.ArgumentParser(
         description="Check one lab against the lab contract (#208).")
     ap.add_argument("lab", help="the lab directory (labs/<slug>)")
@@ -1452,30 +1550,36 @@ def main():
                          "clayrender that starts), not only when one failed")
     ap.add_argument("--verbose", action="store_true",
                     help="let the loader write to this terminal")
+    ap.add_argument("--json", action="store_true",
+                    help="print the result as one JSON document on stdout, "
+                         "and the lines on stderr")
     args = ap.parse_args()
 
     lab_dir = os.path.abspath(args.lab.rstrip("/"))
     sandbox = os.path.join(lab_dir, "Sandbox.qml")
-    if not os.path.isfile(sandbox):
-        print(f"lab-check: no Sandbox.qml in {lab_dir}", file=sys.stderr)
-        return 2
     lab_id = os.path.basename(lab_dir)
+    info.update(lab=lab_id, path=lab_dir)
+    if not os.path.isfile(sandbox):
+        info["error"] = f"no Sandbox.qml in {lab_dir}"
+        print(f"lab-check: {info['error']}", file=sys.stderr)
+        return 2
     loader = os.path.abspath(args.loader or default_binary(lab_dir, "clayliveloader"))
     render = os.path.abspath(args.clayrender or default_binary(lab_dir, "clayrender"))
     wanted = CHECK_ORDER if not args.only else [
         c.strip() for c in args.only.split(",") if c.strip()]
     unknown = [c for c in wanted if c not in CHECK_ORDER]
     if unknown:
-        print(f"lab-check: unknown check(s): {', '.join(unknown)}", file=sys.stderr)
+        info["error"] = f"unknown check(s): {', '.join(unknown)}"
+        print(f"lab-check: {info['error']}", file=sys.stderr)
         return 2
 
-    rep = Report()
     cfg = read_config(lab_dir, rep)
     if cfg is None:
         return 1
     purpose = purpose_of(cfg, rep)
     if purpose is None:
         return 1
+    info["purpose"] = purpose
     steps = args.steps or int(cfg.get("steps", DEFAULT_STEPS))
     max_flow_steps = int(cfg.get("maxFlowSteps", DEFAULT_MAX_FLOW_STEPS))
 
@@ -1487,6 +1591,7 @@ def main():
     needs_scene = any(c in wanted for c in ("load", "determinism", "flows",
                                             "strings", "teaching"))
     if needs_scene and not (os.path.isfile(loader) and os.access(loader, os.X_OK)):
+        info["error"] = f"{loader} does not exist"
         print(f"SKIP  {loader} does not exist - build it with "
               "`cmake --build build --target clayliveloader`")
         return SKIP
@@ -1536,15 +1641,22 @@ def main():
                 # left cannot ask it anything; the checks below never needed
                 # it, and one hang used to cost them their lines (#536).
                 rep.check(f"protocol: {e}", False)
+        # each check below is timed from its own begin(); records lines carry
+        # their runs' seconds
         if records is not None:
+            rep.begin()
             check_records(rep, lab_dir, workdir, render, started=records)
         if "tables" in wanted:
+            rep.begin()
             check_tables(rep, lab_dir)
         if "study" in wanted:
+            rep.begin()
             check_study(rep, lab_dir, purpose)
         if "triad" in wanted:
+            rep.begin()
             check_triad(rep, lab_dir, purpose)
         if "remarks" in wanted:
+            rep.begin()
             check_remarks(rep, lab_dir)
     finally:
         # Runs not started yet are dropped; the ones running end within their
@@ -1592,6 +1704,7 @@ def run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir, lab_id,
     # One session answers everything that is a QUESTION about the lab - does
     # it load, what does it call its scenarios, what does it say in German.
     # The runs that are EXPERIMENTS each get their own process further down.
+    rep.begin()
     try:
         with spawn(stepped=False) as session:
             loaded = check_load(rep, session) if "load" in wanted else session.ready()
@@ -1612,6 +1725,7 @@ def run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir, lab_id,
                   probe["__error__"] + " - a lab's root needs `id: root`")
         return
 
+    rep.begin()
     scenarios = cfg.get("scenarios", "all")
     if scenarios == "all":
         scenarios = probe.get("scenarios", [])
@@ -1657,9 +1771,11 @@ def run_scene_checks(rep, spawn, pool, cfg, purpose, wanted, lab_dir, lab_id,
         raise
 
     if "strings" in wanted:
+        rep.begin()
         check_strings(rep, probe, require_de=(purpose == "teaching"))
 
     if "teaching" in wanted:
+        rep.begin()
         check_teaching(rep, probe, flows_to_run(cfg, probe.get("flows", [])),
                        purpose)
 
