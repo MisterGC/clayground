@@ -86,10 +86,19 @@ def run(args, sandbox, log_path):
 
     def request(req, timeout=args.timeout):
         req = dict(req, id=uuid.uuid4().hex[:8])
-        tmp = os.path.join(inspect, "request.tmp")
-        with open(tmp, "w") as f:
-            json.dump(req, f)
-        os.replace(tmp, os.path.join(inspect, "request.json"))
+        # Written in place, like lab_check.py: Windows refuses to replace a
+        # file the loader has open (WinError 5), and the inspector ignores a
+        # half-written request and reads it whole at its next look
+        give_up = time.time() + 2.0
+        while True:
+            try:
+                with open(os.path.join(inspect, "request.json"), "w") as f:
+                    json.dump(req, f)
+                break
+            except PermissionError:
+                if time.time() > give_up:
+                    raise
+                time.sleep(0.01)
         end = time.time() + timeout
         while time.time() < end:
             try:
