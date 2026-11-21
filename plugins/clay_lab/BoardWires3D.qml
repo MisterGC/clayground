@@ -114,10 +114,23 @@ Node {
             // chevrons march round the corners instead of restarting at each
             const flow = l.flow.reverse ? pts.slice().reverse() : pts
             out.push({ points: flow.map(p => Qt.vector3d(p.x, p.y + 0.05, p.z)),
-                       color: l.flow.color, width: l.flow.width, styleId: l.flow.styleId })
+                       color: l.flow.color, width: l.flow.width, styleId: l.flow.styleId,
+                       flow: true })
         }
         return out
     }
+
+    /*!
+        \qmlproperty bool BoardWires3D::flowing
+        \readonly
+        \brief True while at least one wire carries a chevron overlay.
+
+        Only then does the batch read the \l clock. A binding on the clock's
+        time is a redraw on every frame, and a board with nothing flowing has
+        nothing to animate: electronics-101 drew 60 frames a second, three
+        shadow passes each, at rest (#575).
+    */
+    readonly property bool flowing: lines.some(l => l.flow === true)
 
     LineBatch3D {
         widthUnits: LineBatch3D.World
@@ -125,7 +138,7 @@ Node {
         opaque: true                      // crossings resolve by depth
         depthBias: 4
         castsShadows: false
-        flowTime: root.clock ? root.clock.time : 0
+        flowTime: root.flowing && root.clock ? root.clock.time : 0
         flowAutoPlay: false
         styles: [
             { dash: [0, 0], capRound: true, opacity: 1.0 },

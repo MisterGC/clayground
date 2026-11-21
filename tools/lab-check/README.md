@@ -168,6 +168,7 @@ do not fail `load`; they are matched by name in `ENVIRONMENT` in
 | `linux-multimedia-libraries` | `Couldn't load <library> library` or `Couldn't resolve <library> symbols`, in the category `qt.multimedia.symbolsresolver` only | on Linux Qt Multimedia loads optional system libraries (PipeWire, VA-API) at run time and logs each one the machine lacks; the CI runner lacks them all |
 | `linux-no-pulseaudio` | `PulseAudioService: pa_context_connect() failed` | the same Qt Multimedia on a Linux machine with no PulseAudio server, such as the CI runner |
 | `offscreen-no-font-directory` | `QFontDatabase: Cannot find font directory <dir>` | offscreen on Windows reads fonts from the Qt installation's `lib/fonts`, which a Qt install does not ship, so the machine has no fonts at all |
+| `inspector-replace-retry` | `ClayInspector: replacing "<…>/.clay/inspect/<…>" took <n> attempts` | on Windows a file cannot be renamed over while it is open, and lab-check's own reads of `state.json` and `response.json` sometimes are; the inspector's retry succeeded. One that never succeeds logs `failed to write` and still fails `load` (#572) |
 
 Every other warning or error fails `load`, wherever it comes from: a file of
 the lab, a kit under `labs/kits/`, the kernel in `plugins/clay_lab/` (shown as
@@ -273,7 +274,9 @@ Two things the runs do that are easy to get wrong, and each cost a session:
   different bytes, a determinism failure that says nothing about determinism.
   The processes are independent, so they run side by side: `--jobs` of them
   at a time (4 by default, as `lab-sweep`'s), each under `--instance` so it
-  serves its protocol in a directory of its own. The flows, the determinism
+  serves its protocol in a directory of its own, and with an empty settings
+  store of its own (`CLAY_STORAGE_DIR`), since two loaders opening one
+  LocalStorage database at once race on its version. The flows, the determinism
   pairs and the records regeneration share that one limit; `records/make.sh`
   runs once per committed record when each record's `command` names its
   scenario, and `lab-sweep` gets `--jobs` for a study. The output keeps its

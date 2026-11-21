@@ -453,9 +453,9 @@ Item {
             onHit: root.release()
         }
         BenchButton {
-            label: prof.character.speaking ? "hush     (C)" : "say a line (N)"
-            active: prof.character.speaking
-            onHit: prof.character.speaking ? prof.hush() : root.talk()
+            label: (!!prof.character && prof.character.speaking) ? "hush     (C)" : "say a line (N)"
+            active: (!!prof.character && prof.character.speaking)
+            onHit: (!!prof.character && prof.character.speaking) ? prof.hush() : root.talk()
         }
         BenchButton {
             label: perf.running ? "stop the scene (P)" : "perform a scene (P)"
@@ -498,7 +498,7 @@ Item {
                 + "\nflying   " + prof.travelling
                 + "\nat       " + prof.stand.x.toFixed(1) + ", " + prof.stand.z.toFixed(1)
                 + "\nsettled  " + prof.settled
-                + "\nspeaking " + prof.character.speaking
+                + "\nspeaking " + (!!prof.character && prof.character.speaking)
                 + "\nscript   " + (perf.running
                                    ? (perf.cueIndex + 1) + "/" + perf.cueCount
                                    : guide.script.running
