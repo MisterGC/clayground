@@ -24,7 +24,8 @@ rendered yet, so DE narrates in text only.
 
 - `en/<key>.m4a` - one clip per step of the LED flow, for the steps the
   professor narrates whole (`empty`, `voltage`, `resistance`, `switch`,
-  `wire`, `flip`, `current`, `values`, `volts`, `ohm`, `power`, `try`).
+  `wire`, `flip`, `current`, `values`, `volts`, `ohm`, `power`, `try`,
+  `burnt`).
 - `en/<key>-<n>.m4a` - one clip per spoken LINE of a directed LED step
   (`battery`, `led`, `resistor`, `lit`, `why`); `n` counts the say cues of
   that step's performance script from 0.
@@ -36,7 +37,8 @@ rendered yet, so DE narrates in text only.
 The on-screen line is not the line to speak: units are read out (`mA` ->
 "milliamps", `V` -> "volts", `Ω` -> "ohms"), a decimal is written out in
 words where a render garbled the digits ("2.4" -> "two point four"; checked
-by transcribing the clip back), em-dashes become commas, and
+by transcribing the clip back), an "LED" a transcription heard as "lead"
+is spelled out ("L-E-D"), em-dashes become commas, and
 anything that only works for the eye is rewritten for the ear. The exact
 texts rendered:
 
@@ -51,7 +53,8 @@ texts rendered:
 - `volts`: Now the voltages: about 2.1 volts across the LED and 2.4 volts across the resistor. Together they use up the cell's 4.5 volts.
 - `ohm`: That is Ohm's law: current is voltage divided by resistance. Two point four volts over 470 ohms is five point one milliamps. The resistor sets the current.
 - `power`: The plot now shows power: voltage times current, the energy a part turns into light and heat each second, in watts. The LED: two point one volts times five point one milliamps, about 11 milliwatts; the plot rounds it to zero point zero one watts.
-- `try`: Try it yourself: select the resistor and drag its slider. Less resistance, more current, brighter LED, until it gives up.
+- `try`: Now find the limit yourself: lower the resistor with its slider. Less resistance, more current, brighter LED, watch the current climb, and keep going until the LED gives up.
+- `burnt`: There it went. Past thirty milliamps, the most this L-E-D takes, its chip turns more power into heat than it can shed, and it burns out. It stays dark now, even with more resistance. Its card can put in a new one.
 - `battery-0`: This is the cell, the part that drives everything on this board.
 - `battery-1`: The gold pad is its plus side.
 - `led-0`: The LED. It only conducts one way.

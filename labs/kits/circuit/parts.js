@@ -44,7 +44,12 @@ var spec = {
     switch: { terminals: TWO_PADS, half: BODY, actuator: { x: 2.6, y: 2.0 },
               fields: fields(0), rows: ["state"] },
     resistor: twoPad(470, ["value"]),
-    led: twoPad(0),
+    // An LED is the one part with a fourth field: `blown`, set once it has
+    // carried more than its maximum (circuit.js burnOut) and kept until its
+    // card puts a new one in - so a saved board keeps its dead LED dead.
+    led: { terminals: TWO_PADS, half: BODY, actuator: null,
+           fields: { value: 0, on: false, func: "", blown: false },
+           rows: ["replace"] },
     bulb: twoPad(0),
     diode: twoPad(0),
     ammeter: twoPad(0),
