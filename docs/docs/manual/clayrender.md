@@ -191,7 +191,7 @@ clayrender labs/electronics-101/Sandbox.qml --stats 300
 | `frames` | the slots measured, n |
 | `rendered` | frames the window really drew in them, counted on its `afterRendering` signal |
 | `seconds` | wall time of the measurement |
-| `cpuMs` | CPU time of the whole process per slot — everything the frame cost, from timers and bindings to the graphics driver's threads |
+| `cpuMs` | CPU time of the whole process per slot — everything the frame cost, from timers and bindings to the graphics driver's threads. On Windows, whose process clock counts in 15.6 ms ticks, a slot's cycles turned into ms by the process's own ratio of CPU time to cycles |
 | `cpuInstructions` | instructions the whole process retired per slot; macOS only, `null` elsewhere |
 | `renderMs` | wall time to draw one frame, over the drawn frames; includes waiting for the GPU |
 | `drawCalls`, `vertices` | per drawn frame, summed over every `View3D` (`renderStats` with extended data) |

@@ -62,6 +62,36 @@ double processCpuMs()
 #endif
 }
 
+// What one slot's CPU reading counts in: ms on POSIX, where the process clock
+// is fine-grained. On Windows GetProcessTimes counts in 15.625 ms ticks, so
+// most slots read 0 and some a whole tick; a slot reads the cycles the
+// process's threads ran instead (QueryProcessCycleTime), and cpuMsPerUnit()
+// turns them into ms.
+double processCpuUnits()
+{
+#if defined(Q_OS_WIN)
+    ULONG64 cycles = 0;
+    if (!QueryProcessCycleTime(GetCurrentProcess(), &cycles))
+        return 0.0;
+    return static_cast<double>(cycles);
+#else
+    return processCpuMs();
+#endif
+}
+
+// ms per unit of processCpuUnits(). On Windows the ratio of the process's CPU
+// time to its cycles since it started: seconds of loading lie behind it, so
+// the 15.625 ms tick is a small error there, where it is all of one slot.
+double cpuMsPerUnit()
+{
+#if defined(Q_OS_WIN)
+    const double cycles = processCpuUnits();
+    return cycles > 0 ? processCpuMs() / cycles : 0.0;
+#else
+    return 1.0;
+#endif
+}
+
 // Instructions the whole process retired so far, or -1 where the platform does
 // not count them for a process (only macOS does without privileges). Unlike
 // CPU time it hardly moves with what else the machine runs: three runs per
@@ -144,7 +174,7 @@ QJsonObject measure(RenderHost& host, int slotCount)
     // One slot: wait for its end, advance animations, draw if asked. Measured
     // or not, a slot is the same thing - only what is kept differs.
     auto runSlot = [&](int i, bool measured) {
-        const double cpuBefore = processCpuMs();
+        const double cpuBefore = processCpuUnits();
         const double instructionsBefore = processInstructions();
 
         // Until the end of this slot the event loop runs on its own: events
@@ -182,7 +212,7 @@ QJsonObject measure(RenderHost& host, int slotCount)
                 vertices.append(verts);
             }
         }
-        cpuMs.append(processCpuMs() - cpuBefore);
+        cpuMs.append(processCpuUnits() - cpuBefore);
         if (instructionsBefore >= 0)
             instructions.append(processInstructions() - instructionsBefore);
     };
@@ -202,6 +232,9 @@ QJsonObject measure(RenderHost& host, int slotCount)
     // Qt's own driver again, which takes over the animation time where this
     // one leaves it, so what runs after the measurement does not jump.
     driver.uninstall();
+    const double msPerUnit = cpuMsPerUnit();
+    for (auto& value : cpuMs)
+        value *= msPerUnit;
 
     QJsonObject out;
     out["frames"] = slotCount;
