@@ -1328,6 +1328,29 @@ def script_command(script):
     return [bash or shutil.which("bash") or "bash", script]
 
 
+# The checkout this tool sits in: tools/lab-check/lab_check.py is two levels
+# below its root.
+TOOL_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def default_binary(lab_dir, name):
+    """The build's `name` this check uses when no option names one.
+
+    The build of the checkout the lab sits in comes first, as it always has;
+    when the lab is in no checkout - a copy in a folder of its own - or its
+    checkout has no build, the build beside this tool. Until #573 a copied
+    lab looked for <its own folder>/build/bin and skipped for want of a
+    loader. Returns the first candidate when none exists, for the message.
+    """
+    exe = name + (".exe" if os.name == "nt" else "")
+    candidates = []
+    root = repo_root(lab_dir)
+    if os.path.exists(os.path.join(root, ".git")):
+        candidates.append(os.path.join(root, "build", "bin", exe))
+    candidates.append(os.path.join(TOOL_ROOT, "build", "bin", exe))
+    return next((c for c in candidates if os.path.isfile(c)), candidates[0])
+
+
 def repo_root(start):
     path = os.path.abspath(start)
     while path != os.path.dirname(path):
@@ -1378,9 +1401,11 @@ def main():
         description="Check one lab against the lab contract (#208).")
     ap.add_argument("lab", help="the lab directory (labs/<slug>)")
     ap.add_argument("--loader", default=None,
-                    help="path to clayliveloader (default: build/bin/clayliveloader)")
+                    help="path to clayliveloader (default: build/bin/clayliveloader of "
+                         "the lab's checkout, else of this tool's)")
     ap.add_argument("--clayrender", default=None,
-                    help="path to clayrender, for the records check")
+                    help="path to clayrender, for the records check (default: as "
+                         "for --loader)")
     ap.add_argument("--only", default=None,
                     help="comma-separated subset of: " + ",".join(CHECK_ORDER))
     ap.add_argument("--steps", type=int, default=None,
@@ -1406,11 +1431,8 @@ def main():
         print(f"lab-check: no Sandbox.qml in {lab_dir}", file=sys.stderr)
         return 2
     lab_id = os.path.basename(lab_dir)
-    root = repo_root(lab_dir)
-    loader = os.path.abspath(args.loader or os.path.join(root, "build", "bin",
-                                                         "clayliveloader"))
-    render = os.path.abspath(args.clayrender or os.path.join(root, "build", "bin",
-                                                             "clayrender"))
+    loader = os.path.abspath(args.loader or default_binary(lab_dir, "clayliveloader"))
+    render = os.path.abspath(args.clayrender or default_binary(lab_dir, "clayrender"))
     wanted = CHECK_ORDER if not args.only else [
         c.strip() for c in args.only.split(",") if c.strip()]
     unknown = [c for c in wanted if c not in CHECK_ORDER]

@@ -71,6 +71,24 @@ def repo_root(start):
         d = parent
 
 
+# The checkout this tool sits in: tools/lab-sweep/lab_sweep.py is two levels
+# below its root.
+TOOL_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+
+def default_clayrender(root):
+    """The clayrender a sweep uses when --clayrender names none: the build of
+    the checkout the study sits in, else - a lab copied to a folder in no
+    checkout, or a checkout with no build - the build beside this tool
+    (#573). The first candidate when none exists, for the message."""
+    exe = "clayrender" + (".exe" if os.name == "nt" else "")
+    candidates = []
+    if os.path.exists(os.path.join(root, ".git")):
+        candidates.append(os.path.join(root, "build", "bin", exe))
+    candidates.append(os.path.join(TOOL_ROOT, "build", "bin", exe))
+    return next((c for c in candidates if os.path.isfile(c)), candidates[0])
+
+
 def find_study(arg):
     """A study is a directory; naming its study.md is allowed and means the
     same thing."""
@@ -412,7 +430,8 @@ def main():
                     help="restrict to these seeds (repeatable)")
     ap.add_argument("--jobs", type=int, default=4, help="parallel runs")
     ap.add_argument("--clayrender", default=None,
-                    help="path to clayrender (default: build/bin/clayrender)")
+                    help="path to clayrender (default: build/bin/clayrender of the "
+                         "study's checkout, else of this tool's)")
     ap.add_argument("--records-dir", default=None, metavar="DIR",
                     help="write the records here instead of into the study's "
                          "records/, and leave results.md alone. This is how "
@@ -423,6 +442,7 @@ def main():
 
     study_dir, doc = find_study(args.study)
     root = repo_root(study_dir)
+    checkout = root
     with open(doc, "r", encoding="utf-8") as f:
         text = f.read()
     try:
@@ -440,7 +460,7 @@ def main():
         sandbox = sandbox_path(m, root)
 
     if args.clayrender is None:
-        args.clayrender = os.path.join(root, "build", "bin", "clayrender")
+        args.clayrender = default_clayrender(checkout)
     # Absolute: every run starts in the root, so a relative path would be
     # read from there rather than from where it was typed
     args.clayrender = os.path.abspath(args.clayrender)

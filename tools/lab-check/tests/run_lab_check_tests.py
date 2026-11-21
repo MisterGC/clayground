@@ -908,6 +908,42 @@ def test_loader_watch(tmp):
           took < 15, f"{took:.1f} s")
 
 
+# -- a lab outside the checkout (#573) ----------------------------------------
+
+
+def test_default_binary(tmp):
+    tool_build = os.path.join(L.TOOL_ROOT, "build", "bin")
+    exe = "clayliveloader" + (".exe" if os.name == "nt" else "")
+
+    # a lab copied to a folder in no checkout: the build beside the tool
+    far = os.path.join(tmp, "copied", "far-101")
+    os.makedirs(far)
+    got = L.default_binary(far, "clayliveloader")
+    check("binary: a lab in no checkout uses the build beside the tool",
+          got == os.path.join(tool_build, exe), got)
+
+    # a lab in a checkout with a build of its own: that build, as before
+    co = os.path.join(tmp, "other-checkout")
+    lab = os.path.join(co, "labs", "near-101")
+    os.makedirs(lab)
+    os.makedirs(os.path.join(co, "build", "bin"))
+    open(os.path.join(co, ".git"), "w").close()   # a worktree's .git is a file
+    own = os.path.join(co, "build", "bin", exe)
+    open(own, "w").close()
+    got = L.default_binary(lab, "clayliveloader")
+    check("binary: a lab in a built checkout uses that checkout's build",
+          got == own, got)
+
+    # ...and a checkout with no build: the tool's again
+    os.remove(own)
+    got = L.default_binary(lab, "clayliveloader")
+    check("binary: a lab in an unbuilt checkout falls back to the tool's build",
+          got == os.path.join(tool_build, exe) or got == own, got)
+    if os.path.isfile(os.path.join(tool_build, exe)):
+        check("binary: ...which exists here, so it is chosen",
+              got == os.path.join(tool_build, exe), got)
+
+
 def main():
     tmp = tempfile.mkdtemp(prefix="lab-check-tests-")
     try:
@@ -928,6 +964,7 @@ def main():
         test_drivers()
         test_step_of()
         test_load_diagnostics(tmp)
+        test_default_binary(tmp)
         if os.name != "nt":
             # the stand-in loader is started as an executable script
             test_loader_watch(tmp)
