@@ -16,6 +16,8 @@ actual lab - is exercised by the four lab_check_<lab> gates themselves.
 import json
 import os
 import shutil
+import stat
+import subprocess
 import sys
 import tempfile
 
@@ -42,6 +44,9 @@ class Recorder(L.Report):
 
     def note(self, text):
         pass
+
+    def not_run(self, name, why):
+        self.skipped.append((name, why))
 
     def detail(self, needle):
         for name, _ok, det in self.lines:
@@ -250,6 +255,97 @@ def test_first_difference(tmp):
     open(b, "w").write("head\n0.05\t4.34302\n")
     check("determinism: a length difference is reported as one",
           "lines" in L.first_difference(a, b), L.first_difference(a, b))
+
+
+# -- records (#535) ----------------------------------------------------------
+
+# A make.sh that stands in for clayrender: it writes the records only when the
+# renderer it was handed ($CLAYRENDER) is the one the test expects, and says
+# what a real one says when there is no display when asked to.
+FAKE_MAKE = """#!/usr/bin/env bash
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+[ "${CLAYRENDER:-}" = "$(cat "$here/expect-render")" ] || {
+    echo "clayrender not found at ${CLAYRENDER:-build/bin/clayrender}" >&2; exit 1; }
+if [ -f "$here/no-display" ]; then
+    echo "clayrender: needs a graphics session" >&2; exit 1
+fi
+[ "$1" = "--out-dir" ]
+printf 'a\n' > "$2/a-42.labrec"
+"""
+
+
+def fake_lab(tmp, name, committed):
+    lab = os.path.join(tmp, name)
+    rec = os.path.join(lab, "records")
+    os.makedirs(rec)
+    make = os.path.join(rec, "make.sh")
+    with open(make, "w") as f:
+        f.write(FAKE_MAKE)
+    os.chmod(make, os.stat(make).st_mode | stat.S_IEXEC)
+    render = os.path.join(tmp, name + "-clayrender")
+    open(render, "w").close()
+    with open(os.path.join(rec, "expect-render"), "w") as f:
+        f.write(render)
+    for fname, text in committed.items():
+        with open(os.path.join(rec, fname), "w") as f:
+            f.write(text)
+    return lab, render
+
+
+def test_records(tmp):
+    work = os.path.join(tmp, "records-work")
+    os.makedirs(work)
+
+    lab, render = fake_lab(tmp, "rec-given-101", {"a-42.labrec": "a\n"})
+    rep = Recorder()
+    ok = L.check_records(rep, lab, work, render)
+    check("records: make.sh runs with the clayrender lab-check was given",
+          ok and not rep.skipped and rep.lines and rep.lines[0][1],
+          str(rep.lines + rep.skipped))
+    check("records: the pass counts the records it compared",
+          rep.detail("records: make.sh") == "1 records", rep.detail("records: make.sh"))
+
+    lab, render = fake_lab(tmp, "rec-session-101",
+                           {"a-42.labrec": "a\n", "session.labrec": "scratch\n"})
+    rep = Recorder()
+    check("records: a session.labrec from Shift+R is not compared",
+          L.check_records(rep, lab, os.path.join(work, "s"), render)
+          and rep.detail("records: make.sh") == "1 records", str(rep.lines))
+
+    lab, render = fake_lab(tmp, "rec-none-101", {})
+    rep = Recorder()
+    L.check_records(rep, lab, os.path.join(work, "n"), render)
+    det = rep.detail("records: make.sh") or ""
+    check("records: with nothing committed the pass says so, not '(1 records)'",
+          "no committed records" in det, det)
+
+    lab, render = fake_lab(tmp, "rec-missing-101", {"a-42.labrec": "a\n"})
+    rep = Recorder()
+    ok = L.check_records(rep, lab, os.path.join(work, "m"), render + "-absent")
+    check("records: no clayrender is NOT RUN, counted apart from the passes",
+          ok and not rep.lines and len(rep.skipped) == 1, str(rep.skipped))
+
+    lab, render = fake_lab(tmp, "rec-display-101", {"a-42.labrec": "a\n"})
+    open(os.path.join(lab, "records", "no-display"), "w").close()
+    rep = Recorder()
+    ok = L.check_records(rep, lab, os.path.join(work, "d"), render)
+    check("records: no graphics session is NOT RUN, counted apart",
+          ok and not rep.lines and len(rep.skipped) == 1, str(rep.skipped))
+
+    # The summary and --strict, through the command line
+    with open(os.path.join(lab, "lab-check.json"), "w") as f:
+        json.dump({"purpose": "learning"}, f)
+    open(os.path.join(lab, "Sandbox.qml"), "w").close()
+    tool = os.path.join(os.path.dirname(HERE), "lab_check.py")
+    base = [sys.executable, tool, lab, "--only", "records", "--clayrender", render]
+    plain = subprocess.run(base, capture_output=True, text=True)
+    check("records: the summary line says how many checks did not run",
+          plain.returncode == 0 and "0/0 checks passed, 1 not run" in plain.stdout,
+          f"exit {plain.returncode}: {plain.stdout.strip().splitlines()[-3:]}")
+    strict = subprocess.run(base + ["--strict"], capture_output=True, text=True)
+    check("records: --strict exits 1 when a check did not run",
+          strict.returncode == 1, f"exit {strict.returncode}")
 
 
 # -- remarks ----------------------------------------------------------------
@@ -526,6 +622,9 @@ def main():
         test_triad(tmp)
         test_tables(tmp)
         test_first_difference(tmp)
+        if os.name != "nt":
+            # the stand-in make.sh is a bash script
+            test_records(tmp)
         test_remarks(tmp)
         test_strings()
         test_drivers()
