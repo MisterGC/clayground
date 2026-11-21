@@ -8,9 +8,11 @@ files carry the depth: `catalog.md` (every kernel block, **generated** from
 the qdoc briefs by `docs/scripts/lab_catalog.py`; ctest `lab_catalog` fails
 when it is stale), `pitfalls.md` (the one list of traps), `flows.md` (the
 flow-authoring recipe), `teaching.md` (what makes a lesson explain, the
-German, the narration audio, the checklist before handover) and
-`triad.md` (paper, board, records, figures, studies). The *why* behind
-the rules is `plugins/clay_lab/README.md`.
+German, the narration audio, the checklist before handover),
+`triad.md` (paper, board, records, figures, studies),
+`check-failures.md` (every line `lab-check` can fail with, and what to
+do) and `kits.md` (each kit's README, the professor, adding a part to a
+kit). The *why* behind the rules is `plugins/clay_lab/README.md`.
 
 Sibling of `skills/clay-crew`, which owns *verification* through the
 Dojo's inspector protocol — clay-lab composes, clay-crew proves. Both are
@@ -22,9 +24,14 @@ block APIs the checkout actually provides.
 **Claude Code (per project):**
 
 ```bash
-./skills/clay-lab/install.sh            # installs into .claude/skills/ of the current repo
-./skills/clay-lab/install.sh --user     # installs into ~/.claude/skills/ for all projects
+./skills/clay-lab/install.sh            # .claude/skills/ at the root of the repo you are in
+./skills/clay-lab/install.sh --user     # ~/.claude/skills/ for all projects
 ```
+
+Both link clay-crew beside clay-lab, which hands every verification step
+to it. Run from any folder of a repository, the project install lands at
+its root; outside one, at the root of this checkout. Any other argument
+is refused (exit 2).
 
 **Codex / other agents (AGENTS.md-based):** add one line to your
 `AGENTS.md`:
