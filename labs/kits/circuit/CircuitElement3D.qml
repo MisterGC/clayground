@@ -2,6 +2,7 @@
 
 import QtQuick
 import QtQuick3D
+import QtQuick3D.Helpers
 import Clayground.Canvas3D
 import Clayground.Lab
 
@@ -128,6 +129,17 @@ Node {
         edgeColorFactor: 0.55
     }
 
+    // --- round meshes ------------------------------------------------------
+    // The built-in #Sphere is 14,700 vertices, and a board has one per pad: the
+    // half adder drew 1.4 million vertices a frame, nearly all of them pads
+    // (#576). These two are shared by every round model of the part. Radius 50
+    // is #Sphere's own, so the scales below did not change. A pad is a dome
+    // squashed to half its width and mostly under the board, so 20 segments
+    // round its outline and 6 rings are all its height can show; the LED dome
+    // and the bulb's glass are seen whole and close, and get twice the rings.
+    SphereGeometry { id: _padMesh; radius: 50; rings: 6; segments: 20 }
+    SphereGeometry { id: _domeMesh; radius: 50; rings: 12; segments: 24 }
+
     // --- what a ray can hit -------------------------------------------------
     // The one thing in this component View3D.pick can find, and the reason an
     // instrument can be pointed at a part at all: QQuick3DModel::pickable is
@@ -188,7 +200,8 @@ Node {
     // --- junction: a solder dot where wires meet ----------------------------
     Model {
         visible: root.type === "junction"
-        source: "#Sphere"
+        geometry: _padMesh
+        castsShadows: false
         position: Qt.vector3d(0, 0.5, 0)
         scale: Qt.vector3d(0.02, 0.013, 0.02)
         materials: Matte {
@@ -206,7 +219,10 @@ Node {
         model: root.termCount
         Model {
             visible: root.type !== "junction"   // the dot is its own pad
-            source: "#Sphere"
+            geometry: _padMesh
+            // sunk into the board: its shadow would fall under the paper, and
+            // drawing it into the shadow map costs a draw call per pad
+            castsShadows: false
             position: root.termAt(index)
             scale: Qt.vector3d(0.022, 0.012, 0.022)
             materials: Matte {
@@ -339,7 +355,7 @@ Node {
         readonly property real glow: root.blown ? 0
             : Math.min(1.5, Math.max(0, root.simI / 0.02))
         Model {  // dome - smoked brown once it has burnt out
-            source: "#Sphere"
+            geometry: _domeMesh
             position: Qt.vector3d(0, 2.4, 0)
             scale: Qt.vector3d(0.034, 0.034, 0.034)
             materials: Matte {
@@ -349,7 +365,7 @@ Node {
         }
         Model {  // the scorch on top a burnt die leaves: seen from any angle
             visible: root.blown
-            source: "#Sphere"
+            geometry: _padMesh
             position: Qt.vector3d(0, 3.75, 0)
             scale: Qt.vector3d(0.022, 0.009, 0.022)
             materials: Matte { baseColor: "#151110" }
@@ -649,7 +665,7 @@ Node {
         // 0.8 W lights it fully (4.5 V school bulb)
         readonly property real glow: Math.min(1.4, root.simPower / 0.8)
         Model {  // glass
-            source: "#Sphere"
+            geometry: _domeMesh
             position: Qt.vector3d(0, 3.0, 0)
             scale: Qt.vector3d(0.042, 0.042, 0.042)
             opacity: 0.42
@@ -659,7 +675,7 @@ Node {
             }
         }
         Model {  // filament
-            source: "#Sphere"
+            geometry: _padMesh
             position: Qt.vector3d(0, 3.0, 0)
             scale: Qt.vector3d(0.017, 0.017, 0.017)
             materials: PrincipledMaterial {
