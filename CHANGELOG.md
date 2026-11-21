@@ -7,10 +7,9 @@ described on their [GitHub release pages](https://github.com/MisterGC/clayground
 
 ## [2026.14] - 2026-11-21
 
-### Fixed
+### Added
 
-- **The lab check fails a lab whose kit or kernel throws while it loads.** Any warning or error at load fails the `load` check and is printed with the file and line it names, whether that file belongs to the lab, a kit under `labs/kits/` or the kernel in `plugins/clay_lab/`; a message that names no file, such as a `console.warn`, fails it too. Only four named messages count as the machine's: the two Qt Quick 3D warnings about having no 3D graphics API offscreen, macOS's missing "Sans Serif" font and Qt Multimedia's notes about optional Linux libraries a machine lacks (PipeWire, VA-API); `tools/lab-check/README.md` lists them. A lab that fails `load` this way still gets every other check. Why: a message counted as the lab's only when it named a file in the lab's own folder, so a kit that threw a `TypeError` at load passed the check. ([#534](https://github.com/MisterGC/clayground/issues/534))
-- **A plot or minimap with nothing to show no longer logs a font warning where no handwriting font is installed.** Its placeholder text now asks for the default sans-serif font there. On such a machine, a Linux CI runner for example, it used to ask the canvas for an empty font name, and Qt logged "Context2D: The font families specified are invalid". ([#534](https://github.com/MisterGC/clayground/issues/534))
+- **The clay-lab skill says how to teach with a lab.** `skills/clay-lab/references/teaching.md` is what an agent reads before it writes a lesson: a term defined before it is used, one idea per step, predict before observing, a task that needs more than a click, a check for understanding, a closing task that transfers the idea, scenarios as a progression and one word per thing, each with what to do, what to avoid and an example from electronics-101 or hydraulics-101. It also says how to write the German (a word list per kit, no word-for-word translation, a read-through as a German reader) and how narration clips are made and kept in step with their text, and it ends with a checklist to go through before handing a lab over. The skill's definition of done for a teaching lab now points to it. Why: a lab could pass every rule of the skill and still only narrate, and electronics-101 did. ([#530](https://github.com/MisterGC/clayground/issues/530))
 
 ## [2026.13] - 2026-11-14
 
