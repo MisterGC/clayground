@@ -716,6 +716,12 @@ def check_records(rep, lab_dir, workdir, render):
     runs here - `records/make.sh` for a lab's own records, `lab-sweep` for a
     study's. Both drive clayrender, which needs a real graphics session; with
     none, this reports that it did not run rather than inventing a verdict.
+
+    Both are handed `render`, the clayrender this check was given: make.sh as
+    $CLAYRENDER, lab-sweep as --clayrender. Each used to look for
+    build/bin/clayrender itself, so a build folder of another name, or a lab
+    outside the checkout, regenerated nothing whatever --clayrender said
+    (#535).
     """
     jobs = []
     make = os.path.join(lab_dir, "records", "make.sh")
@@ -731,7 +737,9 @@ def check_records(rep, lab_dir, workdir, render):
                 # the lab's checkout, which for a lab generated into a temp
                 # tree has no tools/ (#531)
                 sweep = os.path.join(SWEEP_DIR, "lab_sweep.py")
-                jobs.append((f"studies/{name}", [sys.executable, sweep, study, "--records-dir"],
+                jobs.append((f"studies/{name}",
+                             [sys.executable, sweep, study, "--clayrender",
+                              render or "", "--records-dir"],
                              os.path.join(study, "records")))
     if not jobs:
         return rep.check("records: nothing committed to regenerate", True,
@@ -747,6 +755,7 @@ def check_records(rep, lab_dir, workdir, render):
         os.makedirs(out, exist_ok=True)
         env = dict(os.environ)
         env["QT_DISABLE_SHADER_DISK_CACHE"] = "1"
+        env["CLAYRENDER"] = render
         # Forward slashes: make.sh puts the path into a JS string, where a
         # Windows backslash starts an escape
         proc = subprocess.run(cmd + [out.replace(os.sep, "/")],
