@@ -534,6 +534,50 @@ Item {
             compare(gatedFlow.refusal, "", "leaving clears it")
         }
 
+        // A reload brings the lesson back from Flow.state() (#569). A stopped
+        // flow has none, and the lab's view state then carries no flows.
+        function test_aStoppedFlowHasNoState() {
+            compare(flow.state(), null)
+            compare(Lab.viewState().flows, undefined, "no lesson runs, no flows key")
+        }
+
+        // load() is "where it was", not "enter it again": the lab is already
+        // back, so the step's demo must not run a second time.
+        function test_aLoadedStateIsTheSameStepWithoutItsDemo() {
+            flow.start()
+            flow.next(); flow.next()
+            flow.stepTime = 1.5
+            const s = JSON.parse(JSON.stringify(flow.state()))
+            flow.stop()
+            fakeLab.tagged = -1
+            flow.load(s)
+            compare(flow.index, 2)
+            compare(flow.nameOf("bat"), 1, "the names the steps bound")
+            compare(flow.stepTime, 1.5, "the time spent in the step")
+            compare(fakeLab.tagged, -1, "the tag step's demo did not run again")
+            flow.goTo(1)
+            compare(fakeLab.parts.length, 1, "and its checkpoints still take it back")
+        }
+
+        function test_theLabsViewStateCarriesTheRunningFlow() {
+            flow.start()
+            flow.next()
+            const vs = JSON.parse(JSON.stringify(Lab.viewState()))
+            compare(vs.flows.tst.index, 1)
+            flow.stop()
+            Lab.applyViewState(vs)
+            compare(flow.index, 1, "Lab.applyViewState put the lesson back")
+            compare(flow.nameOf("bat"), 1)
+        }
+
+        // An edit can remove the step a saved state was at.
+        function test_aStepThatIsGoneStopsTheFlow() {
+            flow.start()
+            ignoreWarning(/no step 99 to come back to/)
+            flow.load({ index: 99 })
+            verify(!flow.running)
+        }
+
         // The headless run performs each task through solve(), which drives
         // the lab's verbs and never touches the input layer - so a locked
         // board cannot lock the verification run out.

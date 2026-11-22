@@ -767,10 +767,18 @@ after any rearmed scenario (so a scenario + sim-time encoding gets the last
 word). A null/failed capture keeps the previous one, so a fix after a load
 error still restores. Snapshots and flags carry a `viewState` key when the
 root implements it, and `view_state_captured` / `view_state_restored`
-(`{ok}`) land in `events.jsonl`. Add these to any sandbox you iterate on with
-a user watching — it keeps their camera and place fixed while you edit. A
-`reload` with `fresh: true` skips the capture and the restore and drops a
-held capture (`view_state_dropped`).
+(`{ok, generation, source, ms}`) land in `events.jsonl`. Add these to any
+sandbox you iterate on with a user watching — it keeps their camera and place
+fixed while you edit. A `reload` with `fresh: true` skips the capture and the
+restore and drops a held capture (`view_state_dropped`).
+
+"ready" comes before the view is back: wait for `state.json`'s `viewRestore`
+to be `restored` for the generation you saw become ready (`failed` says it
+did not apply). The loader saves the view to `.clay/inspect/view-state.json`
+while the root is up; a loader started with `--restore-view` - and every
+child the dojo respawns after its first - comes back to it. A lab's view
+state carries the running lesson (`flows`) and the selection, so a reload or
+a restart keeps both.
 
 ## The labInfo() convention (labs)
 

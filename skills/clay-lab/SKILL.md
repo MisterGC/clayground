@@ -146,7 +146,9 @@ template is a lab that ctest boots (`lab_new_boot_<kind>`), so it cannot rot.
   flows and an agent's `eval` all go through the same verbs; no path mutates
   state behind them.
 - **`viewState()` carries the user's whole place** — camera, selection,
-  toggles, and for a build lab the entire built artifact. A measurement in
+  toggles, and for a build lab the entire built artifact. The running lesson
+  rides in `Lab.viewState()` (`flows`) by itself; a lab restores its
+  selection after `Lab.applyViewState(s)`, because loading a board drops it. A measurement in
   hand is never in it. On restore the loader applies the scenario first
   (resets clock + RNG), then `applyViewState`; the user's own state wins over
   the preset. A reload is therefore not a fresh start (`pitfalls.md`,

@@ -925,11 +925,13 @@ QtObject {
         \qmlmethod var Lab::viewState()
         \brief JSON-serializable lab state for the live-loader reload convention.
 
-        Returns \c {{ scenario, time, params, paramLog, snapshot }}: the
-        current scenario name (key omitted while empty), the sim-clock time,
-        every registered parameter value, the parameter changes since the
-        clock's last reset (\c {{start, changes}}, see \l snapshot()) and -
-        when the lab's model offers state - a \l snapshot(). Sandbox roots
+        Returns \c {{ scenario, time, params, paramLog, snapshot, flows }}:
+        the current scenario name (key omitted while empty), the sim-clock
+        time, every registered parameter value, the parameter changes since
+        the clock's last reset (\c {{start, changes}}, see \l snapshot()), -
+        when the lab's model offers state - a \l snapshot(), and - while a
+        lesson runs - \c flows, each running \l Flow's \l {Flow::state()}
+        {state()} under its \c flowId. Sandbox roots
         merge their own camera/toggle state on top and hand the result to the
         dojo, which re-applies it after the next reload.
 
@@ -948,12 +950,19 @@ QtObject {
             const snap = snapshot()
             if (!snap.error) s.snapshot = snap
         }
+        const flows = {}
+        let anyFlow = false
+        for (const id in _flows) {
+            const f = _flows[id].state()
+            if (f) { flows[id] = f; anyFlow = true }
+        }
+        if (anyFlow) s.flows = flows
         return s
     }
 
     /*!
         \qmlmethod void Lab::applyViewState(var s)
-        \brief Restores parameters and sim time: from the snapshot, else by replay.
+        \brief Restores parameters and sim time - from the snapshot, else by replay - then the running lessons.
 
         Ordering contract: the Sandbox root MUST apply \c s.scenario BEFORE
         calling this. The scenario apply resets the clock + RNG.
@@ -975,10 +984,25 @@ QtObject {
         and are left untouched. A payload without \c paramLog sets
         \c s.params and re-steps.
 
+        Then each flow in \c s.flows is \l {Flow::load()}{loaded}: the
+        lesson that ran is at the step it was at, without that step's demo
+        running again.
+
         \sa viewState, snapshot
     */
     function applyViewState(s) {
         if (!s) return
+        _applyRun(s)
+        // the lesson last: its step stands on the lab the run put back
+        if (s.flows) {
+            for (const id in s.flows) {
+                if (_flows[id]) _flows[id].load(s.flows[id])
+                else console.warn("Lab: the view state's flow " + id + " is gone")
+            }
+        }
+    }
+
+    function _applyRun(s) {
         if (s.snapshot && modelStateNames.length) {
             if (s.params) for (const n in s.params) set(n, s.params[n])
             let r

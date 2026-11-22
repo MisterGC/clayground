@@ -161,6 +161,22 @@ if(Python3_FOUND)
         )
     endforeach()
 
+    # A reload keeps the running lesson at its step and the selected part, the
+    # loader says when that view is back (state.json viewRestore, after
+    # "ready"), and a loader killed and started again with --restore-view
+    # comes back to the same place from the view it saved (#569). It reads a
+    # lab and its kits, so a change under labs/ runs it too.
+    add_test(NAME loader_view_reload
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload/run_view_reload_test.py
+                --loader $<TARGET_FILE:clayliveloader>
+                --lab ${CMAKE_SOURCE_DIR}/labs/electronics-101
+    )
+    set_tests_properties(loader_view_reload PROPERTIES
+        LABELS "inspector;integration;labs;plugins/clay_lab"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_SOUND_MUTE=1"
+        TIMEOUT 180
+    )
+
     # A loader kept running carries no state from one question to the next
     # when the reload asks to start fresh: the scenario it names, sim time 0,
     # declared parameters, and two such runs of 600 steps write the same

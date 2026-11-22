@@ -19,6 +19,8 @@
 #include "clayanchorresolver.h"
 #include "loaderscenehost.h"
 
+class QSaveFile;
+
 class QTimer;
 class QFile;
 class QImage;
@@ -39,6 +41,13 @@ public:
     // warnings and errors without having to be wired up after construction.
     // Returns nullptr before an inspector exists.
     static ClayInspector* current();
+
+    // Replaces \a path with \a data atomically, retrying a failed commit
+    // (Windows refuses the rename while a reader holds the file). Warns only
+    // when every attempt failed. \a commit stands in for QSaveFile::commit
+    // in a test.
+    static bool replaceFile(const QString& path, const QByteArray& data,
+                            const std::function<bool(QSaveFile&)>& commit = {});
 
     enum class Phase {
         Starting,
@@ -66,6 +75,11 @@ public:
     // inspect dir to .clay/inspect/i/<name>/ so several instances of the
     // same sandbox (e.g. networked games) don't race on request/response.
     void setInstanceName(const QString& name);
+    // Must be called before setSandboxDir. On, the first load comes back
+    // where the last process left the sandbox: the view state it saved to
+    // .clay/inspect/view-state.json (#569). The dojo turns it on for every
+    // child after its first - a rebuild or a crash then keeps the place.
+    void setRestoreViewOnStart(bool on);
     // Safe to call from any thread: a call from another thread is carried out
     // on the inspector's own thread, later.
     void addLogMessage(const QString& msg, const QString& category = QString());
@@ -151,7 +165,12 @@ private:
     // {error}: a rect entirely off-screen is an error, never a clamp.
     QJsonObject writeAnnotationCrop(const QString& id, const QRectF& rect);
     void applyScenarioToRoot(const QString& name);
-    void applyViewStateToRoot(const QJsonValue& state);
+    bool applyViewStateToRoot(const QJsonValue& state);
+    // The current root's view state on disk, so that a new process can come
+    // back to it. Skipped when it has not changed since the last write.
+    void saveViewState(const QJsonValue& state);
+    QString viewStatePath() const;
+    void loadSavedViewState();
     void attachDiagnostics(QJsonObject& response) const;
     // The snapshot capture pipeline (#167, #169): settle, grab, crop, scale,
     // write, compare - all from one request instead of five tool calls.
@@ -240,6 +259,22 @@ private:
     // Set for the length of a reload request that asked for a fresh root:
     // markReloading() then captures nothing.
     bool m_freshReload = false;
+    // Where the view of the current root stands: "" (none to restore),
+    // "restoring" (ready, the view not back yet), "restored" or "failed".
+    // state.json and the status envelope carry it - "ready" alone came long
+    // before a lab that replays its run was back (#569).
+    QString m_viewRestore;
+    int m_viewRestoredGeneration = 0;
+    // What m_capturedViewState came from: "reload" (the outgoing root) or
+    // "restart" (the file the last process saved).
+    QString m_viewSource;
+    bool m_restoreViewOnStart = false;
+    // The next ready reads the saved view first (see loadSavedViewState).
+    bool m_savedViewPending = false;
+    // The saved view is refreshed this often while the root is up, so a
+    // crash or a dojo restart (which kills its child) loses little.
+    QTimer m_viewSaveTimer;
+    QByteArray m_lastSavedView;
 
     Phase m_phase = Phase::Starting;
     QDateTime m_startedAt;

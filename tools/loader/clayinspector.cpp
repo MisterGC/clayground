@@ -45,6 +45,11 @@ static ClayInspector* g_currentInspector = nullptr;
 // therefore bounded at ~2x this value.
 static constexpr qint64 EVENT_LOG_ROTATE_BYTES = 5LL * 1024 * 1024;
 
+// How often the current root's view state is saved for a restart. The dojo
+// kills its child to restart it, so nothing is saved on the way out: what a
+// restart loses is at most this much of the learner's work.
+static constexpr int VIEW_SAVE_INTERVAL_MS = 2000;
+
 // Qt/QML diagnostics carry their origin inline ("file:///a/Sandbox.qml:80:12:
 // TypeError: ..."). Pulling it out is best effort by design: a message without
 // a location keeps an empty file and line 0 rather than a guessed one.
@@ -53,40 +58,63 @@ static constexpr qint64 EVENT_LOG_ROTATE_BYTES = 5LL * 1024 * 1024;
 // has it open, and a driver polls state.json and response.json many times a
 // second: a lost "ready" is never written again, a lost response is a request
 // that times out (#301). Ten attempts 10 ms apart outlast any single read.
-static bool replaceFile(const QString& path, const QByteArray& data)
+// A retry that worked is the design doing its job, so it says so only at
+// debug level: lab_check fails a lab on any warning, and one such retry
+// failed lab_check_sensor-fusion-101 on Windows (#625). Only a replace that
+// failed every attempt warns, with the reason of the last one.
+bool ClayInspector::replaceFile(const QString& path, const QByteArray& data,
+                                const std::function<bool(QSaveFile&)>& commit)
 {
     constexpr int kAttempts = 10;
+    QString lastError;
     for (int attempt = 1; attempt <= kAttempts; ++attempt) {
         QSaveFile file(path);
         if (file.open(QIODevice::WriteOnly | QIODevice::Truncate)) {
             file.write(data);
-            if (file.commit()) {
+            if (commit ? commit(file) : file.commit()) {
                 if (attempt > 1)
-                    qWarning() << "ClayInspector: replacing" << path << "took"
-                               << attempt << "attempts";
+                    qDebug() << "ClayInspector: replacing" << path << "took"
+                             << attempt << "attempts";
                 return true;
             }
         }
+        lastError = file.errorString();
         QThread::msleep(10);
     }
+    qWarning().noquote() << "ClayInspector: could not replace" << path
+                         << "after" << kAttempts << "attempts:" << lastError;
     return false;
 }
 
 // The view state as a reader sees it: a lab's carries a whole Lab.snapshot()
 // for the reload (#568) - every probe sample and the model's state, hundreds
-// of KB for a lab that has run a minute. It is for applyViewState, not for an
-// agent reading a snapshot response or a flag, so those leave it out.
+// of KB for a lab that has run a minute - and a running lesson's checkpoints,
+// one lab view per step (#569). They are for applyViewState, not for an agent
+// reading a snapshot response or a flag, so those leave them out.
+static QJsonObject withoutReloadPayload(QJsonObject o)
+{
+    o.remove(QStringLiteral("snapshot"));
+    if (o.value(QStringLiteral("flows")).isObject()) {
+        QJsonObject flows = o.value(QStringLiteral("flows")).toObject();
+        for (auto it = flows.begin(); it != flows.end(); ++it) {
+            if (!it->isObject())
+                continue;
+            QJsonObject f = it->toObject();
+            f.remove(QStringLiteral("checkpoints"));
+            *it = f;
+        }
+        o[QStringLiteral("flows")] = flows;
+    }
+    return o;
+}
+
 static QJsonValue viewStateToShow(QJsonValue vs)
 {
     if (!vs.isObject())
         return vs;
-    QJsonObject o = vs.toObject();
-    o.remove(QStringLiteral("snapshot"));
-    if (o.value(QStringLiteral("lab")).isObject()) {
-        QJsonObject lab = o.value(QStringLiteral("lab")).toObject();
-        lab.remove(QStringLiteral("snapshot"));
-        o[QStringLiteral("lab")] = lab;
-    }
+    QJsonObject o = withoutReloadPayload(vs.toObject());
+    if (o.value(QStringLiteral("lab")).isObject())
+        o[QStringLiteral("lab")] = withoutReloadPayload(o.value(QStringLiteral("lab")).toObject());
     return o;
 }
 
@@ -164,6 +192,17 @@ ClayInspector::ClayInspector(HotReloadContainer* container, QObject* parent)
         if (fi.lastModified() != m_requestSeenAt || fi.size() != m_requestSeenSize)
             onRequestFileChanged(path);
     });
+    // Read from the root on the loader's own thread, like a capture before a
+    // reload; what it costs is reported with the restart restore (#569).
+    m_viewSaveTimer.setInterval(VIEW_SAVE_INTERVAL_MS);
+    connect(&m_viewSaveTimer, &QTimer::timeout, this, [this]() {
+        if (m_phase != Phase::Ready || !sceneRoot())
+            return;
+        QJsonValue vs = ClayScene::callJsonFunction(sceneRoot(), "viewState");
+        if (!vs.isNull())
+            saveViewState(vs);
+    });
+    m_viewSaveTimer.start();
     g_currentInspector = this;
 }
 
@@ -207,7 +246,10 @@ void ClayInspector::markReloading()
         QJsonValue vs = ClayScene::callJsonFunction(sceneRoot(), "viewState");
         if (!vs.isNull()) {
             m_capturedViewState = vs;
+            m_viewSource = QStringLiteral("reload");
             appendEvent("view_state_captured");
+            // a reload that crashes the loader still leaves the place on disk
+            saveViewState(vs);
         }
     }
 
@@ -231,6 +273,11 @@ void ClayInspector::markReady()
     ++m_generation;
     if (m_host)
         m_host->setGeneration(m_generation);
+    if (m_savedViewPending)
+        loadSavedViewState();
+    // "ready" goes out before the view is back, and says that it is coming
+    m_viewRestore = m_capturedViewState.isNull() ? QString()
+                                                 : QStringLiteral("restoring");
     writeState();
     QJsonObject payload;
     payload["phase"] = phaseName(m_phase);
@@ -247,7 +294,18 @@ void ClayInspector::markReady()
     if (!m_capturedViewState.isNull()) {
         QJsonValue state = m_capturedViewState;
         m_capturedViewState = QJsonValue::Null;
-        applyViewStateToRoot(state);
+        QElapsedTimer took;
+        took.start();
+        const bool ok = applyViewStateToRoot(state);
+        m_viewRestore = ok ? QStringLiteral("restored") : QStringLiteral("failed");
+        m_viewRestoredGeneration = m_generation;
+        writeState();
+        QJsonObject restored;
+        restored["ok"] = ok;
+        restored["generation"] = m_generation;
+        restored["source"] = m_viewSource;
+        restored["ms"] = static_cast<qint64>(took.elapsed());
+        appendEvent("view_state_restored", restored);
     }
 }
 
@@ -345,15 +403,19 @@ void ClayInspector::writeState()
         state["lastLoadErrorAt"] = m_lastLoadErrorAt.toString(Qt::ISODateWithMs);
     if (!m_rearmScenario.isEmpty())
         state["rearmedScenario"] = m_rearmScenario;
+    if (!m_viewRestore.isEmpty()) {
+        state["viewRestore"] = m_viewRestore;
+        state["viewRestoredGeneration"] = m_viewRestoredGeneration;
+    }
     // How many remarks are still waiting. Here rather than only behind an
     // action so the dojo's badge - a different process - and an agent glancing
     // at state.json both see them without asking.
     state["openAnnotations"] = openAnnotationCount();
     state["updatedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
 
-    if (!replaceFile(m_inspectDir + "/state.json",
-                     QJsonDocument(state).toJson(QJsonDocument::Indented)))
-        qWarning() << "ClayInspector: failed to write state.json";
+    // a failure warns inside replaceFile
+    replaceFile(m_inspectDir + "/state.json",
+                QJsonDocument(state).toJson(QJsonDocument::Indented));
 }
 
 void ClayInspector::setSandboxDir(const QString& dir)
@@ -396,11 +458,63 @@ void ClayInspector::setSandboxDir(const QString& dir)
     payload["pid"] = static_cast<qint64>(QCoreApplication::applicationPid());
     payload["sandbox"] = QFileInfo(m_sandboxDir).absoluteFilePath();
     appendEvent("session_start", payload);
+
+    m_lastSavedView.clear();
+    m_savedViewPending = m_restoreViewOnStart;
+}
+
+// The place the last process saved, for the first load to come back to. Read
+// at that load's ready, not before: until the container has its source the
+// sandbox file is not known, and only a file saved for this sandbox counts -
+// one directory can hold several.
+void ClayInspector::loadSavedViewState()
+{
+    m_savedViewPending = false;
+    if (!m_capturedViewState.isNull())
+        return;
+    QFile saved(viewStatePath());
+    if (!saved.open(QIODevice::ReadOnly))
+        return;
+    const QJsonObject doc = QJsonDocument::fromJson(saved.readAll()).object();
+    if (doc.value("sandbox").toString() != sandboxPath()
+        || !doc.value("viewState").isObject())
+        return;
+    m_capturedViewState = doc.value("viewState");
+    m_viewSource = QStringLiteral("restart");
+    QJsonObject from;
+    from["savedAt"] = doc.value("savedAt");
+    appendEvent("view_state_loaded", from);
 }
 
 void ClayInspector::setInstanceName(const QString& name)
 {
     m_instanceName = name;
+}
+
+void ClayInspector::setRestoreViewOnStart(bool on)
+{
+    m_restoreViewOnStart = on;
+}
+
+QString ClayInspector::viewStatePath() const
+{
+    return m_inspectDir + QStringLiteral("/view-state.json");
+}
+
+void ClayInspector::saveViewState(const QJsonValue& state)
+{
+    if (m_inspectDir.isEmpty() || !state.isObject())
+        return;
+    const QByteArray view = QJsonDocument(state.toObject()).toJson(QJsonDocument::Compact);
+    if (view == m_lastSavedView)
+        return;
+    QJsonObject doc;
+    doc["sandbox"] = sandboxPath();
+    doc["savedAt"] = QDateTime::currentDateTime().toString(Qt::ISODateWithMs);
+    doc["generation"] = m_generation;
+    doc["viewState"] = state;
+    if (replaceFile(viewStatePath(), QJsonDocument(doc).toJson(QJsonDocument::Compact)))
+        m_lastSavedView = view;
 }
 
 void ClayInspector::setControls(ClayTimeControl* timeCtrl,
@@ -836,6 +950,10 @@ QJsonObject ClayInspector::buildStatus() const
     st["generation"] = m_generation;
     st["phase"] = phaseName(m_phase);
     st["reloadCount"] = m_reloadCount;
+    if (!m_viewRestore.isEmpty()) {
+        st["viewRestore"] = m_viewRestore;
+        st["viewRestoredGeneration"] = m_viewRestoredGeneration;
+    }
     st["runId"] = m_runId;
     st["sandbox"] = sandboxPath();
     if (!m_instanceName.isEmpty())
@@ -1589,6 +1707,9 @@ QJsonObject ClayInspector::handleReload(const QJsonObject& request)
         if (!m_capturedViewState.isNull())
             appendEvent("view_state_dropped");
         m_capturedViewState = QJsonValue::Null;
+        // and the saved one: a restart must not bring back what was dropped
+        QFile::remove(viewStatePath());
+        m_lastSavedView.clear();
         response["fresh"] = true;
     }
 
@@ -1623,11 +1744,11 @@ void ClayInspector::applyScenarioToRoot(const QString& name)
                    << "failed (no applyScenario() on the sandbox root?)";
 }
 
-void ClayInspector::applyViewStateToRoot(const QJsonValue& state)
+bool ClayInspector::applyViewStateToRoot(const QJsonValue& state)
 {
     auto* rootItem = sceneRoot();
     if (!rootItem || !state.isObject())
-        return;
+        return false;
 
     // Compact JSON is a valid JS object literal - inject directly.
     QString json = QString::fromUtf8(
@@ -1636,12 +1757,10 @@ void ClayInspector::applyViewStateToRoot(const QJsonValue& state)
               && ClayScene::callVoid(rootItem,
                      QString("applyViewState(%1)").arg(json));
 
-    QJsonObject payload;
-    payload["ok"] = ok;
-    appendEvent("view_state_restored", payload);
     if (!ok)
         qWarning() << "ClayInspector: restoring view state failed"
                    << "(no applyViewState() on the sandbox root?)";
+    return ok;
 }
 
 QJsonObject ClayInspector::handleTime(const QJsonObject& request)
@@ -1873,8 +1992,7 @@ void ClayInspector::writeResponse(const QJsonObject& response)
     // a half-written payload. Plain open(Truncate) briefly exposes an empty
     // file, which has been known to confuse QFileSystemWatcher-based waiters.
     QString responsePath = m_inspectDir + "/response.json";
-    if (!replaceFile(responsePath, QJsonDocument(enveloped).toJson(QJsonDocument::Indented)))
-        qWarning() << "ClayInspector: failed to write response to" << responsePath;
+    replaceFile(responsePath, QJsonDocument(enveloped).toJson(QJsonDocument::Indented));
 }
 
 QJsonObject ClayInspector::handleTrace(const QJsonObject& request)
