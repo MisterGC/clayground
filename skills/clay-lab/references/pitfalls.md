@@ -77,7 +77,7 @@ writing lab code; skim again when something "impossible" happens.
   `setWatched()` / `watchOnly()` / `prune()` / `clear()`.
 - **`pragma ComponentBehavior: Bound` + a `Behavior` on a `Repeater3D`
   delegate = SIGSEGV** the moment the model is republished (Qt 6.11.1) — and
-  a `Board` republishes on every mutation. Either drop the pragma (the
+  a `Board` republishes whenever parts come or go. Either drop the pragma (the
   electronics lab) or animate inside the part component instead of on the
   delegate (the build template). Found by `clayrender` exiting 139 on
   `addPart`, with nothing in the log.
@@ -206,7 +206,9 @@ until you publish.
 ## Loader / reload semantics
 
 - **Plugin QML is baked into the plugin (rcc): kernel changes need a
-  loader RESTART**, not a reload.
+  rebuild and a loader RESTART**, not a reload — unless the dojo or loader
+  runs with `--lab-src`, which loads `Clayground.Lab` from `plugins/clay_lab`
+  and watches it, so a kernel edit is an ordinary reload.
 - **The loader watches only the sandbox dir** — after kit-file edits,
   request an inspector `reload` explicitly.
 - Scenario is applied **before** `applyViewState` on restore (it resets
@@ -228,8 +230,10 @@ until you publish.
   would make a replayed run differ from a fresh one).
 - **Measure determinism with the clock PAUSED.** The frame ticker keeps
   running between inspector round-trips, so "same seed, same N steps"
-  silently compares N and N+30 steps. Pause first, then `time step`, then
-  read — otherwise you will chase a determinism bug that is not there.
+  silently compares N and N+30 steps. Pause before the root exists —
+  `clayrender --paused`, or start the loader (or dojo) with `--paused`, as
+  `lab-check` does — then `time step`, then read, otherwise you will chase a
+  determinism bug that is not there.
 - `SimClock.wasReset` exists so sensors/estimators snap at scenario
   boundaries instead of blending across a reset.
 - A drifting constellation or similar background motion should be a pure
@@ -245,12 +249,12 @@ until you publish.
   property an initial value that is the state at `t = 0` rather than empty.
 - **A reload is not a fresh start.** The loader captures `viewState()` from
   the outgoing root and re-applies it to the new one, and
-  `Lab.applyViewState` re-steps a world-less clock to the recorded sim
-  time — so a reloaded lab arrives having replayed the run you just
-  finished. Reset the outgoing clock *after* pausing and before asking for
-  the reload, or take a new process. (Reset before pausing and the ticker
-  fills the gap, which is why the first run of a session was the only one
-  that differed.)
+  `Lab.applyViewState` restores the `Lab.snapshot()` it carries — or, in a
+  lab whose model offers no state, re-steps a world-less clock to the
+  recorded sim time — so a reloaded lab arrives where the run you just
+  finished stood. Ask for `{"action": "reload", "fresh": true}` (#566), which
+  drops the captured view state, or take a new process started with
+  `--paused`, as `lab-check` does (#572).
 - **A record's identity is per-process.** A probe named after a
   monotonically increasing part id (`part12`) names a different part in a
   session that built something earlier. Two runs of one scenario belong in

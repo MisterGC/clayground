@@ -2,6 +2,7 @@
 //
 // clayrender - one sandbox, one picture, no session (issue #164).
 
+#include "framestats.h"
 #include "renderhost.h"
 
 #include <clayanchor.h>
@@ -10,6 +11,7 @@
 #include <clayscenequery.h>
 #include <claysettle.h>
 #include <claystorage.h>
+#include <utilityfunctions.h>
 
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -26,6 +28,7 @@
 #include <QMutexLocker>
 #include <QQuickItem>
 #include <QTemporaryDir>
+#include <QTemporaryFile>
 #include <QTextStream>
 
 #include <memory>
@@ -275,11 +278,25 @@ int main(int argc, char* argv[])
 
     QGuiApplication app(argc, argv);
     QCoreApplication::setApplicationName("clayrender");
+    // Quick 3D keeps the shaders it generated in one file under the cache
+    // location, which Qt names after organisation and application only. A
+    // clayrender built against another Qt then finds the other one's file,
+    // warns "qsbc file is for a different Qt version" and a good render exits
+    // 2 (#571). An organisation per Qt version gives each Qt its own file.
+    QCoreApplication::setOrganizationName(QStringLiteral("clayrender-qt")
+                                          + QLatin1String(qVersion()));
     QCoreApplication::setApplicationVersion(CLAY_RENDER_VERSION);
 
     QCommandLineParser parser;
     parser.setApplicationDescription(
-        "Render one Clayground sandbox to a PNG and exit.\n"
+        "Render one Clayground sandbox to a PNG, or answer a question about\n"
+        "it, and exit.\n"
+        "\n"
+        "A picture is written with --out, or when a picture option (--crop,\n"
+        "--crop-pad, --scale, --width) or nothing else is asked - then into a\n"
+        "new file in the temp directory, whose path is printed. A run that only\n"
+        "asks (--stats, --dump, --project, --pick, --anchor, --result,\n"
+        "--trace) writes no picture.\n"
         "\n"
         "Stateless by design: no dojo, no session, no protocol - so several\n"
         "variants can be rendered in parallel and a stale or dead instance\n"
@@ -313,7 +330,10 @@ int main(int argc, char* argv[])
             "which any other headless host can set the same way.")
             .arg(QLatin1String(ClayScene::StorageDirEnvVar)),
         "isolated|user|dir", "isolated");
-    QCommandLineOption outOpt({"o", "out"}, "Write the PNG here.", "file", "shot.png");
+    QCommandLineOption outOpt({"o", "out"},
+        "Write the PNG here. Without it a run that asks a question writes no "
+        "picture, and one that asks nothing writes it into the temp directory "
+        "- never into the current one.", "file");
     QCommandLineOption sizeOpt("size", "Viewport size, e.g. 1600x1000.", "WxH", "1280x800");
     QCommandLineOption setOpt("set",
         "Assign a property after load, before capture: --set 'showLabels=false'. "
@@ -370,6 +390,19 @@ int main(int argc, char* argv[])
         "how the state was not reached. Required with --trace.", "file|-");
     QCommandLineOption framesOpt("frames",
         "Render this many frames before capturing.", "n", "2");
+    QCommandLineOption statsOpt("stats",
+        "What a frame costs: after the setup (--set/--eval/--script, "
+        "--frames, --wait-for, --settle) and one second of slots that are not "
+        "counted, run n frame slots of 1/60 s, draw a frame only when the "
+        "scene asks for one, as a window does, and print one JSON line - "
+        "frames, rendered (frames really drawn), seconds, cpuMs (process CPU "
+        "time per slot), loadAverage (one-minute, beside it; null on Windows), "
+        "cpuInstructions (instructions retired per slot, "
+        "macOS only, steady under load), renderMs (wall time to draw a frame), "
+        "drawCalls and vertices (summed over every View3D), views3d. Each per-slot "
+        "and per-frame figure is {median, mean, min, max}, or null when "
+        "nothing was drawn. Waiting for "
+        "the next slot is in none of them.", "n");
     QCommandLineOption settleOpt("settle",
         "Capture once the picture stops changing (or the timeout expires).");
     QCommandLineOption settleMsOpt("settle-timeout",
@@ -398,14 +431,15 @@ int main(int argc, char* argv[])
     QCommandLineOption cropPadOpt("crop-pad",
         "Grow the crop by this many pixels on every side, clipped to the "
         "viewport. A tight cut around a panel reads as cramped.", "px");
+    QCommandLineOption labSrcOpt(LAB_SRC_ARG, LAB_SRC_ARG_DESCR);
     QCommandLineOption scaleOpt("scale", "Scale the capture, e.g. 0.5.", "factor");
     QCommandLineOption widthOpt("width", "Scale the capture to this width.", "px");
 
     parser.addOptions({sbxOpt, prefsOpt, outOpt, sizeOpt, setOpt, evalOpt,
                        scriptOpt, resultOpt, pausedOpt, waitForOpt, waitMsOpt,
-                       traceOpt, traceOutOpt, framesOpt, settleOpt,
+                       traceOpt, traceOutOpt, framesOpt, statsOpt, settleOpt,
                        settleMsOpt, dumpOpt, projectOpt, pickOpt, anchorOpt,
-                       cropOpt, cropPadOpt, scaleOpt, widthOpt});
+                       cropOpt, cropPadOpt, scaleOpt, widthOpt, labSrcOpt});
     parser.process(app);
 
     const auto positional = parser.positionalArguments();
@@ -456,8 +490,34 @@ int main(int argc, char* argv[])
     if (traced.isEmpty() && parser.isSet(traceOutOpt))
         return fail("--trace-out without --trace: nothing to write");
 
+    int statsSlots = 0;
+    if (parser.isSet(statsOpt)) {
+        statsSlots = parser.value(statsOpt).toInt(&ok);
+        if (!ok || statsSlots < 1)
+            return fail(QString("--stats wants a frame count, got '%1'")
+                            .arg(parser.value(statsOpt)));
+    }
+
+    // A picture when one is named or shaped, or when nothing else is asked: a
+    // run that came for numbers should not leave a PNG behind, and one that
+    // names no file must not drop it into whatever folder it was started in.
+    const bool asksQuestion = statsSlots > 0 || !traced.isEmpty()
+        || parser.isSet(dumpOpt) || parser.isSet(projectOpt)
+        || parser.isSet(pickOpt) || parser.isSet(anchorOpt)
+        || parser.isSet(resultOpt);
+    const bool shapesPicture = parser.isSet(cropOpt) || parser.isSet(cropPadOpt)
+        || parser.isSet(scaleOpt) || parser.isSet(widthOpt);
+    const bool wantPicture = parser.isSet(outOpt) || shapesPicture || !asksQuestion;
+
     RenderHost host;
     host.setPausedOnLoad(parser.isSet(pausedOpt));
+    if (parser.isSet(labSrcOpt)) {
+        QString error;
+        const QString importDir = labSourceImportDir(&error);
+        if (importDir.isEmpty())
+            return fail(error);
+        host.setFirstImportPath(importDir);
+    }
     if (!host.load(sandbox, size)) {
         for (const auto& e : host.errors())
             QTextStream(stderr) << "clayrender: " << e << "\n";
@@ -571,6 +631,15 @@ int main(int argc, char* argv[])
         }
     }
 
+    // After the setup, so what is measured is the state it reached; before the
+    // queries and the capture, so they describe the last measured frame.
+    if (statsSlots > 0) {
+        const QJsonObject stats = FrameStats::measure(host, statsSlots);
+        QTextStream(stdout)
+            << QString::fromUtf8(QJsonDocument(stats).toJson(QJsonDocument::Compact))
+            << "\n";
+    }
+
     // Scene queries before the capture, so a dump describes the same frame the
     // picture shows.
     for (const auto& dump : parser.values(dumpOpt)) {
@@ -656,13 +725,15 @@ int main(int argc, char* argv[])
     if (parser.isSet(widthOpt))
         capReq.targetWidth = parser.value(widthOpt).toInt();
 
-    auto capture = ClayScene::capture(host, capReq);
+    ClayScene::CaptureResult capture;
+    if (wantPicture)
+        capture = ClayScene::capture(host, capReq);
     // The capture's frame is the last sample: it is the frame the picture
     // shows. Whatever renders after this (--pick grabs the full frame again)
     // is not part of the run being observed.
     host.setFrameRendered({});
     trace.close();
-    if (!capture.ok())
+    if (wantPicture && !capture.ok())
         return fail(capture.error);
 
     if (parser.isSet(pickOpt)) {
@@ -680,17 +751,28 @@ int main(int argc, char* argv[])
             << "\n";
     }
 
-    QString saveError;
-    const QString outPath = parser.value(outOpt);
-    if (!ClayScene::saveImage(capture.image, outPath, &saveError))
-        return fail(saveError);
+    if (wantPicture) {
+        QString outPath = parser.value(outOpt);
+        if (outPath.isEmpty()) {
+            // A file of its own, so two runs at once never share a name.
+            QTemporaryFile file(QDir::tempPath() + "/clayrender-XXXXXX.png");
+            file.setAutoRemove(false);
+            if (!file.open())
+                return fail(QString("cannot create a picture in %1: %2")
+                                .arg(QDir::tempPath(), file.errorString()));
+            outPath = file.fileName();
+        }
+        QString saveError;
+        if (!ClayScene::saveImage(capture.image, outPath, &saveError))
+            return fail(saveError);
 
-    QTextStream(stdout) << outPath << " ("
-                        << capture.image.width() << "x"
-                        << capture.image.height() << ")\n";
+        QTextStream(stdout) << outPath << " ("
+                            << capture.image.width() << "x"
+                            << capture.image.height() << ")\n";
+    }
 
-    // The picture exists either way - but a scene that threw is not a scene
-    // you should trust, so say so and exit non-zero.
+    // The picture and the answers exist either way - but a scene that threw
+    // is not a scene you should trust, so say so and exit non-zero.
     const int problems = qmlProblemCount();
     if (problems > 0) {
         QTextStream(stderr) << "clayrender: " << problems

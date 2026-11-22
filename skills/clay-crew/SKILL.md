@@ -95,10 +95,7 @@ record worthless.
 Also check for annotations **without** a live session — `.clay/crew/annotations/index.json`
 is a plain file you can read directly when no loader is running.
 
-## Two things that cost an hour each if you don't know them
-
-**Launch with `QT_DISABLE_SHADER_DISK_CACHE=1`.** Without it the loader
-dies unpredictably mid-session on shader-heavy scenes.
+## One thing that costs an hour if you don't know it
 
 **After touching plugin QML, rebuild the plugin and RESTART the loader.**
 Plugin QML is compiled into the plugin's Qt resources, so a hot reload
@@ -287,7 +284,9 @@ gives you confidence. Read `status` on every response you get along the
 way — a layer that "passed" against a dead or pre-edit scene is worse
 than no verification at all.
 
-1. **Static analysis (always):** `qmllint <file> -I build/qml`.
+1. **Static analysis (always):** `qmllint <file> -I build/bin/qml`.
+   `qmllint` ships with Qt, not on the PATH:
+   `$CMAKE_PREFIX_PATH/bin/qmllint` (e.g. `~/Qt/6.11.1/macos/bin/qmllint`).
 2. **Load + state check (one batch):** wait for the load to resolve and
    read the result in the same round trip.
    ```json
@@ -563,6 +562,7 @@ lag).
 ```json
 {"id": "r1", "action": "reload"}
 {"id": "r2", "action": "reload", "scenario": "boss-fight", "rearm": true}
+{"id": "r3", "action": "reload", "fresh": true, "scenario": "tunnel"}
 ```
 
 Same path as a file-watch reload: a fresh engine, so no scene state
@@ -574,6 +574,15 @@ has not happened yet. Follow with `waitForRoot`, then confirm
 re-applies it after every subsequent reload (including the user's file
 edits) until a reload passes `rearm: false` — this is how you keep the
 app in the situation under test across iterative editing.
+
+`fresh: true` is the clean start: the loader drops the view state (below)
+for that one reload, so the root comes up with its declared values in the
+scenario you name. Use it whenever one question must not inherit the last
+one — a lab's view state carries its scenario, sim time and parameters and
+is applied *after* the requested scenario, so a plain reload into "tunnel"
+from "open-sky" lands back in "open-sky" at the old time with the old
+parameters. Pause first (`time`, `paused: true`, survives the reload), then
+reload fresh: two such runs of the same stepped frames write the same bytes.
 
 ### time — pause, single-step, timescale
 
@@ -758,8 +767,18 @@ after any rearmed scenario (so a scenario + sim-time encoding gets the last
 word). A null/failed capture keeps the previous one, so a fix after a load
 error still restores. Snapshots and flags carry a `viewState` key when the
 root implements it, and `view_state_captured` / `view_state_restored`
-(`{ok}`) land in `events.jsonl`. Add these to any sandbox you iterate on with
-a user watching — it keeps their camera and place fixed while you edit.
+(`{ok, generation, source, ms}`) land in `events.jsonl`. Add these to any
+sandbox you iterate on with a user watching — it keeps their camera and place
+fixed while you edit. A `reload` with `fresh: true` skips the capture and the
+restore and drops a held capture (`view_state_dropped`).
+
+"ready" comes before the view is back: wait for `state.json`'s `viewRestore`
+to be `restored` for the generation you saw become ready (`failed` says it
+did not apply). The loader saves the view to `.clay/inspect/view-state.json`
+while the root is up; a loader started with `--restore-view` - and every
+child the dojo respawns after its first - comes back to it. A lab's view
+state carries the running lesson (`flows`) and the selection, so a reload or
+a restart keeps both.
 
 ## The labInfo() convention (labs)
 
@@ -778,6 +797,12 @@ entirely through `eval`:
   "startFlow('led-basics')"
 ]}
 ```
+
+`Lab.set` refuses a value outside the parameter's `from`..`to` (it returns
+`false` and logs the range) rather than clamping it. Every `Parameter`
+remembers the value it was declared with (`defaultValue`):
+`Lab.parameter('gpsSigma').reset()` puts one back, `Lab.resetParameters()`
+all of them, without a reload.
 
 Probes are the right `trace` targets (`Lab.p('gain')`, probe
 expressions), and labs honor the `time` pause/step actions by contract —

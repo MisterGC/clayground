@@ -31,6 +31,8 @@
       url: /docs/manual/plugin-development/
     - title: Multiplayer
       url: /docs/manual/multiplayer/
+    - title: Building a lab
+      url: /docs/manual/building-a-lab/
 
 - title: Plugin Reference
   url: /docs/plugins/

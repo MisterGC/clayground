@@ -106,8 +106,10 @@ target_link_libraries(tst_inspector_dojo PRIVATE
 )
 
 add_test(NAME inspector_dojo COMMAND tst_inspector_dojo)
+# It also checks that --lab-src takes Clayground.Lab from plugins/clay_lab
+# (#570), so a kernel change runs it (verify.sh, #384).
 set_tests_properties(inspector_dojo PROPERTIES
-    LABELS "inspector;integration"
+    LABELS "inspector;integration;plugins/clay_lab"
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 60
 )
@@ -122,6 +124,72 @@ if(Python3_FOUND)
     set_tests_properties(crew_gym PROPERTIES
         LABELS "inspector;integration;gym"
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 180
+    )
+
+    # 50 reloads of one lab, each sent as soon as the last is the root: the
+    # loader died within a handful (#565). It reads a lab and its kits, so a
+    # change under labs/ runs it too.
+    add_test(NAME loader_reloads
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload/run_reload_test.py
+                --loader $<TARGET_FILE:clayliveloader>
+                --lab ${CMAKE_SOURCE_DIR}/labs/hydraulics-101
+                --reloads 50
+    )
+    set_tests_properties(loader_reloads PROPERTIES
+        LABELS "inspector;integration;labs"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_SOUND_MUTE=1"
+        TIMEOUT 180
+    )
+
+    # A reload of a lab whose model offers state restores it from the
+    # snapshot its viewState() carries instead of replaying the clock (#568):
+    # at 60 sim seconds the reloaded root holds the same snapshot and runs on
+    # like the outgoing one, and the reload is timed (about 0.1 s; the replay
+    # of the same 60 s of sensor-fusion-101 took 3 to 5 s). It reads a lab
+    # and its kits, so a change under labs/ runs it too.
+    foreach(_snap_lab sensor-fusion-101 hydraulics-101)
+        add_test(NAME loader_snapshot_reload_${_snap_lab}
+            COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload/run_snapshot_reload_test.py
+                    --loader $<TARGET_FILE:clayliveloader>
+                    --lab ${CMAKE_SOURCE_DIR}/labs/${_snap_lab}
+        )
+        set_tests_properties(loader_snapshot_reload_${_snap_lab} PROPERTIES
+            LABELS "inspector;integration;labs;plugins/clay_lab"
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_SOUND_MUTE=1"
+            TIMEOUT 180
+        )
+    endforeach()
+
+    # A reload keeps the running lesson at its step and the selected part, the
+    # loader says when that view is back (state.json viewRestore, after
+    # "ready"), and a loader killed and started again with --restore-view
+    # comes back to the same place from the view it saved (#569). It reads a
+    # lab and its kits, so a change under labs/ runs it too.
+    add_test(NAME loader_view_reload
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload/run_view_reload_test.py
+                --loader $<TARGET_FILE:clayliveloader>
+                --lab ${CMAKE_SOURCE_DIR}/labs/electronics-101
+    )
+    set_tests_properties(loader_view_reload PROPERTIES
+        LABELS "inspector;integration;labs;plugins/clay_lab"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_SOUND_MUTE=1"
+        TIMEOUT 180
+    )
+
+    # A loader kept running carries no state from one question to the next
+    # when the reload asks to start fresh: the scenario it names, sim time 0,
+    # declared parameters, and two such runs of 600 steps write the same
+    # bytes (#566). It reads a lab and its kits, so a change under labs/ runs
+    # it too.
+    add_test(NAME loader_fresh_reload
+        COMMAND ${Python3_EXECUTABLE} ${CMAKE_CURRENT_SOURCE_DIR}/reload/run_fresh_reload_test.py
+                --loader $<TARGET_FILE:clayliveloader>
+                --lab ${CMAKE_SOURCE_DIR}/labs/sensor-fusion-101
+    )
+    set_tests_properties(loader_fresh_reload PROPERTIES
+        LABELS "inspector;integration;labs"
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen;CLAY_SOUND_MUTE=1"
         TIMEOUT 180
     )
 endif()

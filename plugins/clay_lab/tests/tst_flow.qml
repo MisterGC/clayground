@@ -160,6 +160,18 @@ Item {
         flowId: "tst-wrong"
         FlowStep { key: "claims"; dwell: 0.2; expect: () => false }
         FlowStep { key: "throws"; dwell: 0.2; expect: () => nothingHere.atAll }
+        // what a failed expect saw (#567): a value off the mark, and one that
+        // JSON has no number for
+        FlowStep {
+            key: "sees"; dwell: 0.2
+            expect: (n, saw) => Math.abs(saw("I", 0.0049) - 0.00515) < 5e-5
+                                && saw("never", 1) === 1
+        }
+        FlowStep {
+            key: "seesOdd"; dwell: 0.2
+            expect: (n, saw) => saw("ratio", 1 / 0) < 1 && saw("parts", [1, NaN]) !== null
+        }
+        FlowStep { key: "holds"; dwell: 0.2; expect: (n, saw) => saw("I", 1) === 1 }
     }
 
     Flow {
@@ -208,6 +220,25 @@ Item {
         }
     }
 
+    // A task whose outcome is a changed circuit lends the pads and wires
+    // as well as the parts it names.
+    Flow {
+        id: wiringFlow
+        lab: fakeLab
+        flowId: "tst-wiring"
+        pacing: "manual"
+
+        FlowStep { key: "build"; demo: [["let", "sw", "addPart", "switch"]] }
+        FlowStep {
+            key: "rewire"
+            task: ({ "until": () => fakeLab.tagged !== -1,
+                     "allow": ["sw"],
+                     "wiring": true,
+                     "solve": [["tagPart", "sw"]] })
+        }
+        FlowStep { key: "after" }
+    }
+
     TestCase {
         name: "Flow"
 
@@ -218,7 +249,7 @@ Item {
             flow.stop(); viewFlow.stop(); blindFlow.stop()
             goodFlow.stop(); verblessFlow.stop(); endlessFlow.stop()
             wrongFlow.stop(); unsolvableFlow.stop()
-            gatedFlow.stop(); openTaskFlow.stop()
+            gatedFlow.stop(); openTaskFlow.stop(); wiringFlow.stop()
             fakeCam.lastCall = ""; fakeCam.lastArg = null
             fakeCam.calls = 0; fakeCam.partsWhenAimed = -1
         }
@@ -365,12 +396,25 @@ Item {
 
         function test_aWrongExpectLandsInFailedExpectsWithItsKey() {
             const r = Lab.runFlow("tst-wrong")
-            compare(r.failedExpects.length, 2)
+            compare(r.failedExpects.length, 4, "a holding expect is not reported")
             compare(r.failedExpects[0].step, "claims")
             compare(r.failedExpects[0].index, 0)
+            verify(r.failedExpects[0].saw === undefined,
+                   "an expect that names nothing reports nothing it saw")
             compare(r.failedExpects[1].step, "throws")
             verify(r.failedExpects[1].error !== undefined,
                    "a predicate that throws is a failure with its message")
+        }
+
+        function test_aFailedExpectReportsTheValueItSaw() {
+            const r = Lab.runFlow("tst-wrong")
+            compare(r.failedExpects[2].step, "sees")
+            compare(r.failedExpects[2].saw, { I: 0.0049 },
+                    "the value the expect judged; the && after it never ran")
+            compare(r.failedExpects[3].step, "seesOdd")
+            compare(r.failedExpects[3].saw, { ratio: "Infinity" },
+                    "a value JSON has no number for comes back as its text")
+            compare(JSON.stringify(r.failedExpects[3].saw), '{"ratio":"Infinity"}')
         }
 
         function test_aTaskThatSolveCannotSatisfyIsReported() {
@@ -453,6 +497,31 @@ Item {
             verify(openTaskFlow.grants(4242), "anything at all")
         }
 
+        function test_wiringIsTheLearnersUntilAFlowStarts() {
+            verify(gatedFlow.lendsWiring(), "with nothing running, the pads are live")
+        }
+
+        function test_aPartTaskKeepsTheWiringLocked() {
+            gatedFlow.start()
+            verify(!gatedFlow.lendsWiring(), "not on a demo step")
+            gatedFlow.next()
+            compare(gatedFlow.control, "task")
+            verify(!gatedFlow.lendsWiring(), "nor on a task that lent only a part")
+        }
+
+        function test_aWiringTaskLendsTheCircuitAndTakesItBack() {
+            wiringFlow.start()
+            verify(!wiringFlow.lendsWiring(), "its demo step locks the wiring")
+            wiringFlow.next()
+            verify(wiringFlow.lendsWiring(), "the task lends the pads and wires")
+            compare(wiringFlow.grants(wiringFlow.nameOf("sw")), true, "and the part it named")
+            fakeLab.tagPart(wiringFlow.nameOf("sw"))
+            verify(wiringFlow.check())
+            verify(!wiringFlow.lendsWiring(), "locked again the instant it is done")
+            wiringFlow.stop()
+            verify(wiringFlow.lendsWiring(), "and the learner's once the flow is left")
+        }
+
         function test_aRefusalIsSaidAndThenForgotten() {
             gatedFlow.start()
             compare(gatedFlow.refusal, "")
@@ -463,6 +532,50 @@ Item {
             compare(gatedFlow.refusal, "flow.refuse.task", "the learner clicked the wrong thing")
             gatedFlow.stop()
             compare(gatedFlow.refusal, "", "leaving clears it")
+        }
+
+        // A reload brings the lesson back from Flow.state() (#569). A stopped
+        // flow has none, and the lab's view state then carries no flows.
+        function test_aStoppedFlowHasNoState() {
+            compare(flow.state(), null)
+            compare(Lab.viewState().flows, undefined, "no lesson runs, no flows key")
+        }
+
+        // load() is "where it was", not "enter it again": the lab is already
+        // back, so the step's demo must not run a second time.
+        function test_aLoadedStateIsTheSameStepWithoutItsDemo() {
+            flow.start()
+            flow.next(); flow.next()
+            flow.stepTime = 1.5
+            const s = JSON.parse(JSON.stringify(flow.state()))
+            flow.stop()
+            fakeLab.tagged = -1
+            flow.load(s)
+            compare(flow.index, 2)
+            compare(flow.nameOf("bat"), 1, "the names the steps bound")
+            compare(flow.stepTime, 1.5, "the time spent in the step")
+            compare(fakeLab.tagged, -1, "the tag step's demo did not run again")
+            flow.goTo(1)
+            compare(fakeLab.parts.length, 1, "and its checkpoints still take it back")
+        }
+
+        function test_theLabsViewStateCarriesTheRunningFlow() {
+            flow.start()
+            flow.next()
+            const vs = JSON.parse(JSON.stringify(Lab.viewState()))
+            compare(vs.flows.tst.index, 1)
+            flow.stop()
+            Lab.applyViewState(vs)
+            compare(flow.index, 1, "Lab.applyViewState put the lesson back")
+            compare(flow.nameOf("bat"), 1)
+        }
+
+        // An edit can remove the step a saved state was at.
+        function test_aStepThatIsGoneStopsTheFlow() {
+            flow.start()
+            ignoreWarning(/no step 99 to come back to/)
+            flow.load({ index: 99 })
+            verify(!flow.running)
         }
 
         // The headless run performs each task through solve(), which drives

@@ -17,6 +17,9 @@ ctest --preset default            # the full suite, 8 tests at a time
 ./verify.sh                       # build, then only the tests this change can reach
 ```
 
+`./verify.sh` without `CMAKE_PREFIX_PATH` takes the newest Qt >= 6.10 under
+`~/Qt` for a first configure and prints which; set the variable to choose.
+
 `debug` is the same into `build-debug/`. `macos` adds a Homebrew `OPENSSL_ROOT_DIR`
 for libdatachannel. Machine-specific settings belong in a gitignored
 `CMakeUserPresets.json` inheriting from `default` — never in `CMakePresets.json`.
@@ -83,15 +86,19 @@ Windows (#192).
 ./build/bin/clayrender Sandbox.qml --out shot.png --size 1400x900
 ```
 
-Launch the loader/dojo with `QT_DISABLE_SHADER_DISK_CACHE=1`; without it, it
-dies unpredictably mid-session on shader-heavy scenes. Headless: add
-`QT_QPA_PLATFORM=offscreen`.
+Headless: add `QT_QPA_PLATFORM=offscreen`.
 
 **After touching plugin QML, rebuild the plugin and restart the loader.** Plugin
 QML is compiled into the plugin's Qt resources, so hot reload cannot pick it up
 and the fix looks applied while the old file is still live. Build targets are
 named after the QML module, not the directory: `ClayCanvas3D`, `ClayLab` — not
 `clay_canvas3d`. When in doubt, `cmake --build build`.
+
+The lab kernel is the exception: `--lab-src` on the dojo, the loader and
+`clayrender` loads `Clayground.Lab` from `plugins/clay_lab` instead of the
+plugin (through `build/lab-src`, written by the default build), and the
+dojo and loader watch that directory, so a saved edit to a kernel file is
+live on the next reload — no rebuild, no restart.
 
 ## Architecture
 

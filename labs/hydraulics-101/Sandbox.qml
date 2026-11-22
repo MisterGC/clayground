@@ -47,6 +47,15 @@ Item {
     readonly property int rows: 12
     readonly property real cell: 5
 
+    // --- snapshot (#568) -----------------------------------------------------
+    // A build lab's model is its board: the solver keeps no state of its own
+    // over time, so the board and the clock are the whole run.
+    ModelState {
+        name: "board"
+        save: () => board.state()
+        load: (s) => board.load(s)
+    }
+
     Board {
         id: board
         cols: root.cols; rows: root.rows; cell: root.cell
@@ -139,8 +148,18 @@ Item {
 
     // --- the clock and the probes ---------------------------------------------------
     // The solver has no time of its own; the clock paces the samples and the
-    // wheel's spin, so a record is a pure function of the step count.
-    SimClock { id: clock; seed: 42; sampleInterval: 0.1 }
+    // wheel's spin, so a record is a pure function of the step count. With
+    // no water moving, no lesson running and nothing recorded there is
+    // nothing for it to pace, and it rests rather than redraw a still board
+    // sixty times a second (#575); an edit wakes it for one sample, so the
+    // watched strips still get the new reading.
+    SimClock {
+        id: clock; seed: 42; sampleInterval: 0.1
+        resting: !wires3d.flowing && !wheelFlow.running
+                 && !recorder.recording
+        readonly property var _solve: root.sim
+        on_SolveChanged: wake()
+    }
     Probe {
         name: "qPump"; unit: "L/s"
         expr: () => {
@@ -286,6 +305,7 @@ Item {
             overlay: overlay.state(),
             sections: Object.assign({}, palette.sectionsOpen),
             lang: LabLang.lang,
+            selected: board.selectedId,      // the part in hand (#569)
             cam: rig.state()
         })
     }
@@ -300,6 +320,9 @@ Item {
         if (s.traces) monitor.traceOnly(s.traces.filter(t => board.partAt(t.id) !== null))
         if (s.overlay) overlay.load(s.overlay)
         Lab.applyViewState(s)
+        // after the board: loading one drops the selection
+        if (s.selected !== undefined && s.selected !== -1 && board.partAt(s.selected) !== null)
+            board.selectedId = s.selected
         if (s.cam) rig.applyState(s.cam)
     }
     // One mutation API, three drivers: the UI, a Flow by name, an agent
@@ -394,18 +417,20 @@ Item {
         }
 
         // The parts. modelData is a COPY of the plain JS object: mutable state
-        // is read live from the board, and each binding lists board.rev.
+        // is read live from the board, and each binding lists board.rev -
+        // board.layoutRev for where the part is, which a valve turned does not
+        // change.
         Repeater3D {
             model: board.parts
             HydroElement3D {
                 required property var modelData
                 position: {
-                    board.rev
+                    board.layoutRev
                     const e = board.partAt(modelData.id)
                     return e ? Qt.vector3d(board.cellX(e.col), -0.45, board.cellZ(e.row))
                              : Qt.vector3d(0, 0, 0)
                 }
-                eulerRotation.y: { board.rev; const e = board.partAt(modelData.id); return e ? (e.rot || 0) : 0 }
+                eulerRotation.y: { board.layoutRev; const e = board.partAt(modelData.id); return e ? (e.rot || 0) : 0 }
                 type: modelData.type
                 value: { board.rev; const e = board.partAt(modelData.id); return e ? e.value : modelData.value }
                 switchOn: { board.rev; const e = board.partAt(modelData.id); return e ? e.on : false }
@@ -415,8 +440,15 @@ Item {
                 turning: root.simOf(modelData.id).on
                 speed: root.simOf(modelData.id).speed
                 // the wheel's angle from the sim clock, so a stepped record
-                // and the live lab agree on where it stands
-                phase: (clock.time * root.simOf(modelData.id).speed * 6) % 360
+                // and the live lab agree on where it stands. A wheel that
+                // stands still does not read the clock: the time in a binding
+                // redraws the scene every frame, and every part has this
+                // binding, so a board with nothing flowing drew 60 frames a
+                // second (#575). Speed 0 put the angle at 0 before as well.
+                phase: {
+                    const s = root.simOf(modelData.id).speed
+                    return s !== 0 ? (clock.time * s * 6) % 360 : 0
+                }
                 shorted: { const p = root.pumpOf(modelData.id); return p !== null && p.shorted }
                 overloaded: { const p = root.pumpOf(modelData.id); return p !== null && p.overloaded }
                 selected: board.selectedId === modelData.id
@@ -763,7 +795,7 @@ Item {
             key: "turning"
             demo: [["watch", "wheel", true]]
             // 40 kPa across 2 + 0.02 + 8 + 24 kPa·s/L: 1.176 L/s, measured
-            expect: (n) => Math.abs(root.simOf(n("wheel")).q - 1.1758) < 5e-4
+            expect: (n, saw) => Math.abs(saw("wheel.q", root.simOf(n("wheel")).q) - 1.1758) < 5e-4
         }
         FlowStep { key: "why" }
         FlowStep { key: "values"; demo: [["showValues", true]] }

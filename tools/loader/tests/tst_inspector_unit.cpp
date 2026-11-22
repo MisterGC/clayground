@@ -8,6 +8,8 @@
 #include <QDir>
 #include <QFile>
 #include <QRectF>
+#include <QThread>
+#include <QSaveFile>
 
 #include "clayinspector.h"
 #include "claycontrols.h"
@@ -40,6 +42,7 @@ private slots:
     void testGenerationCountsSuccessfulLoadsOnly();
     void testErrorsActionCarriesFileAndLine();
     void testErrorsActionFiltersBySinceGeneration();
+    void diagnosticsFromOtherThreadsAllArrive();
     void testStatusLastErrorFromDojoState();
     void testBatchRunsStepsInOrder();
     void testBatchStopsAtFirstFailingStep();
@@ -48,6 +51,8 @@ private slots:
     void testGamepadInputSetsEveryInput();
     void testGamepadInputRejectsUnknownInput();
     void annotationCropFailureKeepsTheAnnotation();
+    void replaceFileRetryThatWorksDoesNotWarn();
+    void replaceFileThatNeverWorksWarns();
 
 private:
     // Round-trips one request through the file protocol and returns the
@@ -700,6 +705,58 @@ void TestInspectorUnit::testErrorsActionCarriesFileAndLine()
     QCOMPARE(resp["truncated"].toBool(), false);
 }
 
+void TestInspectorUnit::diagnosticsFromOtherThreadsAllArrive()
+{
+    // The loader's message handler runs on whichever thread logged (#565).
+    // Seven threads and this one add at once; every message has to arrive,
+    // and none may be lost or corrupt the buffers. One round of the race
+    // rarely loses an append, so it is run twenty times.
+    QTemporaryDir tmpDir;
+    QVERIFY(tmpDir.isValid());
+
+    ClayInspector inspector(nullptr);
+    inspector.setSandboxDir(tmpDir.path());
+    inspector.markReady();
+
+    constexpr int perThread = 25;
+    for (int round = 0; round < 20; ++round) {
+        inspector.clearLogs();
+        QList<QThread*> threads;
+        for (int t = 0; t < 7; ++t) {
+            threads << QThread::create([&inspector, t]() {
+                for (int i = 0; i < perThread; ++i) {
+                    inspector.addError(QString("thread %1 error %2").arg(t).arg(i));
+                    inspector.addWarning(QString("thread %1 warning %2").arg(t).arg(i));
+                    inspector.addLogMessage(QString("thread %1 log %2").arg(t).arg(i));
+                }
+            });
+        }
+        for (auto* thread : threads)
+            thread->start();
+        for (int i = 0; i < perThread; ++i) {
+            inspector.addError(QString("main error %1").arg(i));
+            inspector.addWarning(QString("main warning %1").arg(i));
+        }
+        for (auto* thread : threads) {
+            QVERIFY(thread->wait(10000));
+            delete thread;
+        }
+        // The other threads' calls are queued to this one. Deliver them now:
+        // the request poll's timer may otherwise run first and answer early.
+        QCoreApplication::sendPostedEvents(&inspector);
+
+        QJsonObject req;
+        req["action"] = "errors";
+        req["id"] = QString("threads-%1").arg(round);
+        auto resp = roundtrip(inspector, tmpDir.path(), req);
+        // 8 * 25 = 200, exactly the buffer's cap: nothing dropped, nothing extra
+        QCOMPARE(resp["errorCount"].toInt(), 8 * perThread);
+        QCOMPARE(resp["warningCount"].toInt(), 8 * perThread);
+        for (const auto& e : resp["errors"].toArray())
+            QVERIFY(e.toObject()["text"].toString().contains(" error "));
+    }
+}
+
 void TestInspectorUnit::testErrorsActionFiltersBySinceGeneration()
 {
     QTemporaryDir tmpDir;
@@ -1020,6 +1077,62 @@ void TestInspectorUnit::annotationCropFailureKeepsTheAnnotation()
     auto orphan = inspector.attachAnnotation("nope", QRectF(0, 0, 5, 5));
     QVERIFY(!orphan.value("stored").toBool());
     QVERIFY(orphan.value("storeError").toString().contains("nope"));
+}
+
+// What replaceFile says, by level. A warning in a loader's log fails
+// lab_check, so the level is the contract.
+namespace {
+QStringList g_replaceWarnings;
+QtMessageHandler g_prevHandler = nullptr;
+void replaceMsgHandler(QtMsgType type, const QMessageLogContext& ctx,
+                       const QString& msg)
+{
+    if (type == QtWarningMsg && msg.contains("ClayInspector"))
+        g_replaceWarnings << msg;
+    if (g_prevHandler && type != QtDebugMsg)
+        g_prevHandler(type, ctx, msg);
+}
+}
+
+// Windows refuses the rename while a reader holds the file; a retry that gets
+// through is the design working and must not warn - one such retry failed
+// lab_check_sensor-fusion-101 in #625's first CI run.
+void TestInspectorUnit::replaceFileRetryThatWorksDoesNotWarn()
+{
+    QTemporaryDir tmp;
+    const QString path = tmp.path() + "/state.json";
+    int calls = 0;
+    g_replaceWarnings.clear();
+    g_prevHandler = qInstallMessageHandler(replaceMsgHandler);
+    const bool ok = ClayInspector::replaceFile(path, "{\"a\": 1}",
+        [&calls](QSaveFile& f) { return ++calls < 3 ? false : f.commit(); });
+    qInstallMessageHandler(g_prevHandler);
+    QVERIFY(ok);
+    QCOMPARE(calls, 3);
+    QVERIFY2(g_replaceWarnings.isEmpty(), qPrintable(g_replaceWarnings.join("; ")));
+    QFile f(path);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    QCOMPARE(f.readAll(), QByteArray("{\"a\": 1}"));
+}
+
+// Every attempt failed: the file is not replaced and that is a warning
+// naming the path - before, it returned false without a word.
+void TestInspectorUnit::replaceFileThatNeverWorksWarns()
+{
+    QTemporaryDir tmp;
+    const QString path = tmp.path() + "/state.json";
+    int calls = 0;
+    g_replaceWarnings.clear();
+    g_prevHandler = qInstallMessageHandler(replaceMsgHandler);
+    const bool ok = ClayInspector::replaceFile(path, "{}",
+        [&calls](QSaveFile&) { ++calls; return false; });
+    qInstallMessageHandler(g_prevHandler);
+    QVERIFY(!ok);
+    QCOMPARE(calls, 10);
+    QCOMPARE(g_replaceWarnings.size(), 1);
+    QVERIFY2(g_replaceWarnings.first().contains(path),
+             qPrintable(g_replaceWarnings.first()));
+    QVERIFY(!QFile::exists(path));
 }
 
 QTEST_MAIN(TestInspectorUnit)

@@ -175,6 +175,20 @@ Item {
 
     KalmanFilter2D { id: kf; processNoise: 1.2 }
 
+    // --- snapshot (#568) ---------------------------------------------------
+    // The sensors carry their own state; what is left is the filter, the
+    // weighing bookkeeping and the sky - the satellites move on the sample
+    // grid, so they are state too - and what the scenario switched on.
+    ModelState {
+        name: "fusion"; target: root
+        properties: ["sigmaPredicted", "lastUpdate", "_lastT", "satellites",
+                     "tunnelOn", "_lidarOn"]
+    }
+    ModelState {
+        name: "kalman"; target: kf
+        properties: ["_x", "_P", "estX", "estY", "sigmaX", "sigmaY"]
+    }
+
     GpsSensor {
         id: gps; clock: clock; truePos: root.truePos
         sigmaM: pGpsSigma.value; rateHz: pGpsRate.value
@@ -1084,17 +1098,30 @@ Item {
             key: "odo"
             demo: [["setParam", "gpsSigma", 3]]
         }
-        FlowStep { key: "lidar-map"; demo: [["monitor", true]] }
+        FlowStep { key: "lidar-map" }
+        FlowStep { key: "lidar-chain"; demo: [["monitor", true]] }
         FlowStep {
             key: "lidar-geometry"
             watch: ({ "until": () => lidar.usedCount <= 2 })
         }
         FlowStep { key: "fusion" }
+        // The learner acts (#542): take the lidar's landmarks away without a
+        // tunnel. Nothing on screen says how - the range was the lidar-geometry
+        // step's point - and `until` reads what the lidar matched, not the knob,
+        // so any way to blind it counts.
+        FlowStep {
+            key: "blind"
+            task: ({ "until": () => lidar.usedCount === 0 && !root.carInTunnel,
+                     "hint": "flow.fusion-basics.blind.hint",
+                     "hintAfter": 15,
+                     "solve": [["setParam", "lidarRange", 5]] })
+        }
         FlowStep {
             key: "tunnel"
-            demo: [["scenario", "tunnel"], ["simSpeed", 1.0]]
+            demo: [["setParam", "lidarRange", 22],
+                   ["scenario", "tunnel"], ["simSpeed", 1.0]]
             watch: ({ "until": () => root.carInTunnel })
-            expect: () => root.carInTunnel
+            expect: (n, saw) => saw("inTunnel", root.carInTunnel)
         }
         FlowStep {
             key: "recover"
@@ -1104,7 +1131,8 @@ Item {
             // wide - records/tunnel-42.labrec climbs to 2.7 m inside, while
             // open-sky-42 never exceeds 0.34 m once settled. A filter whose
             // uncertainty did not grow without fixes would be lying.
-            expect: () => !root.carInTunnel && Math.hypot(kf.sigmaX, kf.sigmaY) > 1.0
+            expect: (n, saw) => !saw("inTunnel", root.carInTunnel)
+                                    && saw("sigma", Math.hypot(kf.sigmaX, kf.sigmaY)) > 1.0
         }
     }
     Narrator {

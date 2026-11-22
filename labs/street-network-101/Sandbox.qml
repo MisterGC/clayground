@@ -68,6 +68,27 @@ Item {
 
     property int _stepsTaken: 0
 
+    // --- snapshot (#568) -----------------------------------------------------
+    // The model is the plan and the traffic on it, one plain object each. The
+    // lane model is derived from the plan, so it is rebuilt rather than
+    // carried: loadPlan() derives it and hands back an empty fleet, then the
+    // fleet that was on it comes back.
+    ModelState {
+        name: "traffic"
+        save: () => ({ plan: root.planState(), sim: root.simState,
+                       steps: root._stepsTaken, running: root.running })
+        load: (s) => {
+            root.loadPlan(s.plan)
+            root.simState = s.sim
+            root._stepsTaken = s.steps
+            root.running = s.running
+            root.simRev++
+            root.refreshFlow()
+            cars3d.cars = root.simState.cars
+            cars3d.sync()
+        }
+    }
+
     Connections {
         target: clock
         function onWasReset() {
@@ -746,6 +767,7 @@ Item {
             running: running, lang: LabLang.lang,
             toggles: { lanes: showLanes, values: showValues, plan: showPlan,
                        snap: grid.snap },
+            selection: Object.assign({}, selection),   // road, junction or turn in hand (#569)
             cam: rig.state()
         })
     }
@@ -768,6 +790,13 @@ Item {
         // parameters and the clock re-step happen here; the scenario above has
         // already reset both, so the replay is exact
         Lab.applyViewState(s)
+        // what was selected, if the plan still has it
+        if (s.selection && s.selection.kind !== "") {
+            const k = s.selection.kind, id = s.selection.id
+            const there = k === "road" ? roadRecord(id) : k === "node" ? nodeRecord(id)
+                        : k === "turn" ? turnRecord(id) : null
+            if (there) select(k, id)
+        }
         if (s.cam) rig.applyState(s.cam)
     }
 

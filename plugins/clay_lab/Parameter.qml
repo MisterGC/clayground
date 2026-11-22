@@ -12,6 +12,10 @@ import QtQuick
     ParamPanel builds its sliders from all registered parameters; agents
     set values via \c{Lab.set(name, value)}.
 
+    A parameter remembers the value it was declared with (\l defaultValue),
+    so \l reset() - or \c{Lab.resetParameters()} for all of them - puts it
+    back without reloading the lab.
+
     Example usage:
     \qml
     import Clayground.Lab
@@ -35,6 +39,35 @@ QtObject {
         \brief Current value; bind your system to this.
     */
     property real value: 0
+
+    /*!
+        \qmlproperty real Parameter::defaultValue
+        \brief The value the parameter was declared with; \l reset() returns to it.
+
+        Left unset, it is taken from \l value the first time the kernel needs
+        it: when the parameter completes, or earlier when \c{Lab.set()} changes
+        it first - a sandbox root's Component.onCompleted runs before its
+        children's, so a scenario it opens there may set a parameter that has
+        not completed yet. Set it explicitly to reset to another value than
+        the declared value.
+    */
+    property real defaultValue: NaN
+
+    /*!
+        \qmlmethod void Parameter::reset()
+        \brief Sets \l value back to \l defaultValue.
+
+        Assigns a plain number, so a \l value that was bound to an expression
+        stays at that expression's declared result rather than following it.
+    */
+    function reset() {
+        _keepDefault()
+        value = defaultValue
+    }
+
+    function _keepDefault() {
+        if (isNaN(defaultValue)) defaultValue = value
+    }
 
     /*!
         \qmlproperty real Parameter::from
@@ -72,9 +105,11 @@ QtObject {
     // children's, and so does every binding created after this object. Waiting
     // for completion here meant a lab booted with "Lab: unknown parameter"
     // for each of its own parameters and read 0 instead of the declared value.
-    Component.onCompleted: _register()
+    Component.onCompleted: { _keepDefault(); _register() }
     Component.onDestruction: Lab.unregisterParameter(_param)
     onNameChanged: _register()
+    // the replay of a reload applies each change at the sim time it was made
+    onValueChanged: Lab._paramChanged(_param)
 
     // The name a Lab entry is currently filed under, so a renamed parameter
     // takes its old entry with it instead of leaving a ghost behind.

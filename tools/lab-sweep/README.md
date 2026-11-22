@@ -21,6 +21,12 @@ Worked example: `labs/street-network-101/studies/topology-four-houses/`.
 
 It drives `clayrender` once per cell, writes one `.labrec` per run into the
 study's `records/`, then reads those records back to build `results.md`.
+`--clayrender` names the renderer. Without it the sweep takes
+`build/bin/clayrender` of the checkout the study sits in, and when the study
+is in no checkout, or the checkout has no build, the one beside the tool:
+`build/bin/` of the checkout `tools/lab-sweep/` is in (#573). A study whose lab is in no checkout — made with `lab-new --dir`
+elsewhere — runs from the directory that holds the lab, and its records still
+say `labs/<slug>/studies/<study>` in their `command` field (#535).
 
 It contains **no optimization and no search**. It does not pick the next
 experiment, stop early on a promising cell, or fit anything. That is not a

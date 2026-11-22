@@ -55,6 +55,11 @@ QtObject {
         instead (\c {"allow": (n) => root.logicInputs}). Leaving it out keeps
         the whole board live, which is what a flow written before
         \l {Flow::control} existed still gets.
+
+        \c {"wiring": true} lends the circuit itself as well: the pads and the
+        wires answer while the task runs, so the learner can draw a wire or
+        erase one (\l {Flow::lendsWiring()}). For a task whose outcome is a
+        changed circuit; its \c until then reads the circuit, never a click.
     */
     property var task: null
 
@@ -125,6 +130,15 @@ QtObject {
     /*!
         \qmlproperty var FlowStep::expect
         \brief Optional predicate asserted after the step, for headless checks.
+
+        Called as \c{expect(n, saw)}: \c n resolves a flow name to the lab's
+        id, \c{saw(label, value)} returns \c value and keeps it under
+        \c label, so a failed expect reports what it saw rather than only that
+        it failed (\c{Lab.runFlow()}'s \c failedExpects):
+
+        \qml
+        expect: (n, saw) => Math.abs(saw("I", root.simOf(n("led")).i) - 0.00515) < 5e-5
+        \endqml
     */
     property var expect: null
 }

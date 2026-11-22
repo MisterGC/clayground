@@ -63,6 +63,39 @@ QtObject {
     property real timeScale: 1
 
     /*!
+        \qmlproperty bool SimClock::resting
+        \brief While true, live time stands still - the lab has nothing to show.
+
+        A binding on \l time is a redraw on every frame, and so is every probe
+        sample, which repaints the plots, and the time readout on the
+        \l TransportChip. A lab whose state does not change while nothing in
+        it moves - a circuit with no current, pipes with no flow - binds this
+        to that condition and then renders nothing at all until something
+        starts: electronics-101 drew 60 frames a second at rest (#575).
+
+        Only the frame ticker honours it. Stepping - the inspector's step
+        action, lab-check, a reload re-stepping to the saved time - advances
+        time as before, so a stepped record does not depend on it. A lab whose
+        model advances in \l stepped must not rest while that model is still
+        changing. A change made while resting - a value edited on a board with
+        no current - reaches the probes through \l wake().
+    */
+    property bool resting: false
+
+    /*!
+        \qmlmethod void SimClock::wake()
+        \brief Lets live time run on to the next probe sample, even while \l resting.
+
+        For a lab whose state changed while it rests: the plots show a reading
+        only once it is sampled, so without this an edit to a still board
+        would not reach them until something moved. Costs the frames up to
+        that sample, then the clock rests again. No effect on stepping.
+    */
+    function wake() { _awake = true }
+
+    property bool _awake: false
+
+    /*!
         \qmlsignal SimClock::wasReset()
         \brief Emitted after a reset; sensors/estimators snap their state here.
     */
@@ -85,6 +118,7 @@ QtObject {
         _stepAccum = 0
         _lastStepTime = 0
         Lab.clearProbes()
+        Lab._clockReset()
         wasReset()
     }
 
@@ -128,6 +162,10 @@ QtObject {
     /*!
         \qmlproperty int SimClock::maxStepsPerAdvance
         \brief Fixed steps allowed per advance, so a hitch cannot become a freeze.
+
+        An advance that needs more steps than this runs this many and drops
+        the rest of the whole steps; the part of a step still to come is kept.
+        An advance that needs exactly this many loses nothing.
     */
     property int maxStepsPerAdvance: 8
 
@@ -149,6 +187,7 @@ QtObject {
         while (time + 1e-9 >= _nextSample) {
             Lab.takeSamples(_nextSample)
             _nextSample += sampleInterval
+            _awake = false
         }
         _emitFixedSteps()
     }
@@ -159,12 +198,24 @@ QtObject {
         _lastStepTime = time
         if (d <= 0) return                  // a reset rewinds; never step back
         _stepAccum += d
+        // The tolerance is the one the sample grid uses: time is a running
+        // float sum, so an advance of exactly one fixedStep can arrive as a
+        // hair less than one and hold that step back to the next advance -
+        // 5999 steps out of 6000 advances of 1/60 (#532).
         let budget = maxStepsPerAdvance
-        while (_stepAccum >= fixedStep && budget-- > 0) {
+        while (_stepAccum + 1e-9 >= fixedStep) {
+            if (budget-- <= 0) {
+                // drop the backlog, don't chase it - but only the whole steps
+                // of it. The part of a step that is still to come is time the
+                // next advance owes, and dropping it (as this once did on
+                // every advance that used up exactly the budget) put the step
+                // grid out of phase with the clock (#532).
+                _stepAccum -= Math.floor((_stepAccum + 1e-9) / fixedStep) * fixedStep
+                break
+            }
             _stepAccum -= fixedStep
             stepped(fixedStep)
         }
-        if (budget <= 0) _stepAccum = 0     // drop the backlog, don't chase it
     }
 
     onSeedChanged: reset()
@@ -177,7 +228,7 @@ QtObject {
     }
 
     property FrameAnimation _frameTicker: FrameAnimation {
-        running: !_clock.world && !Clayground.paused
+        running: !_clock.world && !Clayground.paused && (!_clock.resting || _clock._awake)
         onTriggered: _clock._advance(frameTime * Clayground.timeScale * _clock.timeScale)
     }
 

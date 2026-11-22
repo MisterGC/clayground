@@ -384,6 +384,61 @@ raises("a file that is not a record is refused",
 raises("an unknown record format is refused",
        lambda: R.parse('{"format": "other/9"}\n# samples\nt\n'), "unknown record format")
 
+# --- paths handed to clayrender and spelled into records (#535) -------------
+
+import tempfile                # noqa: E402
+import lab_sweep as LS         # noqa: E402
+
+check("a record path under the root is handed over relative",
+      LS.js_path(os.path.join("/r", "labs", "x", "a.labrec"), "/r") == "labs/x/a.labrec",
+      LS.js_path(os.path.join("/r", "labs", "x", "a.labrec"), "/r"))
+_relpath = os.path.relpath
+
+
+def _cross_drive(path, start=None):
+    # what Windows answers for a temp dir on C: and a checkout on D:
+    raise ValueError("path is on mount 'C:', start on mount 'D:'")
+
+
+os.path.relpath = _cross_drive
+try:
+    got = LS.js_path("/tmp/records/a.labrec", "/checkout")
+    check("a record path on another drive is handed over absolute, not a crash",
+          got == os.path.abspath("/tmp/records/a.labrec").replace(os.sep, "/"), got)
+finally:
+    os.path.relpath = _relpath
+
+_tmp = tempfile.mkdtemp(prefix="lab-sweep-tests-")
+try:
+    _study = os.path.join(_tmp, "far-101", "studies", "s1")
+    os.makedirs(_study)
+    open(os.path.join(_tmp, "far-101", "Sandbox.qml"), "w").close()
+    for spelling in ("far-101", "labs/far-101/Sandbox.qml"):
+        got = LS.lab_outside_checkout({"lab": spelling}, _study, _study)
+        check(f"a lab outside a checkout ({spelling}) keeps the labs/<slug> spelling",
+              got is not None and got[1] == "labs/far-101/studies/s1"
+              and got[2] == os.path.join("far-101", "Sandbox.qml"), str(got))
+    check("a study in no lab of its manifest's name is left alone",
+          LS.lab_outside_checkout({"lab": "other-101"}, _study, _study) is None)
+
+    # the clayrender a sweep takes with no --clayrender (#573)
+    _exe = "clayrender" + (".exe" if os.name == "nt" else "")
+    _tool = os.path.join(LS.TOOL_ROOT, "build", "bin", _exe)
+    got = LS.default_clayrender(LS.repo_root(_study))
+    check("a study in no checkout uses the clayrender beside the tool",
+          got == _tool, got)
+    _co = os.path.join(_tmp, "checkout")
+    os.makedirs(os.path.join(_co, "build", "bin"))
+    open(os.path.join(_co, ".git"), "w").close()
+    _own = os.path.join(_co, "build", "bin", _exe)
+    open(_own, "w").close()
+    got = LS.default_clayrender(_co)
+    check("a study in a built checkout uses that checkout's clayrender",
+          got == _own, got)
+finally:
+    import shutil              # noqa: E402
+    shutil.rmtree(_tmp, ignore_errors=True)
+
 failed = [n for n, ok in CHECKS if not ok]
 print(f"\nlab-sweep: {len(CHECKS) - len(failed)} passed, {len(failed)} failed")
 for n in failed:

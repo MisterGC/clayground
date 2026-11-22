@@ -165,7 +165,7 @@ Item {
             id: valueChip
             required property var modelData
             readonly property var screenAt: {
-                root.board.rev; root.camera.scenePosition; root.camera.sceneRotation
+                root.board.layoutRev; root.camera.scenePosition; root.camera.sceneRotation
                 const e = root.board.partAt(modelData.id)
                 if (!e) return Qt.vector3d(0, 0, 0)
                 return root.project(root.board.cellX(e.col), root.labelY, root.board.cellZ(e.row))
@@ -206,7 +206,7 @@ Item {
             id: wireLabel
             required property var modelData
             readonly property var screenAt: {
-                root.board.rev; root.camera.scenePosition; root.camera.sceneRotation
+                root.board.layoutRev; root.camera.scenePosition; root.camera.sceneRotation
                 const m = root.board.wireMid(modelData)
                 return root.project(m.x, root.wireY, m.z)
             }
@@ -230,7 +230,7 @@ Item {
             required property var modelData
             readonly property int pid: modelData
             readonly property var screenAt: {
-                root.board.rev; root.camera.scenePosition; root.camera.sceneRotation
+                root.board.layoutRev; root.camera.scenePosition; root.camera.sceneRotation
                 const e = root.board.partAt(pid)
                 if (!e) return Qt.vector3d(0, 0, 0)
                 return root.project(root.board.cellX(e.col), root.labelY, root.board.cellZ(e.row))
@@ -256,7 +256,7 @@ Item {
             readonly property int elId: parseInt(modelData)
             readonly property string attr: root.tags[modelData] || root.wireAttr
             readonly property var screenAt: {
-                root.board.rev; root.camera.scenePosition; root.camera.sceneRotation
+                root.board.layoutRev; root.camera.scenePosition; root.camera.sceneRotation
                 const e = root.board.partAt(elId)
                 if (!e) return Qt.vector3d(0, 0, 0)
                 return root.project(root.board.cellX(e.col), root.tagY, root.board.cellZ(e.row))

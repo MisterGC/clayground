@@ -140,12 +140,15 @@ def render(text, tokens):
 
 # --- the file plan ---------------------------------------------------------
 
-def _layer(base, plan):
+def _layer(base, plan, skip=()):
     """Add every file under `base` to `plan`, keyed by its path relative to
-    `base`. A later layer overwrites an earlier one at the same path."""
+    `base`. A later layer overwrites an earlier one at the same path. A
+    top-level directory named in `skip` is a layer of its own, not content."""
     if not os.path.isdir(base):
         return
-    for dirpath, _dirnames, filenames in os.walk(base):
+    for dirpath, dirnames, filenames in os.walk(base):
+        if dirpath == base:
+            dirnames[:] = [d for d in dirnames if d not in skip]
         for name in sorted(filenames):
             if name.startswith("."):
                 continue
@@ -155,7 +158,13 @@ def _layer(base, plan):
 
 def plan_files(kind, purpose, templates=TEMPLATES):
     """The generated file set, in layers: what every lab gets, what the
-    purpose decides, what the kind decides. The kind wins."""
+    purpose decides, what the kind decides, and what the kind decides for
+    that purpose (templates/<kind>/purposes/<purpose>/). The last layer wins.
+
+    The fourth layer exists for the research lab's study (#531): its manifest
+    names the kind's own probes and its committed record holds the kind's own
+    numbers, so it can belong neither to the purpose alone nor to the kind
+    alone."""
     kinds = discover_kinds(templates)
     if kind not in kinds:
         raise LabNewError(
@@ -171,7 +180,8 @@ def plan_files(kind, purpose, templates=TEMPLATES):
     plan = {}
     _layer(os.path.join(templates, COMMON), plan)
     _layer(os.path.join(templates, PURPOSES, purpose), plan)
-    _layer(os.path.join(templates, kind), plan)
+    _layer(os.path.join(templates, kind), plan, skip=(PURPOSES,))
+    _layer(os.path.join(templates, kind, PURPOSES, purpose), plan)
     return dict(sorted(plan.items()))
 
 
@@ -207,7 +217,11 @@ def generate(slug, kind, purpose, target, templates=TEMPLATES, force=False,
         if dry_run:
             continue
         os.makedirs(os.path.dirname(dest), exist_ok=True)
-        with open(dest, "w", encoding="utf-8") as f:
+        # newline="": LF as read, on every platform. Python writes "\n" as
+        # CRLF on Windows by default, so a generated lab's committed records
+        # never matched the LF ones its own make.sh and lab-sweep regenerate
+        # (#535), and a CRLF make.sh is not a script bash can run.
+        with open(dest, "w", encoding="utf-8", newline="") as f:
             f.write(body)
         # An executable template stays executable: records/make.sh and
         # figures/make.sh are drivers, and a driver you have to chmod is a
@@ -298,8 +312,16 @@ def main(argv=None):
     print(f"  3. make the model yours in {sbx}, then re-run it")
     print(f"  4. record a run: {show(os.path.join(target, 'records/make.sh'))} "
           "  (--verify checks determinism)")
-    print(f"  5. paper and board LAST, from the records: "
+    if args.purpose == "research":
+        study = show(os.path.join(target, "studies", "first-look"))
+        print(f"  5. replace the skeleton study with yours, then sweep it: "
+              f"tools/lab-sweep/lab-sweep {study}")
+    else:
+        print("  5. add a flow to flows() and lab-check runs it - no file "
+              "names it")
+    print(f"  6. paper and board LAST, from the records: "
           f"{show(os.path.join(target, 'paper.md'))}")
+    print(f"  7. check it, as ctest will: tools/lab-check/lab-check {show(target)}")
     return 0
 
 

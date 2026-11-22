@@ -204,6 +204,11 @@ void ClayDojo::run()
             if (buildWaitList_.empty()){
                 auto args = QCoreApplication::arguments();
                 args << QString("--%1").arg(SBX_INDEX_ARG) << QString::number(sbxIdx_);
+                // A respawn - after a rebuild, a crash, a switch of sandbox -
+                // comes back where the last child left its sandbox (#569).
+                const auto restoreArg = QString("--%1").arg(RESTORE_VIEW_ARG);
+                if (generation_ > 1 && !args.contains(restoreArg))
+                    args << restoreArg;
                 p.start(loaderCmd, args);
             }
             else {

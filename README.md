@@ -161,7 +161,9 @@ fills them, about 100 s (7.3 min before: one file compiled at a time, both depen
 Two things stay out of the committed presets, on purpose:
 
 - **Qt** comes from `CMAKE_PREFIX_PATH` in your environment (or a Qt already on
-  the default search path). No machine path is committed.
+  the default search path). No machine path is committed. `./verify.sh` run
+  without the variable takes the newest Qt from 6.10 on under `~/Qt` for a
+  first configure and prints which one; a build folder that exists keeps its Qt.
 - **OpenSSL**, if the libdatachannel dependencies cannot find one. On macOS use
   `cmake --preset macos`, which adds `OPENSSL_ROOT_DIR=/opt/homebrew/opt/openssl`,
   a stable Homebrew symlink rather than a versioned directory, so it survives
@@ -253,6 +255,10 @@ ctest --test-dir build --output-on-failure
 - `clay_add_qml_test()` macro for QML unit tests using Qt's qmltestrunner
 - `clay_add_node_test()` macro for the pure-JS lab and kit suites (label `node`);
   skipped when `node` is not installed
+- `lab_check_<lab>` - one gate per lab under `labs/`, registered for every
+  directory with a `Sandbox.qml`; it runs `tools/lab-check/lab-check` on the lab
+  (`ctest --preset default -R lab_check`). How a lab is built and checked:
+  [Building a lab](https://clayground.mistergc.dev/docs/manual/building-a-lab/)
 - Tests run headless (`QT_QPA_PLATFORM=minimal`) in CI on Linux and Windows
 
 **Adding plugin tests:**

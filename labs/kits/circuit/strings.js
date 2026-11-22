@@ -36,6 +36,13 @@ var dict = {
         "switch.closed": "closed",
         "switch.open": "open",
 
+        // an LED's state, and what its card offers once it has burnt out;
+        // %1 is its maximum current
+        "led.intact": "intact",
+        "led.burnt": "burnt out",
+        "led.rated": "takes at most %1",
+        "led.replace": "BURNT OUT · REPLACE",
+
         // the transistor's three terminals, and the region it is working in
         "npn.collector": "collector",
         "npn.base": "base",
@@ -149,6 +156,11 @@ var dict = {
         "switch.closed": "geschlossen",
         "switch.open": "offen",
 
+        "led.intact": "intakt",
+        "led.burnt": "durchgebrannt",
+        "led.rated": "verträgt höchstens %1",
+        "led.replace": "DURCHGEBRANNT · ERSETZEN",
+
         "npn.collector": "Kollektor",
         "npn.base": "Basis",
         "npn.emitter": "Emitter",
@@ -198,13 +210,13 @@ var dict = {
         "anatomy.wires": "Bonddrähte",
 
         "flow.anatomy.title": "Wie ein Transistor aufgebaut ist",
-        "flow.anatomy.meet": "So sitzt der Transistor auf der Platine: ein schwarzer Klotz mit drei Beinchen.",
+        "flow.anatomy.meet": "So sitzt der Transistor auf dem Brett: ein schwarzer Klotz mit drei Beinchen.",
         "flow.anatomy.legs": "Die drei Beinchen sind Kollektor, Basis und Emitter, und der Aufdruck unter dem Bauteil sagt, welches welches ist.",
         "flow.anatomy.shell": "Das Epoxidgehäuse ist Verpackung - nimm es ab, und das arbeitende Teil steht immer noch da.",
         "flow.anatomy.inside": "Darin sitzt ein Chip von der Größe eines Sandkorns, auf einen Metallträger gelötet.",
         "flow.anatomy.layers": "Der Chip besteht aus drei Schichten, N über P über N, und die dünne in der Mitte ist die Basis.",
         "flow.anatomy.named": "Jedes Teil hat einen Namen, und das sind die, auf die der Baukasten zeigen kann.",
-        "flow.anatomy.close": "Wieder zusammengesetzt ist es dasselbe Bauteil, das die ganze Zeit auf der Platine saß.",
+        "flow.anatomy.close": "Wieder zusammengesetzt ist es dasselbe Bauteil, das die ganze Zeit auf dem Brett saß.",
 
         "bench.anatomy.title": "AUFBAU",
         "bench.anatomy.state": "ZUSTAND",

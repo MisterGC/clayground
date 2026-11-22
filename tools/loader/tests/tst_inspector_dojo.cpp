@@ -12,6 +12,8 @@
 #include <QFile>
 #include <QDir>
 #include <QFileInfo>
+#include <QScopeGuard>
+#include <QUrl>
 
 class TestInspectorDojo : public QObject
 {
@@ -26,6 +28,7 @@ private slots:
     void testSnapshotFlagInfo();
     void snapshotIncludesViewState();
     void viewStateSurvivesReload();
+    void freshReloadDropsViewState();
     void requestWithoutIdIsCarriedOutOnce();
     void testSnapshotLogTail();
     void testSnapshotEval();
@@ -33,10 +36,15 @@ private slots:
     void testTreeAction();
     void testTreeDepthLimit();
     void testSnapshotScreenshot();
+    void kernelIsTheCompiledCopyWithoutLabSrc();
+    void labSrcLoadsKernelFromSource();
+    void pausedStartsWithTheClockPaused();
 
 private:
     bool writeRequest(const QJsonObject& request);
     QJsonObject waitForResponse(int timeoutMs = 5000);
+    QString kernelUrl();
+    QJsonObject request(const QJsonObject& req);
 
     QProcess* m_loader = nullptr;
     QString m_sandboxDir;
@@ -302,6 +310,60 @@ void TestInspectorDojo::viewStateSurvivesReload()
     QVERIFY(qAbs(vs["zoom"].toDouble() - 3.5) < 0.01);
 }
 
+// A reload asked to start fresh brings the sandbox up with its declared
+// values, not the place the last root left (#566). Runs after
+// viewStateSurvivesReload, so the capture it drops is a real one: camX 111.
+void TestInspectorDojo::freshReloadDropsViewState()
+{
+    QJsonObject evalReq;
+    evalReq["action"] = "eval";
+    evalReq["eval"] = QJsonArray({"camX = 333"});
+    QVERIFY(writeRequest(evalReq));
+    QVERIFY2(!waitForResponse().isEmpty(), "No response for eval mutation");
+
+    QJsonObject reloadReq;
+    reloadReq["action"] = "reload";
+    reloadReq["fresh"] = true;
+    QVERIFY(writeRequest(reloadReq));
+    auto reloadResp = waitForResponse();
+    QVERIFY2(!reloadResp.isEmpty(), "No response for reload");
+    QCOMPARE(reloadResp["reloadStatus"].toString(), "requested");
+    QCOMPARE(reloadResp["fresh"].toBool(), true);
+
+    QJsonObject waitReq;
+    waitReq["action"] = "waitForRoot";
+    waitReq["timeoutMs"] = 8000;
+    QVERIFY(writeRequest(waitReq));
+    QVERIFY2(!waitForResponse(12000).isEmpty(), "No response for waitForRoot");
+    QTest::qWait(200);
+
+    QJsonObject snapReq;
+    snapReq["action"] = "snapshot";
+    QVERIFY(writeRequest(snapReq));
+    auto resp = waitForResponse();
+    QVERIFY2(!resp.isEmpty(), "No response for post-reload snapshot");
+    auto props = resp["rootProperties"].toObject();
+    QVERIFY2(qAbs(props["camX"].toDouble() - 12.5) < 0.01,
+             qPrintable(QString("camX is not the declared 12.5: %1")
+                            .arg(props["camX"].toDouble())));
+    QVERIFY(qAbs(props["camY"].toDouble() - 34.5) < 0.01);
+    QVERIFY(qAbs(props["zoom"].toDouble() - 1.5) < 0.01);
+
+    // Fresh covers one reload: the next plain reload keeps the place again.
+    QVERIFY(writeRequest(QJsonObject{{"action", "eval"},
+                                     {"eval", QJsonArray({"camX = 444"})}}));
+    QVERIFY2(!waitForResponse().isEmpty(), "No response for eval mutation");
+    QVERIFY(writeRequest(QJsonObject{{"action", "reload"}}));
+    QVERIFY2(!waitForResponse().isEmpty(), "No response for reload");
+    QVERIFY(writeRequest(waitReq));
+    QVERIFY2(!waitForResponse(12000).isEmpty(), "No response for waitForRoot");
+    QTest::qWait(200);
+    QVERIFY(writeRequest(snapReq));
+    resp = waitForResponse();
+    QVERIFY2(qAbs(resp["rootProperties"].toObject()["camX"].toDouble() - 444.0) < 0.01,
+             "a plain reload after a fresh one did not keep the place");
+}
+
 // The inspector notices a request both by looking at request.json and through
 // the file watcher, which on macOS reports the same write 0.5 s later. A
 // request with no id - this suite sends none - was carried out at each, so
@@ -471,6 +533,146 @@ void TestInspectorDojo::testSnapshotScreenshot()
     // Even if screenshot didn't work, the rest of the snapshot should be valid
     QVERIFY(resp.contains("rootProperties"));
     QVERIFY(resp.contains("logTail"));
+}
+
+// The URL a kernel type was compiled from says which copy of Clayground.Lab
+// the loader's engine took: the plugin's resources, or plugins/clay_lab under
+// --lab-src (#570).
+QString TestInspectorDojo::kernelUrl()
+{
+    const QString expr =
+        QStringLiteral("Qt.createComponent(\"Clayground.Lab\", \"Parameter\").url.toString()");
+    QJsonObject req;
+    req["action"] = "eval";
+    req["eval"] = QJsonArray({expr});
+    if (!writeRequest(req))
+        return QStringLiteral("<cannot write request>");
+    auto resp = waitForResponse();
+    if (resp.isEmpty())
+        return QStringLiteral("<no response>");
+    return resp["eval"].toObject()[expr].toString();
+}
+
+void TestInspectorDojo::kernelIsTheCompiledCopyWithoutLabSrc()
+{
+    const QString url = kernelUrl();
+    QVERIFY2(url.startsWith("qrc:"), qPrintable("kernel came from " + url));
+}
+
+void TestInspectorDojo::labSrcLoadsKernelFromSource()
+{
+    // A loader of its own, on a sandbox directory of its own: the inspector
+    // protocol is per sandbox directory.
+    const QString sandboxDir = QCoreApplication::applicationDirPath()
+                               + "/test_sandbox_labsrc";
+    QDir(sandboxDir).removeRecursively();
+    QVERIFY(QDir().mkpath(sandboxDir));
+    const QString sandbox = sandboxDir + "/Sandbox.qml";
+    QVERIFY(QFile::copy(QString(SRCDIR) + "/TestSandbox.qml", sandbox));
+
+    QProcess loader;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("QT_QPA_PLATFORM", "offscreen");
+    loader.setProcessEnvironment(env);
+    loader.setProcessChannelMode(QProcess::ForwardedChannels);
+    loader.start(m_loaderBin, {"--sbx", sandbox, "--lab-src"});
+    QVERIFY2(loader.waitForStarted(5000), "clayliveloader --lab-src failed to start");
+
+    const QString mainInspectDir = m_inspectDir;
+    const QString mainLastTs = m_lastResponseTs;
+    m_inspectDir = sandboxDir + "/.clay/inspect";
+    m_lastResponseTs.clear();
+    auto restore = qScopeGuard([&] {
+        m_inspectDir = mainInspectDir;
+        m_lastResponseTs = mainLastTs;
+        loader.terminate();
+        if (!loader.waitForFinished(3000))
+            loader.kill();
+    });
+
+    bool ready = false;
+    for (int i = 0; i < 50 && !ready; ++i) {
+        ready = QFile::exists(m_inspectDir + "/request.json");
+        if (!ready)
+            QTest::qWait(200);
+    }
+    QVERIFY2(ready, "the --lab-src loader's inspector did not start within 10 seconds");
+    QTest::qWait(500);
+
+    const QString url = kernelUrl();
+    const QString expected = QFileInfo(QString(SRCDIR)
+        + "/../../../plugins/clay_lab/Parameter.qml").canonicalFilePath();
+    const QString got = QFileInfo(QUrl(url).toLocalFile()).canonicalFilePath();
+    QVERIFY2(!expected.isEmpty() && got == expected,
+             qPrintable("kernel came from " + url + ", expected " + expected));
+}
+
+QJsonObject TestInspectorDojo::request(const QJsonObject& req)
+{
+    if (!writeRequest(req))
+        return {};
+    return waitForResponse();
+}
+
+// --paused (#572): the time control is paused before the root exists, so the
+// scene's first answer already sees Clayground.paused - no request had to
+// pause it, and no wall-clock frame ran in between.
+void TestInspectorDojo::pausedStartsWithTheClockPaused()
+{
+    const QString sandboxDir = QCoreApplication::applicationDirPath()
+                               + "/test_sandbox_paused";
+    QDir(sandboxDir).removeRecursively();
+    QVERIFY(QDir().mkpath(sandboxDir));
+    const QString sandbox = sandboxDir + "/Sandbox.qml";
+    QVERIFY(QFile::copy(QString(SRCDIR) + "/TestSandbox.qml", sandbox));
+
+    // The shared loader was started without the flag and runs.
+    QJsonObject timeReq;
+    timeReq["action"] = "time";
+    auto running = request(timeReq);
+    QCOMPARE(running["paused"].toBool(true), false);
+
+    QProcess loader;
+    QProcessEnvironment env = QProcessEnvironment::systemEnvironment();
+    env.insert("QT_QPA_PLATFORM", "offscreen");
+    loader.setProcessEnvironment(env);
+    loader.setProcessChannelMode(QProcess::ForwardedChannels);
+    loader.start(m_loaderBin, {"--sbx", sandbox, "--paused"});
+    QVERIFY2(loader.waitForStarted(5000), "clayliveloader --paused failed to start");
+
+    const QString mainInspectDir = m_inspectDir;
+    const QString mainLastTs = m_lastResponseTs;
+    m_inspectDir = sandboxDir + "/.clay/inspect";
+    m_lastResponseTs.clear();
+    auto restore = qScopeGuard([&] {
+        m_inspectDir = mainInspectDir;
+        m_lastResponseTs = mainLastTs;
+        loader.terminate();
+        if (!loader.waitForFinished(3000))
+            loader.kill();
+    });
+
+    bool ready = false;
+    for (int i = 0; i < 50 && !ready; ++i) {
+        ready = QFile::exists(m_inspectDir + "/request.json");
+        if (!ready)
+            QTest::qWait(200);
+    }
+    QVERIFY2(ready, "the --paused loader's inspector did not start within 10 seconds");
+    QTest::qWait(500);
+
+    const QString expr = QStringLiteral(
+        "Qt.createQmlObject('import Clayground.Common; import QtQuick; "
+        "QtObject { property bool p: Clayground.paused }', root).p");
+    QJsonObject evalReq;
+    evalReq["action"] = "eval";
+    evalReq["eval"] = QJsonArray({expr});
+    auto seen = request(evalReq);
+    QVERIFY2(seen["eval"].toObject()[expr].toBool(false),
+             qPrintable("the scene saw Clayground.paused = "
+                        + QJsonDocument(seen).toJson(QJsonDocument::Compact)));
+    auto paused = request(timeReq);
+    QCOMPARE(paused["paused"].toBool(false), true);
 }
 
 QTEST_MAIN(TestInspectorDojo)

@@ -45,6 +45,8 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     
     // Create hot reload container
     m_container = new HotReloadContainer(this);
+    if (!m_liveLoader->labSrcDir().isEmpty())
+        m_container->addReloadDir(m_liveLoader->labSrcDir());
     layout->addWidget(m_container);
     
     // Connect hot reload container to live loader
@@ -55,6 +57,7 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
             
     // Connect to engine destruction to clean up overlays
     connect(m_container, &HotReloadContainer::engineAboutToBeDestroyed, [this]() {
+        // loader_reloads reads this line (tests/reload/run_reload_test.py)
         qDebug() << "Engine about to be destroyed - cleaning up overlays";
         if (m_logOverlay) {
             delete m_logOverlay;
@@ -86,6 +89,12 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     // SyntheticGamepad can bridge them without any hard dependency.
     m_timeCtrl = new ClayTimeControl(this);
     m_inputCtrl = new ClayInputControl(this);
+    // Paused here, before the first engine is configured, so the root is
+    // created with Clayground.paused already true and no frame ticker of its
+    // runs before a driver's first request. Pausing by request afterwards
+    // leaves a gap of wall-clock frames, which a stepped run had to throw
+    // away with a reload (#572).
+    m_timeCtrl->setPaused(loader->startPaused());
 
     // The annotation store (issue #182). Constructed before the first engine
     // is configured - it goes into every engine's root context.
@@ -109,6 +118,9 @@ MainWindow::MainWindow(ClayLiveLoader* loader, QWidget *parent)
     // now current. Context properties were already installed above.
     connect(m_container, &HotReloadContainer::engineCreated, [this]() {
         QTimer::singleShot(200, this, [this]() {
+            // Another timer already built them on this engine (createOverlays)
+            if (m_logOverlay)
+                return;
             const bool restoreSurface = m_annotationVisible;
             m_annotationVisible = false;
             createOverlays();
@@ -271,6 +283,17 @@ void MainWindow::configureEngine(QQmlEngine* engine)
     QString sandboxDir = m_liveLoader->sandboxDir();
     if (!sandboxDir.isEmpty())
         engine->addImportPath(sandboxDir);
+    putLabSrcFirst(engine);
+}
+
+void MainWindow::putLabSrcFirst(QQmlEngine* engine)
+{
+    // After every other addImportPath on the engine, because the last path
+    // added is the first one searched - even one that was there already. An
+    // addImportPath(bin/qml) after this one put the compiled Clayground.Lab
+    // back in front for every import that came later (#570).
+    if (!m_liveLoader->labSrcImportDir().isEmpty())
+        engine->addImportPath(m_liveLoader->labSrcImportDir());
 }
 
 void MainWindow::onSandboxUrlChanged()
@@ -292,6 +315,7 @@ void MainWindow::onSandboxUrlChanged()
     // setSandboxDir must precede setSource so the inspector has a write target
     // when the first load's ready/error signal fires.
     m_inspector->setInstanceName(m_liveLoader->instanceName());
+    m_inspector->setRestoreViewOnStart(m_liveLoader->restoreView());
     m_inspector->setSandboxDir(m_liveLoader->sandboxDir());
     m_annotations->setSandboxDir(m_liveLoader->sandboxDir());
     m_container->setSource(url);
@@ -419,10 +443,21 @@ void MainWindow::createOverlays()
         qWarning() << "Cannot create overlays - engine not ready";
         return;
     }
-    
+
+    // One set of overlays, on the current engine, and only engineAboutToBeDestroyed
+    // takes it down. Two timers ask for it - the first load's and every promoted
+    // reload's - and a reload inside the first load's 500 ms, or two reloads
+    // inside 200 ms, had both fire on one engine. The second set overwrote the
+    // pointers to the first, which was then never deleted: at the next reload it
+    // outlived its engine, a Behavior still animating in it wrote into an object
+    // of the dead engine, and the loader died with SIGSEGV (#565).
+    if (m_logOverlay)
+        return;
+
     // Ensure all required imports are available
     engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     engine->addImportPath("qml");
+    putLabSrcFirst(engine);
     
     // Create log overlay (MessageView)
     m_logOverlay = new QQuickWidget(engine, centralWidget());
@@ -530,6 +565,7 @@ void MainWindow::createOverlays()
                 this, SLOT(hideAnnotationOverlay()));
     }
 
+    // loader_reloads reads this line (tests/reload/run_reload_test.py)
     qDebug() << "Overlays created successfully";
 
     // Engine recreation is handled in the constructor

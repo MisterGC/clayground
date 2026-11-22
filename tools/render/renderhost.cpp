@@ -74,6 +74,19 @@ bool RenderHost::load(const QString& sandboxFile, const QSize& size)
     // this tool exists to remove.
     m_window->setColor(Qt::black);
 
+    // A window's render loop draws only when the scene asks for it, and so
+    // does renderIfRequested(): an item's update() reaches a render control as
+    // renderRequested, a changed scene graph as sceneChanged.
+    QObject::connect(m_renderControl.get(), &QQuickRenderControl::renderRequested,
+                     [this]() { m_frameRequested = true; });
+    QObject::connect(m_renderControl.get(), &QQuickRenderControl::sceneChanged,
+                     [this]() { m_frameRequested = true; });
+    // Every frame the window really drew, whoever drove it - the count a frame
+    // rate can be read from without a timer that ticks while nothing renders.
+    QObject::connect(m_window.get(), &QQuickWindow::afterRendering,
+                     m_window.get(), [this]() { ++m_renderedFrames; },
+                     Qt::DirectConnection);
+
     // The sandbox's own shaders exist only as sources until something bakes
     // them - the dojo loader does it on change, a render has to do it itself
     // or it pictures a scene whose effects silently failed to load.
@@ -85,6 +98,9 @@ bool RenderHost::load(const QString& sandboxFile, const QSize& size)
     // clayrender is meant to be run from anywhere.
     m_engine->addImportPath(QCoreApplication::applicationDirPath() + "/qml");
     m_engine->addImportPath(fi.absolutePath());
+    // Last, because the last path added is the first one searched.
+    if (!m_firstImportPath.isEmpty())
+        m_engine->addImportPath(m_firstImportPath);
     // Where anything the sandbox persists goes. Isolated by default (main
     // points CLAY_STORAGE_DIR at a throwaway directory), the person's real
     // store only when they asked for it with --prefs user.
@@ -286,16 +302,31 @@ void RenderHost::renderFrames(int count)
         QEventLoop loop;
         QTimer::singleShot(16, &loop, &QEventLoop::quit);
         loop.exec();
-
-        m_renderControl->polishItems();
-        m_renderControl->beginFrame();
-        m_renderControl->sync();
-        m_renderControl->render();
-        m_renderControl->endFrame();
-
-        if (m_frameRendered)
-            m_frameRendered();
+        renderFrame();
     }
+}
+
+bool RenderHost::renderIfRequested()
+{
+    if (!m_initialized || !m_frameRequested)
+        return false;
+    renderFrame();
+    return true;
+}
+
+void RenderHost::renderFrame()
+{
+    m_renderControl->polishItems();
+    // After the polish, not before: what the polish changed is this frame's
+    // content, a request from the sync or the render is the next frame's.
+    m_frameRequested = false;
+    m_renderControl->beginFrame();
+    m_renderControl->sync();
+    m_renderControl->render();
+    m_renderControl->endFrame();
+
+    if (m_frameRendered)
+        m_frameRendered();
 }
 
 QImage RenderHost::grabImage(int timeoutMs, QString* error) const
@@ -313,6 +344,7 @@ QImage RenderHost::grabImage(int timeoutMs, QString* error) const
     auto* self = const_cast<RenderHost*>(this);
 
     self->m_renderControl->polishItems();
+    self->m_frameRequested = false;
     self->m_renderControl->beginFrame();
     self->m_renderControl->sync();
     self->m_renderControl->render();

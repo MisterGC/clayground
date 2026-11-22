@@ -46,6 +46,19 @@ void applyCliArgsToLoader(QCommandLineParser& parser, ClayLiveLoader& loader)
 
         if (parser.isSet(INSTANCE_ARG))
             loader.setInstanceName(parser.value(INSTANCE_ARG));
+
+        loader.setRestoreView(parser.isSet(RESTORE_VIEW_ARG));
+        loader.setStartPaused(parser.isSet(PAUSED_ARG));
+
+        if (parser.isSet(LAB_SRC_ARG)) {
+            QString error;
+            auto const importDir = labSourceImportDir(&error);
+            if (importDir.isEmpty()) {
+                fprintf(stderr, "%s\n", qPrintable(error));
+                ::exit(1);
+            }
+            loader.setLabSource(importDir, labSourceDir());
+        }
     }
     else
         parser.showHelp(1);

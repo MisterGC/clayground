@@ -29,7 +29,7 @@ Element models, with the constants that define them:
 | resistor | conductance `1 / max(0.1, R)`; default 470 Ω |
 | bulb | fixed `RBULB = 6.0 Ω`, lit above 5 mW |
 | diode | piecewise-linear: open below `VF_DIODE = 0.7 V`, then `RDIODE = 10 Ω` |
-| LED | the same diode with a higher knee: `VF_LED = 2.0 V`, `RLED = 15 Ω` |
+| LED | the same diode with a higher knee: `VF_LED = 2.0 V`, `RLED = 15 Ω`; burns out above `I_MAX_LED = 30 mA` |
 | switch | `RCLOSED = 0.01 Ω` / `ROPEN = 1e9 Ω` |
 | transistor | NPN, three terminals (0 collector, 1 base, 2 emitter) — below |
 | gate | a logic package, five terminals (0 VCC, 1 A, 2 B, 3 Y, 4 GND) — below |
@@ -93,6 +93,18 @@ implementation goes wrong:
   `|i| > I_RATED = 1.5 A` without that collapse. Two 6 Ω
   bulbs in parallel sit at 3.01 Ω at *every* voltage — never a short,
   however hard you push.
+- **An LED burns out above its maximum, and stays burnt.** `I_MAX_LED =
+  30 mA` is the LED's row in the diode table (`imax`; the plain diode has
+  none). `solve()` only *reports* an LED over it (`overRated`): an
+  operating point does not change the board. `burnOut()` is the step that
+  does — it burns the LED furthest over its rating, solves again with that
+  LED open, and repeats, so of two LEDs in one series loop only the first
+  dies and the second goes dark for want of current. The caller marks the
+  burnt ones `blown` (a field only the LED carries, `parts.js`), and a
+  blown LED is open whatever it is offered until its card replaces it. On
+  the 4.5 V loop with the default LED the limit falls between two
+  neighbouring E12 values: 68 Ω is 29.9 mA and survives, 56 Ω is 35 mA
+  and does not.
 - **Per-wire current is peeled off by KCL**, not inferred from potential: an
   ideal wire *is* the net, so both its ends are at the same voltage and
   carry no orientation of their own.
@@ -177,8 +189,8 @@ implementation goes wrong:
   which is exactly what buying a chip gets you.
 - **Per-cell voltage**, 1.5–12.0 V in 0.5 V steps.
 - **Per-resistor resistance**, walking the real **E12 series**
-  (10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82 × 1/10/100, plus 10 kΩ) —
-  the actual convention, not a slider.
+  from 1 Ω to 1 MΩ (10, 12, 15, 18, 22, 27, 33, 39, 47, 56, 68, 82 × 0.1 to
+  × 10 k, plus 1 MΩ) — the actual convention, not a slider.
 - **Switch state**, part placement and rotation, junction insertion, erase.
 
 Note there is deliberately **no global battery parameter**: every cell
@@ -186,7 +198,9 @@ carries its own voltage, because voltage is owned by an object.
 
 ### What you can measure
 
-Per element: `v`, `i`, `on`, `power`. Per gate, on top of that: `func`,
+Per element: `v`, `i`, `on`, `power`. Per LED and diode, on top of that:
+`imax`, `blown`, `overRated`; per solve, `overRated` lists the LEDs over
+their maximum. Per gate, on top of that: `func`,
 `vcc`, `a`, `b`, `y`, `powered`, and `term[0..4]` — the current leaving
 each of its five pins, which is what lets the wire attribution treat a
 five-terminal part like any other. Per transistor, on top of that:
@@ -208,6 +222,8 @@ an honest `null`. Per solve: `netCount` and `iterations`.
 - What does an ammeter's own resistance cost the measurement?
   (`RSHUNT` is in the network like anything else.)
 - Why does an LED need a series resistor, and what happens without one?
+  (It carries more than its 30 mA and burns out — measured, and it stays
+  burnt.)
 - How much current does a base have to supply to command a given collector
   current, and what changes when the collector branch cannot take
   `BETA · Ib`? (That is the whole active/saturated distinction.)
@@ -233,18 +249,22 @@ an honest `null`. Per solve: `netCount` and `iterations`.
   depends on is exactly the transient the solver has no notion of.
 - *"How many gates can this one drive?"* — fan-out is a loading and timing
   question, and only the loading half is represented.
-- *"Will this LED (or this transistor) survive?"* — no thermal model, no
-  reverse breakdown, no maximum ratings.
+- *"How long will this LED survive?"* — the LED has one maximum rating,
+  a hard 30 mA line: below it the part lasts forever, above it it dies at
+  once. There is no thermal model, so no time to failure, no derating with
+  temperature, no pulsed rating and no reverse breakdown. *"Will this
+  transistor survive?"* — no maximum ratings at all.
 - *"How long will the battery last?"* — no capacity, no discharge.
 - *"Why does my breadboard circuit not work?"* — contact resistance, wire
   resistance and tolerance are all idealised away.
 
 ## API
 
-- `circuit.js` — `solve(elements, wires)`; helpers `buildNets`,
+- `circuit.js` — `solve(elements, wires)` and `burnOut(elements, wires)`
+  (`{ result, burnt }`, see above); helpers `buildNets`,
   `solveLinear`, `conductanceOf`, `stampNetwork`, `stateFrom`,
   `attributeWireCurrents`, `terminalCount`, `diodeSpec`. Constants
-  `RINT, RCLOSED, ROPEN, RSHUNT, RVOLT, RBULB, RLED, VF_LED, RDIODE,
+  `RINT, RCLOSED, ROPEN, RSHUNT, RVOLT, RBULB, RLED, VF_LED, I_MAX_LED, RDIODE,
   VF_DIODE, BETA, VF_BE, R_BE, VCE_SAT, R_SAT, R_EARLY, R_BE_OFF,
   R_CE_OFF, R_GATE_IN, R_GATE_Q, R_GATE_OUT, V_GATE_MIN, GLEAK, I_RATED`.
 - `route.js` — `routeAll(links, obstacles, grid)` and `routeOne(a, b,
