@@ -91,11 +91,15 @@ Node {
     /*!
         \qmlproperty var BoardWires3D::lines
         \readonly
-        \brief What the batch draws; rebuilt on every board change, hover, eraser flip and \l solved.
+        \brief What the batch draws; rebuilt on every layout change, hover, eraser flip and \l solved.
+
+        It follows the board's \c layoutRev, not its \c rev: a field change
+        re-solves, and the new \l solved rebuilds the lines once. Listing
+        \c rev as well built every line twice for one flipped switch (#577).
     */
     readonly property var lines: {
         if (!board) return []
-        board.rev; board.hoverHit; board.eraser; root.solved
+        board.layoutRev; board.hoverHit; board.eraser; root.solved
         const out = []
         for (const w of board.wires) {
             const pts = pathOf(w)
@@ -156,7 +160,7 @@ Node {
         visible: root.board !== null && root.board.wiringFrom !== null
         coords: {
             if (!root.board || !root.board.wiringFrom) return []
-            root.board.rev
+            root.board.layoutRev
             const c = root.board.cursorW
             const p = root.board.previewPath(root.board.wiringFrom, { x: c.x, z: c.z })
             return [p.map(q => Qt.vector3d(q.x, root.y, q.z))]

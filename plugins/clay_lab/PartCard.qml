@@ -124,7 +124,7 @@ LabPanel {
 
     readonly property var screenAt: {
         if (!board || !view || !camera) return Qt.vector3d(0, 0, 0)
-        board.rev; camera.scenePosition; camera.sceneRotation
+        board.layoutRev; camera.scenePosition; camera.sceneRotation
         if (!part) return Qt.vector3d(0, 0, 0)
         return view.mapFrom3DScene(Qt.vector3d(board.cellX(part.col), anchorY,
                                                board.cellZ(part.row) + anchorDz))

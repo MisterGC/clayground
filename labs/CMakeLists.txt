@@ -118,6 +118,34 @@ if(BUILD_TESTING AND TARGET clayliveloader)
                                  lab_rest_hydraulics-101 lab_moving_hydraulics-101
                 PROPERTIES LABELS "labs;integration;plugins/clay_lab;tools/lab-check"
                            SKIP_RETURN_CODE 77 TIMEOUT 180)
+
+            # lab_flip_electronics-101 - a switch flip on the XOR board under a
+            # frame at the median, opening the board under 50 ms, and a flip
+            # that hands out no new parts, wires or routes (#577). A flip took
+            # 100 to 233 ms, and only a clock around it says so.
+            #
+            # The millisecond limits are checked on macOS, where they were
+            # measured. Elsewhere the test prints the timings and checks the
+            # objects only: the Windows CI runner has no GPU and opened the
+            # board in 106 to 160 ms, a flip in up to 15 ms - a fixed limit
+            # there measures the runner, not the board.
+            if(APPLE)
+                set(_flipTimings enforce)
+            else()
+                set(_flipTimings report)
+            endif()
+            add_test(NAME lab_flip_electronics-101
+                COMMAND ${Python3_EXECUTABLE}
+                        ${CMAKE_SOURCE_DIR}/tools/lab-check/flip_check.py ${_elec}
+                        --open "applyScenario('logic-xor')"
+                        --flip "toggleSwitch(root.elements.filter(e => e.type === 'switch')[0].id)"
+                        --keep "board.parts" --keep "board.wires" --keep "board.routes"
+                        --keep-each "Array.from({ length: partRepeater.count }, (_, i) => partRepeater.objectAt(i))"
+                        --timings ${_flipTimings}
+                        --clayrender $<TARGET_FILE:clayrender>)
+            set_tests_properties(lab_flip_electronics-101
+                PROPERTIES LABELS "labs;integration;plugins/clay_lab;tools/lab-check"
+                           SKIP_RETURN_CODE 77 TIMEOUT 180)
         endif()
 
         foreach(_sbx IN LISTS _lab_sandboxes)
